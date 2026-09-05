@@ -31,6 +31,17 @@
 - **レビューでの確認義務**: コードレビューやピアレビューの前後には、必ず `docs/decisions.md` と
   `docs/bugs.md` を参照し、既知の決定事項・既知のバグ発生箇所との整合性を確認する。
 
+## ブランチごとの責任分化
+
+- **`main`**: 提出物としてのデリバラブルのみを含む。`docs/`(調査記録・意思決定記録・バグ記録)は含めない。
+  - 含めるもの: ソースコード(`fly_in.py`, `droneflow/` 等)、`Makefile`、`.gitignore`、`README.md`、`CLAUDE.md`。
+  - `CLAUDE.md` はAI協業のための運用ルールであり「ドキュメント」(調査記録等)には含めない。`main` に残す。
+- **`develop`**: `main` の内容に加えて `docs/` 配下(調査記録・意思決定記録・バグ記録)一式を含む、開発用の完全な履歴。
+  - 上記「ドキュメント化ルール」で記録するものは、原則として `develop` 側にのみコミットする。
+  - `feature/xxx` / `fix/xxx` / `test/xxx` ブランチは `develop` から切って `develop` に戻す(cc_space共通ルールの通り)。
+- 2026-09-05に、`main` の履歴から `docs/` を遡って削除(force push)し、`develop` を作り直してこの分化を確立した。
+  経緯は(削除前の状態を含め)ローカルのgitタグ `backup/main-pre-rewrite` / `backup/develop-pre-rewrite` に残っている。
+
 ## 関連プロジェクトとの整合ルール
 
 - `../cordection/CLAUDE.md`(42課題「Codexion」用)は本ファイルと**基本的に同じ構成・内容のルール**
