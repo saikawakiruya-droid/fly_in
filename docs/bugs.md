@@ -15,4 +15,11 @@
 
 ---
 
-(まだバグ記録はありません)
+## 2026-09-17: Drone.current_zone の型ヒントとdocstringの不整合
+
+- 発生箇所: `droneflow/models/drone.py:20`(docstring)/`:32`(型ヒント)
+- 症状: docstringには「IN_TRANSIT中はNoneになる」と明記されているのに、
+  型ヒントは `current_zone: str`(Optionalでない)になっていた。mypy --strictの下で
+  IN_TRANSIT中に `current_zone = None` を代入するコードを書くと型エラーになる。
+- 原因: スケルトン作成時にdocstringと型ヒントが同期していなかった。
+- 対応状況: 対応済み。型ヒントを `current_zone: str | None` に修正し、docstringと一致させた。
