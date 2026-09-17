@@ -24,3 +24,65 @@
   マップは今後の実装・テストで直接使うため追跡対象とした。
 - 検討した代替案: PDFも含めて全ファイルをコミットする案もあったが、
   「配布資料」と「成果物」を分ける方が管理上明確なため見送った。
+
+## 2026-09-17: Stage 1(Domain Model)の設計方針3点
+
+- 決定内容:
+  1. `Network` は無防備な入れ物にする。`add_zone`/`add_connection` は重複名・重複接続(a-b==b-a)・
+     start/endの一意性を一切検証しない。これらのバリデーションは全てStage 2(パーサ)側の責務とする。
+  2. `ZoneType.turn_cost` を `BLOCKED` に対して呼び出した場合は `ValueError` を送出する契約とする。
+     呼び出し側(Pathfinding等)は必ず `is_traversable` を先にチェックしてから `turn_cost` を呼ぶ利用契約になる。
+  3. `Network.get_zone` / `start_zone` / `end_zone` が対象を発見できない場合のために、
+     `errors.py` に専用例外(例: `ZoneNotFoundError(FlyInError)`)を追加し、組み込みの `KeyError` は使わない。
+- 理由:
+  1. パーサが検証を完了した上でNetworkに渡す前提にすることで、Network自身のクラスを単純に保てる。
+     パーサ側のStage 2実装で、パース制約(章VII.4: 重複名・重複接続・start/end一意性)違反を
+     行番号付きの`ParseError`に変換する処理を一箇所に集約できる。
+  2. `int`型の`turn_cost`に「blockedのコスト」という概念自体が存在しないため、
+     戻り値で誤魔化す(例: 0やInt.MAXを返す)よりも、実行時契約として呼び出しを禁止する方が
+     呼び出し側の実装ミスを早期に検知できる。
+  3. パーサ・シミュレーション両方から一貫して`FlyInError`系の例外体系で捕捉できるようにするため。
+     `KeyError`のまま伝播させると、呼び出し側でのcatch節がバラバラになりうる。
+- 検討した代替案:
+  1. Network自身が重複チェックやstart/end一意性をガードする案。Stage2の実装が単純になる利点はあるが、
+     Networkがバリデーション責務まで持つとクラスが厚くなるため見送った。
+  2. `turn_cost`がblockedに対して便宜的な数値(0など)を返す案。「コスト0=タダで移動できる」という
+     誤解を招きやすく、呼び出し側の実装ミスに気づきにくくなるため見送った。
+  3. 専用例外を追加せず組み込みの`KeyError`をそのまま使う案。実装コストは最小だが、
+     `FlyInError`系の例外体系から外れてしまうため見送った。
+
+## 2026-09-17: start_hub / end_hub の max_drones を None に正規化する責務
+
+- 決定内容: マップファイルで `start_hub` / `end_hub` に `max_drones=N` が指定されていても、
+  パーサ(Stage 2)がその値を捨てて `Zone.max_drones` を必ず `None` に正規化する。
+  `Zone`(Stage 1のdataclass自体)は `role` と `max_drones` の整合性を一切検証・強制しない。
+- 理由: `Zone.has_unlimited_capacity`(role が START/END なら True)を利用側が先にチェックする
+  契約だけでも動作上は成立するが、`zone.py`のdocstring(`max_drones: ... always the case for
+  the start and end zones` = 常にNoneであるべき)という不変条件を実際に保証する主体を
+  明確にしておく必要があった。「Networkは無防備な入れ物、検証はパーサの責務」という
+  既存の設計方針(本ファイル内 2026-09-17 決定1)と一貫させ、ここでもパーサ側の責務とした。
+- 検討した代替案:
+  1. `Zone`自身が`__post_init__`等で`role`がSTART/ENDなら`max_drones`を強制的に`None`に
+     上書きする案。データの不変条件をクラス自身が保証できる利点はあるが、
+     「Zoneは無防備なデータ入れ物、バリデーション/正規化はパーサの責務」という
+     既存方針から逸脱するため見送った。
+  2. 正規化を行わず、`has_unlimited_capacity`の契約だけに頼る案(パースした値をそのまま保持)。
+     `max_drones`の値がrole次第で意味を持ったり持たなかったりする状態になり、
+     デバッグ時に「なぜstart_hubなのにmax_drones=5が入っているのか」と混乱を招くため見送った。
+
+### 補足: get_zone / start_zone / end_zone の使い分け
+
+- 決定内容:
+  - `Network.get_zone(name)` は名前検索の失敗として `ZoneNotFoundError(FlyInError)`(要`errors.py`に追加、
+    `zone_name: str` 属性を持つ)を送出する。
+  - `Network.start_zone` / `end_zone` は「roleで一意なはずのゾーンが0件または複数件」という、
+    本来パーサ制約(章VII.4: start_hub/end_hubはそれぞれちょうど1つ)で防がれているべき不変条件違反であり、
+    実運用のパーサが正しく動いていれば発生しないケースのため、既存の `SimulationError` を送出する
+    防御的チェックとして扱う。新規の専用例外は追加しない。
+- 理由: `get_zone`は「与えられた名前」という具体的な検索キーを持つため`zone_name`属性を持つ専用例外が自然に噛み合うが、
+  `start_zone`/`end_zone`の異常は「探すべき名前」ではなく「あるべき不変条件の破れ」なので、性質が異なる。
+  後者に無理に`zone_name`を割り当てる(例: 疑似的に`"start_hub"`という文字列を渡す)よりも、
+  既存の`SimulationError`(あり得ない状態を表す汎用例外)を使う方が意味的に正しい。
+- 検討した代替案: `ZoneNotFoundError`の`zone_name`属性を`identifier`のような汎用名にリネームし、
+  `start_zone`/`end_zone`でも使い回す案。クラス数は減るが、属性の意味が「名前」なのか「役割」なのか
+  曖昧になり可読性が下がるため見送った。

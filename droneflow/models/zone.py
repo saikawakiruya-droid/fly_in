@@ -14,13 +14,22 @@ class ZoneType(Enum):
 
     @property
     def turn_cost(self) -> int:
-        """Return the number of turns required to move into this zone type."""
-        raise NotImplementedError
+        """Return the number of turns required to move into this zone type.
+
+        Raises:
+            ValueError: If called on BLOCKED, which has no turn cost.
+                Callers must check ``is_traversable`` first.
+        """
+        if self is ZoneType.BLOCKED:
+            raise ValueError("blocked zones have no turn cost")
+        if self is ZoneType.RESTRICTED:
+            return 2
+        return 1
 
     @property
     def is_traversable(self) -> bool:
         """Return whether a drone may ever enter a zone of this type."""
-        raise NotImplementedError
+        return self is not ZoneType.BLOCKED
 
 
 class ZoneRole(Enum):
@@ -57,4 +66,4 @@ class Zone:
     @property
     def has_unlimited_capacity(self) -> bool:
         """Return True for the start and end zones, which ignore max_drones."""
-        raise NotImplementedError
+        return self.role in (ZoneRole.START, ZoneRole.END)

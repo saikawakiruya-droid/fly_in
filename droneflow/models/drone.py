@@ -29,7 +29,7 @@ class Drone:
     """
 
     drone_id: int
-    current_zone: str
+    current_zone: str | None
     status: DroneStatus = DroneStatus.AT_ZONE
     in_transit_connection: str | None = None
     turns_remaining: int = 0
@@ -37,4 +37,4 @@ class Drone:
     @property
     def is_delivered(self) -> bool:
         """Return whether this drone has reached the end zone."""
-        raise NotImplementedError
+        return self.status is DroneStatus.DELIVERED
