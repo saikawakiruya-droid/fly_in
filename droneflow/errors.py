@@ -19,5 +19,17 @@ class ParseError(FlyInError):
         super().__init__(f"line {line_number}: {reason}")
 
 
+class ZoneNotFoundError(FlyInError):
+    """Raised when a zone name cannot be found in the network.
+
+    Attributes:
+        zone_name: The name that was looked up and not found.
+    """
+
+    def __init__(self, zone_name: str) -> None:
+        self.zone_name = zone_name
+        super().__init__(f"zone not found: {zone_name}")
+
+
 class SimulationError(FlyInError):
     """Raised when the simulation reaches an illegal or unresolvable state."""
