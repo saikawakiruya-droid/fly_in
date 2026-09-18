@@ -27,6 +27,12 @@ python -m pytest tests/
 - `tests/models/test_network.py` — `Network` の登録・検索・隣接・start/end取得と、
   それぞれの例外契約(`ZoneNotFoundError` / `SimulationError`)
 - `tests/test_errors.py` — `ZoneNotFoundError` の例外階層・属性
+- `tests/parsing/test_map_parser.py` — `MapParser`(章VII.4のパーサ制約全般):
+  仕様書記載のサンプルマップの正常系パース、メタデータ省略時のデフォルト値
+  (zone/color/max_drones/max_link_capacity)、start/end hubのmax_drones正規化、
+  重複(ゾーン名・接続・start/end hub)の即時検出、start/end hub欠落、不正な
+  ゾーンタイプ・メタデータキー・メタデータ構文・座標・ゾーン名、未定義ゾーンへの
+  接続参照、空ファイル、自己ループ接続・座標重複の許容(いずれもParseErrorにしない)
 
-対象はStage 1(Domain Model)。Stage 2以降(パーサ、経路探索、シミュレーション等)の
-実装が進み次第、対応するテストディレクトリ(`tests/parsing/` 等)を追加していく想定。
+対象はStage 1(Domain Model)・Stage 2(Parser & Validation)。Stage 3以降
+(経路探索、シミュレーション等)の実装が進み次第、対応するテストディレクトリを追加していく想定。
