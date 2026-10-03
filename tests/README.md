@@ -33,6 +33,8 @@ python -m pytest tests/
   重複(ゾーン名・接続・start/end hub)の即時検出、start/end hub欠落、不正な
   ゾーンタイプ・メタデータキー・メタデータ構文・座標・ゾーン名、未定義ゾーンへの
   接続参照、空ファイル、自己ループ接続・座標重複の許容(いずれもParseErrorにしない)
+- `tests/output/test_formatter.py` — `TurnLogFormatter`: `D<ID>-<行き先>` の空白区切り整形、
+  呼び出し順の保持(ソートしない)、接続名のそのまま出力、空ターンのスキップ、`capsys` での標準出力検査
 
-対象はStage 1(Domain Model)・Stage 2(Parser & Validation)。Stage 3以降
+対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 6(Output Formatter)。Stage 3以降
 (経路探索、シミュレーション等)の実装が進み次第、対応するテストディレクトリを追加していく想定。
