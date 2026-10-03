@@ -168,7 +168,8 @@ sequenceDiagram
   - 1ターン1行、そのターンに動いたドローンのみ `D<ID>-<zone>`(または飛行中は `D<ID>-<connection>`)で列挙
   - 配達済みドローンは以降の行から除外
 - 完了条件: 課題指定の出力フォーマットに完全一致するログが得られる
-- 依存: Stage 5
+- 依存: Stage 5(ただし入力は `Move` のみのため、2026-10-03に実装順をStage 3〜5より先行へ変更。
+  詳細は `2026-10-03_workflow-stage6-output-formatter.md` と `docs/decisions.md` を参照)
 
 ## Stage 7 — Visualization
 
