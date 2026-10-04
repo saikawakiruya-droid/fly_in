@@ -294,3 +294,11 @@ def test_hub_role_is_used_for_plain_hub_lines(tmp_path: Path) -> None:
     text = MINIMAL_MAP + "hub: h 2 2\n"
     world = MapParser(write_map(tmp_path, text)).parse()
     assert world.network.get_zone("h").role is ZoneRole.HUB
+
+
+def test_keyword_without_colon_raises_parse_error(tmp_path: Path) -> None:
+    """A bare keyword with no colon is a parse error, not a crash."""
+    text = MINIMAL_MAP + "hub\n"
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == 4
