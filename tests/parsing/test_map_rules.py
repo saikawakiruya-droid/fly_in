@@ -62,3 +62,13 @@ def test_unique_connection_allows_distinct_pairs_and_self_loops() -> None:
     network.add_connection(Connection("a", "b"))
     UniqueConnection().check(Connection("a", "c"), network)
     UniqueConnection().check(Connection("a", "a"), network)
+
+
+def test_zone_rules_ignore_connections_and_vice_versa() -> None:
+    """A zone rule skips connection entries; a connection rule skips zones."""
+    network = network_with(zone("a"))
+    network.add_connection(Connection("a", "a"))
+    UniqueZoneName().check(Connection("a", "a"), network)
+    SingleStartAndEnd().check(Connection("a", "a"), network)
+    KnownEndpoints().check(zone("a"), network)
+    UniqueConnection().check(zone("a"), network)

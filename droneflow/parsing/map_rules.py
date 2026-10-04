@@ -4,6 +4,7 @@ Each rule inspects a newly built entry against the Network assembled so far
 and raises ValueError when the entry would break a parser constraint.
 """
 
+from abc import ABC, abstractmethod
 from typing import Protocol
 
 from ..models.connection import Connection
@@ -19,47 +20,74 @@ class Rule(Protocol):
         """Raise ValueError if ``entry`` violates this rule."""
 
 
-class UniqueZoneName:
+class ZoneRule(ABC):
+    """A rule about zones; entries of any other kind are ignored."""
+
+    def check(self, entry: Entry, network: Network) -> None:
+        if isinstance(entry, Zone):
+            self.check_zone(entry, network)
+
+    @abstractmethod
+    def check_zone(self, zone: Zone, network: Network) -> None:
+        """Raise ValueError if ``zone`` violates this rule."""
+
+
+class ConnectionRule(ABC):
+    """A rule about connections; entries of any other kind are ignored."""
+
+    def check(self, entry: Entry, network: Network) -> None:
+        if isinstance(entry, Connection):
+            self.check_connection(entry, network)
+
+    @abstractmethod
+    def check_connection(
+        self, connection: Connection, network: Network
+    ) -> None:
+        """Raise ValueError if ``connection`` violates this rule."""
+
+
+class UniqueZoneName(ZoneRule):
     """A zone name may be declared only once."""
 
-    def check(self, entry: Entry, network: Network) -> None:
-        if isinstance(entry, Zone) and entry.name in network.zones:
-            raise ValueError(f"duplicate zone name: {entry.name}")
+    def check_zone(self, zone: Zone, network: Network) -> None:
+        if zone.name in network.zones:
+            raise ValueError(f"duplicate zone name: {zone.name}")
 
 
-class SingleStartAndEnd:
+class SingleStartAndEnd(ZoneRule):
     """At most one start_hub and one end_hub may be declared."""
 
-    def check(self, entry: Entry, network: Network) -> None:
-        if not isinstance(entry, Zone) or entry.role is ZoneRole.HUB:
+    def check_zone(self, zone: Zone, network: Network) -> None:
+        if zone.role is ZoneRole.HUB:
             return
-        if any(zone.role is entry.role for zone in network.zones.values()):
-            raise ValueError(f"duplicate {entry.role.value}")
+        if any(other.role is zone.role for other in network.zones.values()):
+            raise ValueError(f"duplicate {zone.role.value}")
 
 
-class KnownEndpoints:
+class KnownEndpoints(ConnectionRule):
     """A connection may only join zones that were already declared."""
 
-    def check(self, entry: Entry, network: Network) -> None:
-        if not isinstance(entry, Connection):
-            return
-        for name in (entry.zone_a, entry.zone_b):
+    def check_connection(
+        self, connection: Connection, network: Network
+    ) -> None:
+        for name in (connection.zone_a, connection.zone_b):
             if name not in network.zones:
                 raise ValueError(f"unknown zone: {name}")
 
 
-class UniqueConnection:
+class UniqueConnection(ConnectionRule):
     """a-b and b-a are the same connection and may be declared only once."""
 
-    def check(self, entry: Entry, network: Network) -> None:
-        if not isinstance(entry, Connection):
-            return
+    def check_connection(
+        self, connection: Connection, network: Network
+    ) -> None:
         if any(
-            existing.other_end(entry.zone_a) == entry.zone_b
-            for existing in network.neighbors(entry.zone_a)
+            existing.other_end(connection.zone_a) == connection.zone_b
+            for existing in network.neighbors(connection.zone_a)
         ):
             raise ValueError(
-                f"duplicate connection: {entry.zone_a}-{entry.zone_b}"
+                f"duplicate connection: "
+                f"{connection.zone_a}-{connection.zone_b}"
             )
 
 
