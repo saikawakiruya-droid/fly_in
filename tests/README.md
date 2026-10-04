@@ -33,6 +33,13 @@ python -m pytest tests/
   重複(ゾーン名・接続・start/end hub)の即時検出、start/end hub欠落、不正な
   ゾーンタイプ・メタデータキー・メタデータ構文・座標・ゾーン名、未定義ゾーンへの
   接続参照、空ファイル、自己ループ接続・座標重複の許容(いずれもParseErrorにしない)
+- `tests/parsing/test_map_format.py` — 仕様表(`MapFormat`)の変換部品(整数・正の整数・
+  ゾーン名・ゾーンタイプ・接続の両端)、`FieldSpec` の既定値とエラー文言、hub / start_hub /
+  connection / header の組み立て(max_drones の既定値と start/end での破棄)
+- `tests/parsing/test_line_tokenizer.py` — `LineTokenizer` の構文検査(トークン数・括弧・
+  key=value・未知キー・未知キーワード)と行番号、ヘッダー行の別扱い
+- `tests/parsing/test_map_rules.py` — 行をまたぐ規則(ゾーン名重複・start/end重複・
+  未定義ゾーンへの接続・接続重複と自己ループ)
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)。Stage 3以降
 (経路探索、シミュレーション等)の実装が進み次第、対応するテストディレクトリを追加していく想定。
