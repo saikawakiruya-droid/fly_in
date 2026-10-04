@@ -6,6 +6,7 @@ from ..models.world import World
 from .line_tokenizer import LineTokenizer
 from .map_format import DEFAULT_FORMAT
 from .map_reader import MapReader
+from .map_rules import default_rules
 from .map_validator import MapValidator
 
 
@@ -28,7 +29,7 @@ class MapParser:
                 constraint, including the offending line number and cause.
         """
         tokenizer = LineTokenizer(DEFAULT_FORMAT)
-        validator = MapValidator()
+        validator = MapValidator(default_rules())
         for src in MapReader(self.path):
             if src.number == 1:
                 validator.accept(tokenizer.tokenize_header(src))

@@ -9,7 +9,7 @@ from ..models.world import World
 from ..models.zone import Zone, ZoneRole
 from .line_tokenizer import RawLine
 from .map_format import DroneCount, Entry
-from .map_rules import Rule, default_rules
+from .map_rules import Rule
 
 
 class MapValidator:
@@ -19,8 +19,8 @@ class MapValidator:
     several lines belong to the Rule objects. This class only coordinates.
     """
 
-    def __init__(self, rules: Sequence[Rule] | None = None) -> None:
-        self._rules = default_rules() if rules is None else list(rules)
+    def __init__(self, rules: Sequence[Rule]) -> None:
+        self._rules = list(rules)
         self._network = Network()
         self._nb_drones: int | None = None
         self._last_number = 0
