@@ -217,11 +217,14 @@
   3. `line_tokenizer.py`(**分解**): `MapFormat` から「位置引数の数」「許可するメタデータキー」を引き、
      構文だけを見て `SourceLine` を `RawLine`(文字列のまま)に割る。`[ ]` の対応、`key=value` の形、
      `a-b` の形、未知キーの拒否(許可キーは仕様表から得る)を扱う。
-  4. `map_validator.py`(**検証**): フィールド単位の変換と既定値の補完は `LineSpec` に委譲し、
-     行をまたぐ検査は状態を持つ小さな**規則オブジェクト**に委譲する(名前の重複、接続の重複、
-     未知ゾーンへの接続、start/end の個数など。それぞれ `check(...)` と、必要なら `finish()` を持つ)。
-     validator 自身は「仕様に変換させ、規則に確認させ、`Network` に追加する」だけの調整役になる。
-  5. `map_parser.py`(**司令塔**): 上の部品を呼び出して `World` を組み立てるだけにする。
+  4. `map_rules.py`(**行をまたぐ規則**): 名前の重複、接続の重複、未知ゾーンへの接続、start/end の
+     重複を、それぞれ小さな**規則オブジェクト**(`check(entry, network)` を持つ `Protocol` 準拠のクラス)
+     にする。規則は組み立て済みの `Network` を見るだけで自前の状態を持たず、違反時は `ValueError`。
+  5. `map_validator.py`(**検証**): フィールド単位の変換と既定値の補完は `LineSpec` に、行をまたぐ検査は
+     規則オブジェクトに委譲し、自身は「仕様に変換させ、規則に確認させ、`Network` に追加する」だけの
+     調整役になる。`ValueError` を行番号つきの `ParseError` に包み直すのはここ1箇所。
+     start/end の欠落(全行を読み終えないと分からない検査)は `finish()` で行い、`World` を返す。
+  6. `map_parser.py`(**司令塔**): 上の部品を呼び出して `World` を組み立てるだけにする。
   あわせて以下を決めた。
   - 行番号は `SourceLine` / `RawLine` に持たせ、各段階が `ParseError(number, ...)` を送出する。
     `line_number` 引数の引き回しと、`_last_line_number` のような共有状態をなくす。
