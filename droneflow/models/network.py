@@ -46,6 +46,20 @@ class Network:
         """Return all connections incident to the given zone."""
         return self._adjacency.get(name, [])
 
+    def connection_between(
+        self, zone_a: str, zone_b: str
+    ) -> Connection | None:
+        """Return the connection linking two zones, in either direction.
+
+        Returns:
+            The connection, or None if the zones are not directly linked.
+            Passing the same name twice finds a self-loop, if declared.
+        """
+        for connection in self.neighbors(zone_a):
+            if connection.other_end(zone_a) == zone_b:
+                return connection
+        return None
+
     @property
     def start_zone(self) -> Zone:
         """Return the unique start_hub zone.
