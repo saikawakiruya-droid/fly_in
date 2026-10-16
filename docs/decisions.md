@@ -193,3 +193,168 @@
      先行できるのは静的な土台(`Network`の描画)に限られるため、今回は見送った。
   3. フォーマッタ内でドローンIDをソートする案。出力が決定的になる利点はあるが、整形と順序決定の
      責務が混ざるため見送った。順序の固定が必要になれば上流(Stage 5)で担保する。
+
+## 2026-10-04: MapParserを「読み取り・分解・検証」に委譲で分割し、行の仕様を宣言的な仕様表にまとめる
+
+- 決定内容: `droneflow/parsing/map_parser.py`(286行)を、継承ではなく**委譲**で次のファイルに分ける。
+  公開API(`MapParser(path).parse()` → `World`)は変えない。
+  1. `map_reader.py`(**読み取り**): ファイルを開き、`SourceLine(number, text)` を1行ずつ返す。
+  2. `map_format.py`(**仕様表**): 各行が何を持つかを宣言するオブジェクト群と、実際の定義表。
+     - `FieldSpec`: フィールド名、変換を担う部品(`Converter`)、既定値を持つ。
+       `read(raw)` で文字列を型付きの値に変える。失敗時は行番号つきで `ParseError` にする。
+     - `Converter`(整数、正の整数、列挙値(`ZoneType`)、文字列など): 1つの値を変換するだけの小さな部品。
+       `FieldSpec` が保持して呼び出す(継承ではなく委譲)。
+     - `LineSpec`: キーワード、位置引数の `FieldSpec` の並び、メタデータの `FieldSpec` の並び、
+       取り出した値から `Zone` / `Connection` / `nb_drones` を作る組み立て役(builder)を持つ。
+     - `MapFormat`: `LineSpec` を束ね、`spec_for(keyword)` で引ける定義表。定義表は次のとおり。
+
+       | 行の種類 | 位置引数 | メタデータ(型、既定値) |
+       |---|---|---|
+       | `nb_drones` | n(正の整数) | なし |
+       | `hub` | name, x, y | `zone`(ZoneType、normal)、`color`(文字列、なし)、`max_drones`(正の整数、**1**) |
+       | `start_hub` / `end_hub` | name, x, y | 同上。ただし `max_drones` は**なし(None)** |
+       | `connection` | name1-name2 | `max_link_capacity`(正の整数、1) |
+  3. `line_tokenizer.py`(**分解**): `MapFormat` から「位置引数の数」「許可するメタデータキー」を引き、
+     構文だけを見て `SourceLine` を `RawLine`(文字列のまま)に割る。`[ ]` の対応、`key=value` の形、
+     `a-b` の形、未知キーの拒否(許可キーは仕様表から得る)を扱う。
+  4. `map_rules.py`(**行をまたぐ規則**): 名前の重複、接続の重複、未知ゾーンへの接続、start/end の
+     重複を、それぞれ小さな**規則オブジェクト**にする。validator が保持するのは `check(entry, network)` を
+     持つ `Rule`(`Protocol`)。規則は組み立て済みの `Network` を見るだけで自前の状態を持たず、
+     違反時は `ValueError`。「規則は Zone 用か Connection 用のどちらか」という is-a 関係には**継承**を
+     使い、基底クラス `ZoneRule` / `ConnectionRule`(ABC)が `check` で型の振り分けを行い、
+     サブクラスは `check_zone` / `check_connection` だけを実装する(Template Method)。
+  5. `map_validator.py`(**検証**): フィールド単位の変換と既定値の補完は `LineSpec` に、行をまたぐ検査は
+     規則オブジェクトに委譲し、自身は「仕様に変換させ、規則に確認させ、`Network` に追加する」だけの
+     調整役になる。`ValueError` を行番号つきの `ParseError` に包み直すのはここ1箇所。
+     start/end の欠落(全行を読み終えないと分からない検査)は `finish()` で行い、`World` を返す。
+  6. `map_parser.py`(**司令塔**): 上の部品を呼び出して `World` を組み立てるだけにする。
+  あわせて以下を決めた。
+  - 行番号は `SourceLine` / `RawLine` に持たせ、各段階が `ParseError(number, ...)` を送出する。
+    `line_number` 引数の引き回しと、`_last_line_number` のような共有状態をなくす。
+  - 「ゾーン名に `-` を含まない」は、ゾーンの名前フィールドの検査(`Converter`)として仕様表側に置く。
+  - `nb_drones` の「1行目でなければならない」という位置の制約は、仕様表に持たせず司令塔が
+    `SourceLine.number == 1` を見て扱う。
+  - hub と start/end の `max_drones` 既定値の違い(2026-09-17のバグ箇所)は、仕様表の上で
+    `LineSpec` ごとに宣言し、テストで明示的に確認する。
+  - 2026-09-17の決定(重複を行単位で即時検出、未知キーは `ParseError`、座標重複・自己ループは許可)は
+    そのまま維持する。
+  - 値の型の扱い(仕様表から取り出した値を `dict[str, object]` にせず、課題の type safe 要件=mypy を
+    満たす形にすること)は未決。**実装前に別途検証する。**
+- 理由: 現状は `line_number` を全メソッドに引き回してシグネチャが折れ、`_parse_zone_line` が約55行と
+  多くの責務を抱えている。`_ZONE_KEYWORDS` などの定数と、行ごとに似た構造のメソッドが散らばり、
+  「どの行がどんな値を持つか」が一覧できない。仕様を宣言的に1か所へまとめれば、仕様の追加・変更が
+  表の編集で済み、既定値の違いも一目で分かる。各部品は小さな責務に絞られ、tokenizer・仕様・規則を
+  それぞれ単体テストできる。継承よりも委譲を優先するというユーザーの方針(2026-10-04に表明)にも沿う。
+- 検討した代替案:
+  1. 分割せず、`line_number` の共有状態化とヘルパー統合だけで行数を削る案。変更は最小で済むが、
+     責務過多と「仕様が散らばる」問題は残るため見送った。
+  2. 基底クラス(`LineParser`)を作り、zone用・connection用のサブクラスで分ける案。メタデータ処理の
+     再利用が継承頼みになり、方針に反するため見送った。
+  3. フィールド検査に pydantic を使う案。禁止はされていないが、担えるのは値の検査だけで、行の形
+     (位置引数)、キーワードとロールの対応、行をまたぐ検査、行番号つきエラーへの変換は担えない。
+     依存追加、`ValidationError` の変換、緩い型変換(`"1_000"` が通るなど)のコストに見合わないため
+     見送った。仕様表方式なら、依存を増やさずに仕様全体を1か所に宣言できる。
+  4. 仕様表を作らず、検証を標準ライブラリで行ごとに手書きし続ける案。仕様が散らばる問題が残るため見送った。
+  5. 規則クラスを継承なしの独立したクラス(`isinstance` の振り分けを各規則に書く)にする案。
+     同じ振り分けが4回繰り返され、引数の型の絞り込みも各規則が負うため、is-a 関係が明確な
+     この部分は継承を採用した(上記)。一方、`ZoneBuilder` の hub / start・end の分岐は分岐が1行で、
+     サブクラス化に見合わないため、継承せず現状の委譲のままとした。
+
+### 構造図(静的な形)
+
+```mermaid
+classDiagram
+    class MapParser {
+        +parse() World
+    }
+    class MapReader {
+        +__iter__() SourceLine
+    }
+    class MapFormat {
+        +spec_for(keyword) LineSpec
+    }
+    class LineSpec {
+        keyword
+        positional: FieldSpec[]
+        metadata: FieldSpec[]
+        +build(RawLine) Zone | Connection | int
+    }
+    class FieldSpec {
+        name
+        default
+        +read(raw) value
+    }
+    class Converter {
+        +convert(raw) value
+    }
+    class LineTokenizer {
+        +tokenize(SourceLine) RawLine
+    }
+    class MapValidator {
+        +accept(RawLine) void
+        +finish() void
+    }
+    class Rule {
+        +check(model) void
+        +finish() void
+    }
+    MapParser o-- MapReader : 委譲
+    MapParser o-- LineTokenizer : 委譲
+    MapParser o-- MapValidator : 委譲
+    MapFormat o-- LineSpec
+    LineSpec o-- FieldSpec
+    FieldSpec o-- Converter : 変換を委譲
+    LineTokenizer --> MapFormat : 形と許可キーを引く
+    MapValidator --> MapFormat : spec_for
+    MapValidator o-- Rule : 行をまたぐ検査を委譲
+```
+
+### 挙動図(実行時の呼び出し順)
+
+```mermaid
+sequenceDiagram
+    actor Caller as 呼び出し側(app.py / テスト)
+    participant P as MapParser
+    participant R as MapReader
+    participant T as LineTokenizer
+    participant F as MapFormat
+    participant V as MapValidator
+    participant S as LineSpec
+    participant Ru as Rule(重複・未知ゾーン・start/end)
+
+    Caller->>P: parse()
+    loop 各 SourceLine(number, text)
+        R-->>P: SourceLine
+        P->>T: tokenize(SourceLine)
+        T->>F: spec_for(keyword)
+        F-->>T: LineSpec(位置引数の数・許可キー)
+        alt 構文エラー(トークン数・括弧・key=value・未知キー)
+            T-->>Caller: ParseError(number, 原因)
+        else 空行・コメント
+            T-->>P: スキップ
+        else 構文OK
+            T-->>P: RawLine(文字列のまま)
+            P->>V: accept(RawLine)
+            V->>S: build(RawLine)
+            Note over S: FieldSpec.read → Converter.convert<br/>既定値の補完、builderで Zone/Connection を生成
+            alt 値の変換エラー(整数でない・列挙外・名前に'-')
+                S-->>Caller: ParseError(number, 原因)
+            else 変換OK
+                S-->>V: Zone / Connection / nb_drones
+                V->>Ru: check(model)
+                alt 規則違反(重複・未知ゾーンなど)
+                    Ru-->>Caller: ParseError(number, 原因)
+                else OK
+                    V->>V: Network に追加
+                end
+            end
+        end
+    end
+    P->>V: finish()
+    V->>Ru: finish()
+    alt start_hub / end_hub の欠落
+        Ru-->>Caller: ParseError(最終行, 原因)
+    else OK
+        P-->>Caller: World
+    end
+```
