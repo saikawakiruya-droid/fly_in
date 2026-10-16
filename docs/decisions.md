@@ -470,6 +470,9 @@ sequenceDiagram
 
 ## 2026-10-16: start_hub / end_hub が `zone=blocked` のマップは到達不能として扱う
 
+> **更新(2026-10-16)**: パーサで拒否する方針に変更した。下記「start_hub / end_hub に付けてはいけないオプション群を仕様表で宣言し、`ParseError` にする」を参照。
+> 本項の `UnreachableGoalError` の経路は、コード内で直接組んだネットワーク向けの防御的な挙動として残す。
+
 - 決定内容: BLOCKED のゾーンは start / end を含めて距離を持たない。そのため `end_hub` が blocked なら goal に入れず、
   `start_hub` が blocked でも start に距離が付かないので、どちらも `UnreachableGoalError` になる。パーサはこの組み合わせを拒否しない(現状どおり)。
 - 理由: 課題 VII.3 は blocked を「入ることも通過することもできない」と定めている。end には入らなければ配達できない。
@@ -487,3 +490,25 @@ sequenceDiagram
 - 理由: ユーザー判断。テスト設計(`docs/research/2026-10-16_test-design-stage3-pathfinding.md` の「気づいた点」2)で
   未決事項として挙げたものを、現状の動作で確定した。
 - 検討した代替案: 経路全体で通る priority ゾーンの数を数え、多い経路の一手を先に並べる案。ユーザー判断により採らなかった
+
+## 2026-10-16: start_hub / end_hub に付けてはいけないオプション群を仕様表で宣言し、`ParseError` にする
+
+- 決定内容: start_hub / end_hub に付けてはいけないメタデータの値を「禁止オプション群」として宣言し、該当する行を
+  行番号つきの `ParseError` にする(メッセージ例: `line 2: start_hub cannot have zone=blocked`)。
+  - 置き場所は仕様表(`droneflow/parsing/map_format.py`)。`ForbiddenOption(key, value)` を追加し、`LineSpec` に
+    `forbidden`(既定は空)を持たせた。`LineSpec.build` が変換後の値と比べ、一致すれば `ValueError` を送出し、
+    `MapValidator` が既存の1箇所で `ParseError` に包む。
+  - 中身は定数 `START_END_FORBIDDEN` に宣言し、start_hub と end_hub の `LineSpec` に渡す。初期値は `zone=blocked` のみ。
+    増やすときはこのタプルに `ForbiddenOption(...)` を1行足す(比較は変換後の値で行うため、値は `ZoneType.BLOCKED` のように型付きで書く)。
+  - `max_drones` は含めない。課題 VII.4 のとおり start/end では無視するだけでエラーにしない(2026-09-17 の None への正規化を維持)。
+  - 2026-10-16「start_hub / end_hub が `zone=blocked` のマップは到達不能として扱う」を置き換える。ただし `Pathfinder` の
+    `UnreachableGoalError` の経路は、コード内で直接組んだネットワーク向けの防御として残す(削除しない)。
+- 理由: ユーザー判断。blocked の start/end は経路に現れえず、goal に必ず届かないため、マップの誤りとして入力の行で知らせる方が分かりやすい。
+  禁止は「1行だけを見れば判定できる」制約なので、行をまたぐ検査を担う `map_rules` ではなく、行ごとの仕様を宣言する仕様表に置いた。
+  これで「どの行に何を書けないか」が既定値の違い(`max_drones`)と同じく仕様表で一覧でき、追加も表の編集で済む。
+- 検討した代替案:
+  - `map_rules.py` に `ZoneRule` のサブクラス(例: `NoBlockedStartOrEnd`)を足す案。動作は同じだが、規則は「行をまたぐ検査」という
+    2026-10-04 の役割分担から外れ、禁止の中身が規則クラスのコードに埋もれて宣言的でなくなるため見送った。
+  - `LineTokenizer` で生の文字列(`zone=blocked`)を比べる案。tokenizer は構文だけを扱う方針(2026-10-04)に反し、
+    変換前の文字列比較になるため見送った。
+  - パーサでは拒否せず到達不能(`UnreachableGoalError`)のままにする案(従来の決定)。ユーザー判断で変更した。
