@@ -70,3 +70,14 @@
 - 症状: `line 0: map file is empty, ...` と表示される。行番号は1始まりなので `0` は利用者に分かりにくい。
 - 原因: 未調査(空ファイル用に行番号0を渡している)。
 - 対応状況: 未対応(軽微。メッセージ自体は明確なので評価上の影響は小さい)。
+
+## 2026-10-16: メタデータの重複キーが後勝ちになり、start/end の `zone=blocked` 検査をすり抜ける
+
+- 発生箇所: `droneflow/parsing/line_tokenizer.py:93`(`LineTokenizer._split_metadata` のキー登録部分。修正前は `metadata[key] = value` で上書き)
+- 症状: `start_hub: s 0 0 [zone=blocked zone=normal]` のように同じ行で同じキーを2回書くと、後ろの値だけが残り
+  エラーにならない。start/end の禁止オプション(`zone=blocked`)の検査を、後ろに `zone=normal` を足すだけで回避できた
+  (逆順 `[zone=normal zone=blocked]` はエラーになる)。`[max_link_capacity=1 max_link_capacity=2]` なども黙って後勝ちになる。
+- 原因: メタデータを dict に詰める際に、既に同じキーがあるかを確認していなかった。
+- 対応状況: 対応済み(`fix/duplicate_metadata_key`、コミット 62388bd)。tokenizer(構文段階)で重複キーを検出し、
+  `line N: duplicate metadata key 'zone'` の `ParseError` にする(decisions.md 2026-10-16「メタデータの重複キーは `ParseError` にし…」)。
+  単体テストは別途テスト用エージェントが追加する。
