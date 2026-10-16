@@ -80,4 +80,6 @@
 - 原因: メタデータを dict に詰める際に、既に同じキーがあるかを確認していなかった。
 - 対応状況: 対応済み(`fix/duplicate_metadata_key`、コミット 62388bd)。tokenizer(構文段階)で重複キーを検出し、
   `line N: duplicate metadata key 'zone'` の `ParseError` にする(decisions.md 2026-10-16「メタデータの重複キーは `ParseError` にし…」)。
-  単体テストは別途テスト用エージェントが追加する。
+  単体テスト追加済み(`test/duplicate_metadata_key`): `tests/parsing/test_line_tokenizer.py` の T01〜T04、
+  `tests/parsing/test_map_parser.py` の M01〜M03(docstring は「Duplicate key M0x」)。設計は
+  `docs/research/2026-10-16_test-design-duplicate-metadata-key.md`。
