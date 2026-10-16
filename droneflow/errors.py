@@ -33,3 +33,22 @@ class ZoneNotFoundError(FlyInError):
 
 class SimulationError(FlyInError):
     """Raised when the simulation reaches an illegal or unresolvable state."""
+
+
+class UnreachableGoalError(FlyInError):
+    """Raised when the end zone cannot be reached from a given zone.
+
+    This is a property of the whole map rather than of a single line, so
+    the message carries zone names instead of a line number.
+
+    Attributes:
+        zone_name: The zone the goal was looked for from (usually start).
+        goal_name: The name of the end zone.
+    """
+
+    def __init__(self, zone_name: str, goal_name: str) -> None:
+        self.zone_name = zone_name
+        self.goal_name = goal_name
+        super().__init__(
+            f"goal {goal_name!r} is unreachable from {zone_name!r}"
+        )
