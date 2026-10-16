@@ -73,9 +73,21 @@ tests/
 1. **同じキーを2回書くと後勝ちになる**: `[zone=blocked zone=normal]` は tokenizer で `zone=normal` だけが残り、
    start_hub でもエラーにならない(逆順 `[zone=normal zone=blocked]` はエラー)。重複キーを拒否しない tokenizer の既存の挙動で、
    禁止オプションに限らず全キーに共通する。本設計ではケースに含めない。重複キーを `ParseError` にするかは別途ユーザー判断。
+   - **決定済み(2026-10-16)**: 重複キーは `ParseError` にする。実装は別の fix ブランチで行うため、本ブランチでは
+     重複キーのテストを書かず、`droneflow/` も変更しない(`docs/decisions.md` 2026-10-16 を参照)。
 2. **start/end の `max_drones` は「無視」だが、値の検査は行われる**: `start_hub: s 0 0 [max_drones=0]` は
    `max_drones must be a positive integer` の `ParseError` になる(F06 で順序として固定)。2026-09-17 の決定からの既存の挙動で、
    VII.4 の「無視」を「値も見ない」と読むなら変更の余地がある。現状維持なら追加の対応は不要。
+   - **決定済み(2026-10-16)**: 現状維持。値は無視するが、構文上は正の整数でなければ `ParseError`
+     (VII.4「容量の値は正の整数」)。パーサー経由のテスト M08(`tests/parsing/test_map_parser.py`、
+     start/end × `0` / `-1` / `two`)を追加した。
 3. `tests/README.md` のカバレッジ欄(`test_map_format.py` / `test_map_parser.py` の説明)に、作成フェーズで
    「start/end の禁止オプション(`zone=blocked`)」を追記する。`2026-10-16_test-design-stage3-pathfinding.md` の
    「パーサー側のケースは別途」という記述は、本設計で対応した。
+   - **対応済み(2026-10-16)**: 作成フェーズで追記した。
+
+## 作成フェーズの結果(2026-10-16)
+
+- F01〜F06 を `tests/parsing/test_map_format.py`、M01〜M08 を `tests/parsing/test_map_parser.py` に追加した
+  (M08 は上記の決定2に基づく追加)。parametrize 展開後 30 件増え、全 183 件が通過する。
+- バグは見つからなかった(`docs/bugs.md` への追記なし)。

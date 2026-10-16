@@ -512,3 +512,20 @@ sequenceDiagram
   - `LineTokenizer` で生の文字列(`zone=blocked`)を比べる案。tokenizer は構文だけを扱う方針(2026-10-04)に反し、
     変換前の文字列比較になるため見送った。
   - パーサでは拒否せず到達不能(`UnreachableGoalError`)のままにする案(従来の決定)。ユーザー判断で変更した。
+
+## 2026-10-16: メタデータの重複キーは `ParseError` にし、start/end の `max_drones` は無視しつつ値は検査する
+
+- 決定内容:
+  1. 同じ行で同じメタデータキーを2回書いた場合(例: `[zone=blocked zone=normal]`)は `ParseError` にする。
+     現状は tokenizer で後勝ちになり、start_hub の `zone=blocked` が後ろの `zone=normal` で隠れてしまう。
+     実装は別の fix ブランチで行う(`test/start_end_forbidden_options` ではテストも書かず、`droneflow/` も変更しない)。
+  2. start_hub / end_hub の `max_drones` は値を無視する(None に正規化、2026-09-17 を維持)が、構文上は正の整数でなければ
+     `ParseError` のままとする(例: `[max_drones=0]`、`[max_drones=two]`)。`tests/parsing/test_map_parser.py` の M08 で確認する。
+- 理由: ユーザー判断。テスト設計(`docs/research/2026-10-16_test-design-start-end-forbidden-options.md` の「気づいた点」1・2)で
+  未決事項として挙げたものを確定した。
+  1. 重複キーはマップの書き誤りであり、後勝ちにすると禁止オプションの検査をすり抜けられる。全キー共通の構文の問題なので、
+     禁止オプションとは別の変更として扱う。
+  2. 課題 VII.4 は「容量の値は正の整数」と定めており、start/end の「無視」は値を使わないという意味で、不正な値を書いてよいという意味ではない。
+- 検討した代替案:
+  1. 重複キーを後勝ち(現状)のまま許す案。上記のすり抜けがあるため採らなかった。本ブランチで一緒に直す案は、変更の単位を分けるため見送った。
+  2. start/end では `max_drones` の値を一切見ない(どんな値でも通す)案。VII.4 の値の制約に反するため採らなかった。
