@@ -73,7 +73,11 @@ class LineTokenizer:
     def _split_metadata(
         self, number: int, rest: str
     ) -> tuple[str, dict[str, str]]:
-        """Split ``" <main part> [key=value ...]"`` into its two halves."""
+        """Split ``" <main part> [key=value ...]"`` into its two halves.
+
+        A key may appear at most once per block; a repeated key is a
+        ParseError rather than "last one wins".
+        """
         match = _METADATA_BLOCK.fullmatch(rest)
         if match is None:
             raise ParseError(number, "malformed metadata block")
@@ -85,5 +89,7 @@ class LineTokenizer:
                 raise ParseError(
                     number, f"malformed metadata entry: {token!r}"
                 )
+            if key in metadata:
+                raise ParseError(number, f"duplicate metadata key {key!r}")
             metadata[key] = value
         return main, metadata
