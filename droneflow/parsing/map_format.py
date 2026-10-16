@@ -100,6 +100,19 @@ class FieldSpec:
             raise ValueError(f"{self.name} {error}") from None
 
 
+@dataclass(frozen=True)
+class ForbiddenOption:
+    """A metadata value that one kind of line must not carry.
+
+    Attributes:
+        key: Metadata key, matching a FieldSpec name in ``metadata``.
+        value: The forbidden value, compared after conversion.
+    """
+
+    key: str
+    value: Any
+
+
 Builder = Callable[[Mapping[str, Any]], Entry]
 
 
@@ -113,6 +126,7 @@ class LineSpec:
         positional: Required fields, in the order they appear.
         metadata: Optional ``[key=value]`` fields.
         builder: Builds the model object from the converted field values.
+        forbidden: Metadata values this kind of line rejects.
     """
 
     keyword: str
@@ -120,6 +134,7 @@ class LineSpec:
     positional: Sequence[FieldSpec]
     metadata: Sequence[FieldSpec]
     builder: Builder
+    forbidden: Sequence[ForbiddenOption] = ()
 
     @property
     def metadata_keys(self) -> set[str]:
@@ -132,13 +147,20 @@ class LineSpec:
         """Convert the raw tokens and build the model object.
 
         Raises:
-            ValueError: If any field fails to convert.
+            ValueError: If any field fails to convert, or a metadata value
+                is one this kind of line forbids.
         """
         values: dict[str, Any] = {}
         for field, raw in zip(self.positional, positional):
             values[field.name] = field.read(raw)
         for field in self.metadata:
             values[field.name] = field.read(metadata.get(field.name))
+        for option in self.forbidden:
+            if option.key in metadata and values[option.key] == option.value:
+                raise ValueError(
+                    f"{self.keyword} cannot have "
+                    f"{option.key}={metadata[option.key]}"
+                )
         return self.builder(values)
 
 
@@ -185,7 +207,22 @@ class MapFormat:
         return self._body.get(keyword)
 
 
-def _zone_spec(keyword: str, role: ZoneRole) -> LineSpec:
+START_END_FORBIDDEN: tuple[ForbiddenOption, ...] = (
+    # A blocked start or end can never be left or reached (VII.3).
+    ForbiddenOption("zone", ZoneType.BLOCKED),
+)
+"""Metadata values that start_hub and end_hub must not carry.
+
+Add an entry here to forbid another option on both lines. max_drones is
+deliberately absent: on start/end it is ignored, not an error (VII.4).
+"""
+
+
+def _zone_spec(
+    keyword: str,
+    role: ZoneRole,
+    forbidden: Sequence[ForbiddenOption] = (),
+) -> LineSpec:
     return LineSpec(
         keyword=keyword,
         usage="<name> <x> <y>",
@@ -200,6 +237,7 @@ def _zone_spec(keyword: str, role: ZoneRole) -> LineSpec:
             FieldSpec("max_drones", to_positive_int, default=1),
         ),
         builder=ZoneBuilder(role),
+        forbidden=forbidden,
     )
 
 
@@ -212,8 +250,8 @@ DEFAULT_FORMAT = MapFormat(
         builder=build_drone_count,
     ),
     body=(
-        _zone_spec("start_hub", ZoneRole.START),
-        _zone_spec("end_hub", ZoneRole.END),
+        _zone_spec("start_hub", ZoneRole.START, START_END_FORBIDDEN),
+        _zone_spec("end_hub", ZoneRole.END, START_END_FORBIDDEN),
         _zone_spec("hub", ZoneRole.HUB),
         LineSpec(
             keyword="connection",
