@@ -154,6 +154,10 @@ sequenceDiagram
   - start/endはmax_drones制限の対象外にする
 - 完了条件: 単一ドローンをstartからendまで、容量・restrictedのルールを守って1体だけ動かせる
 - 依存: Stage 1, Stage 3
+- 2026-10-16更新: スケジューラは「ドローン d をゾーン z へ」という指示(`MoveOrder`)だけを返し、エンジン
+  (`TurnResolver`)がルールを検査して出力用の `Move` を作る(restricted は接続名で出力し、次ターンの到着を自動で足す)。
+  restricted の到着先は出発時に予約する。誰も動かないターンとターン数の上限超えは `SimulationError`。
+  詳細は `2026-10-16_workflow-stage4-simulation.md` と `docs/decisions.md` を参照
 
 ## Stage 5 — Multi-Drone Scheduler
 
