@@ -33,10 +33,17 @@ python -m pytest tests/
   (zone/color/max_drones/max_link_capacity)、start/end hubのmax_drones正規化、
   重複(ゾーン名・接続・start/end hub)の即時検出、start/end hub欠落、不正な
   ゾーンタイプ・メタデータキー・メタデータ構文・座標・ゾーン名、未定義ゾーンへの
-  接続参照、空ファイル、自己ループ接続・座標重複の許容(いずれもParseErrorにしない)
+  接続参照、空ファイル、自己ループ接続・座標重複の許容(いずれもParseErrorにしない)、
+  start/end hubの禁止オプション(`zone=blocked` は行番号つきの ParseError。コメント・空行を挟んだ
+  物理行番号、他のメタデータとの組み合わせ・書き順、普通の hub の blocked と start/end の他の
+  ゾーンタイプは許容、以前は経路探索で失敗したマップがパースで失敗すること)、start/end の
+  max_drones は無視されるが値は正の整数でなければ ParseError
 - `tests/parsing/test_map_format.py` — 仕様表(`MapFormat`)の変換部品(整数・正の整数・
   ゾーン名・ゾーンタイプ・接続の両端)、`FieldSpec` の既定値とエラー文言、hub / start_hub /
-  connection / header の組み立て(max_drones の既定値と start/end での破棄)
+  connection / header の組み立て(max_drones の既定値と start/end での破棄)、
+  禁止オプション(`ForbiddenOption` / `LineSpec.forbidden`): 既定は空、`START_END_FORBIDDEN` が
+  start_hub / end_hub の両方に付くこと(max_drones は含まない)、キーが書かれた時だけ一致すること、
+  変換後の値で比べて文言には書かれたとおりの値を出すこと、変換エラーが禁止の検査より先なこと
 - `tests/parsing/test_line_tokenizer.py` — `LineTokenizer` の構文検査(トークン数・括弧・
   key=value・未知キー・未知キーワード)と行番号、ヘッダー行の別扱い
 - `tests/parsing/test_map_rules.py` — 行をまたぐ規則(ゾーン名重複・start/end重複・
