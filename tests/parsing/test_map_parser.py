@@ -431,3 +431,56 @@ def test_start_and_end_still_validate_ignored_max_drones(
         MapParser(write_map(tmp_path, text)).parse()
     assert excinfo.value.line_number == 2
     assert "max_drones must be" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "metadata", ["[zone=blocked zone=normal]", "[zone=normal zone=blocked]"]
+)
+def test_blocked_cannot_be_hidden_by_a_repeated_zone_key(
+    tmp_path: Path, metadata: str
+) -> None:
+    """Duplicate key M01: a later zone= no longer overrides zone=blocked.
+
+    Both orders fail with the same duplicate-key message, not the
+    start_hub blocked message.
+    """
+    text = f"nb_drones: 1\nstart_hub: s 0 0 {metadata}\nend_hub: e 1 1\n"
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == 2
+    assert str(excinfo.value) == "line 2: duplicate metadata key 'zone'"
+
+
+def test_duplicate_zone_key_on_end_hub_reports_the_physical_line(
+    tmp_path: Path,
+) -> None:
+    """Duplicate key M02: end_hub is checked too, on its physical line."""
+    text = (
+        "nb_drones: 1\n"
+        "# comment\n"
+        "start_hub: s 0 0\n"
+        "\n"
+        "end_hub: e 1 1 [zone=blocked zone=normal]\n"
+    )
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == 5
+    assert str(excinfo.value) == "line 5: duplicate metadata key 'zone'"
+
+
+def test_metadata_blocks_without_duplicates_still_parse(
+    tmp_path: Path,
+) -> None:
+    """Duplicate key M03: distinct keys in one block are unaffected."""
+    text = (
+        MINIMAL_MAP
+        + "hub: h 2 2 [zone=priority color=red max_drones=2]\n"
+        + "connection: s-h [max_link_capacity=3]\n"
+    )
+    world = MapParser(write_map(tmp_path, text)).parse()
+    hub = world.network.get_zone("h")
+    assert hub.zone_type is ZoneType.PRIORITY
+    assert hub.color == "red"
+    assert hub.max_drones == 2
+    (connection,) = world.network.connections
+    assert connection.max_link_capacity == 3
