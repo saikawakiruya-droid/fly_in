@@ -28,7 +28,9 @@ class TurnResolver:
     1. lands every drone in flight (a restricted transit must end on the
        turn after it began; no order is needed or accepted for them);
     2. checks each order: known, undelivered, not in flight, at most one
-       order per drone, into an existing, non-blocked, adjacent zone;
+       order per drone, into an existing, non-blocked, adjacent zone other
+       than the one the drone is in (waiting means giving no order, so a
+       move along a self-loop is rejected);
     3. checks connection capacity: drones landing plus drones departing on
        the same connection must not exceed ``max_link_capacity``;
     4. checks zone capacity on the final counts, so drones leaving a zone
@@ -120,6 +122,11 @@ class TurnResolver:
                 f"{label} ordered into blocked zone {zone.name!r}"
             )
         here = drone.current_zone
+        if here == zone.name:
+            raise SimulationError(
+                f"{label} ordered to move into {here!r}, where it already "
+                "is; to wait, give it no order"
+            )
         connection = (
             None if here is None
             else self.network.connection_between(here, zone.name)
