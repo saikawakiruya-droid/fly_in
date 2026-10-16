@@ -478,3 +478,12 @@ sequenceDiagram
 - 検討した代替案:
   - start が blocked でも出発だけは許す案。課題文の読み方としてはありうるため、ユーザーの判断で変更しうる(未決事項として報告)。
   - パーサで start/end の `zone=blocked` を `ParseError` にする案。要件にない制約を加えることになるため見送った。
+
+## 2026-10-16: priority は「次の1手」の同点の中だけで優先する
+
+- 決定内容: `Pathfinder.next_hops` での priority の優先は、直接進める隣接ゾーン(次の1手)が priority かどうかだけで決める。
+  2手先以降に priority のゾーンがある経路と、priority を通らない同距離の経路は、接続の宣言順で並べる(現状の実装どおり)。
+  テスト `tests/pathfinding/test_pathfinder.py` の N12 で確認する。
+- 理由: ユーザー判断。テスト設計(`docs/research/2026-10-16_test-design-stage3-pathfinding.md` の「気づいた点」2)で
+  未決事項として挙げたものを、現状の動作で確定した。
+- 検討した代替案: 経路全体で通る priority ゾーンの数を数え、多い経路の一手を先に並べる案。ユーザー判断により採らなかった

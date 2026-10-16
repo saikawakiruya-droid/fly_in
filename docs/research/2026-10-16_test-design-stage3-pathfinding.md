@@ -133,6 +133,7 @@ flowchart LR
 | N09 | goal に隣接する blocked を候補にしない | `s-x x-g s-a a-g`(x=blocked、x を先に宣言) | `next_hops("s")` は `["a"]` | blocked 除外(VII.3)。距離 None の隣接ゾーンを飛ばす分岐 |
 | N10 | 存在しない名前 | 任意 | `next_hops("nope")` が `ZoneNotFoundError` | 「空リスト」と「例外」の区別(docstring の Raises) |
 | N11 | 自己ループ・閉路での不変条件 | D06 のネットワーク(自己ループ+三角形)と D09 の格子 | 全ゾーン u と全 hop について `hop.zone.name != u`、`turn_cost(hop.zone) + dist(hop.zone) == dist(u)`、同じゾーンが2回現れない | 自己ループで自分自身を返さない、閉路で「上り」の手を返さない(ユーザー確認済みの要件)。`seen` による重複除去 |
+| N12 | priority は次の1手の中だけ(作成フェーズで追加) | `s-b b-c c-g s-a a-p p-g`(p=priority、b 側を先に宣言) | `["b", "a"]`、`best_route().zones == ["s","b","c","g"]` | decisions 2026-10-16「priority は次の1手の同点の中だけで優先する」。2手先の priority で並びが変わらないこと |
 
 ### best_route(`tests/pathfinding/test_pathfinder.py`)
 
@@ -159,7 +160,8 @@ flowchart LR
 | R01 | 例外階層 | `UnreachableGoalError("s", "g")` | `FlyInError` のサブクラス。`ParseError` / `SimulationError` のサブクラスではない | decisions「`SimulationError` を流用しない」。`app.py` は `FlyInError` でまとめて捕まえられる |
 | R02 | 属性とメッセージ | 同上 | `zone_name == "s"`、`goal_name == "g"`、`str()` に `'s'` と `'g'` を含み、`line` を含まない | decisions「メッセージは行番号なし」 |
 
-合計: D 9 + P 3 + N 11 + B 6 + E 2 + R 2 = **33 件**(P02 は parametrize で4パターン)。
+合計: D 9 + P 3 + N 12 + B 6 + E 2 + R 2 = **34 件**(P02 は parametrize で4パターン)。
+N12 は設計後のユーザー決定(下記「気づいた点」2)を受けて作成フェーズで追加した。
 
 ## 作成フェーズへの申し送り
 
@@ -169,14 +171,17 @@ flowchart LR
 - 作成後、`tests/README.md` の「現在のカバレッジ範囲」に `tests/pathfinding/` と `test_errors.py` の追記分を加え、
   「対象は Stage 1・2・6」の文を Stage 3 を含む形に直す。
 
-## 設計中に気づいた点(未決・バグではない)
+## 設計中に気づいた点(バグではない)
 
 1. **`Hop` は `frozen=True` だがハッシュできない**。`Connection` と `Zone` が `frozen` でない dataclass(`__hash__ = None`)のため、
    `hash(hop)` や `set` / `dict` のキーに入れると `TypeError: unhashable type: 'Connection'` になる(実装ブランチ上で確認)。
-   現状の使い方(リストで返す)では問題ないが、Stage 5 で `Hop` を集合に入れる設計にする場合は注意。テストでは扱わない。
+   現状の使い方(リストで返す)では問題ないが、Stage 5 で `Hop` を集合に入れる設計にする場合は注意。テストでは扱わない
+   (2026-10-16、ユーザー判断で当面このまま受け入れる)。
 2. **priority の優先は「次の一手」の中だけ**。`next_hops` は直接の隣接ゾーンが priority かどうかしか見ないため、
    2手先に priority がある最短経路と、priority を通らない同距離の経路は宣言順で決まる。
    decisions「API変更」4 の文言(priority のゾーンが先)どおりの動作なので、テストは現状の動作を前提にする。
-   経路全体で priority を数えたい場合は別途決定が必要。
+   → **決定済み(2026-10-16、ユーザー判断)**: priority は「次の1手」の同点の中だけで優先する。2手先以降に priority がある
+   同距離の経路は、接続の宣言順で並べる(現状の実装どおり)。経路全体で priority を数える案は採らない。
+   decisions.md の同日の項目に記録し、テスト N12 で確認する。
 3. **start が blocked のケース**は、予定されているパーサー側の変更(`ParseError` 化)とあわせて扱うため、本設計には含めない。
    end が blocked のケース(D08, P02-d)は、コード内で組んだネットワークに対する防御的な挙動として残す。
