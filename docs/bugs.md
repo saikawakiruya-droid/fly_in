@@ -53,3 +53,20 @@
   `zone_a` に接する任意の接続が当てはまってしまった。
 - 対応状況: 対応済み。`existing.other_end(zone_a) == zone_b` で判定するよう変更。
   `tests/parsing/test_map_rules.py` に再発防止テストあり。
+
+## 2026-10-16: 1行目がコメントのマップ(配布マップ10枚すべて)を `nb_drones` 欠落として拒否する
+
+- 発生箇所: `droneflow/parsing/map_parser.py`(`parse` の `src.number == 1` 分岐)/
+  `droneflow/parsing/line_tokenizer.py`(`tokenize_header`)
+- 症状: `# Easy Level 1: ...` のように1行目がコメントのマップで
+  `line 1: the first line must be 'nb_drones: <n>'` の `ParseError` になる。配布マップ10枚すべてが該当。
+- 原因: 「1行目」を物理的な1行目と扱っているため。
+- 対応状況: **バグではなく仕様**(対応不要)。「ファイルの物理的な1行目が `nb_drones:` でなければエラー」を
+  正式な方針とした(decisions.md 2026-10-16)。`revie_case/maps/parse_error/E35_comment_first_line.txt` で確認する。
+
+## 2026-10-16: 空ファイルのエラーメッセージの行番号が `line 0` になる
+
+- 発生箇所: 空ファイル時の `ParseError`(`MapParser.parse` 周辺。`revie_case/maps/parse_error/E32_empty_file.txt` で再現)
+- 症状: `line 0: map file is empty, ...` と表示される。行番号は1始まりなので `0` は利用者に分かりにくい。
+- 原因: 未調査(空ファイル用に行番号0を渡している)。
+- 対応状況: 未対応(軽微。メッセージ自体は明確なので評価上の影響は小さい)。
