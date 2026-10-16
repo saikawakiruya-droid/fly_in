@@ -67,13 +67,13 @@ sequenceDiagram
         Parser->>Net: Zone/Connectionを組み立てNetworkを構築
         Parser-->>App: World(network, nb_drones)
     end
-    App->>PF: find_paths(network)
-    PF-->>App: 候補経路(複数)
+    App->>PF: Pathfinder(network)
+    PF-->>App: ゴールまでの距離表(goal に届かなければ UnreachableGoalError)
     App->>Vis: render_initial(world)
     Vis-->>User: 初期状態を表示
 
     loop 全ドローンが到達するまで1ターンずつ
-        App->>Sched: decide_moves(state, candidate_paths)
+        App->>Sched: decide_moves(state)(内部で pathfinder.next_hops を参照)
         Sched->>Sim: apply(moves)
         Sim-->>Sched: 更新後の占有状況・ドローン状態
         Sched-->>App: このターンに動いたドローン一覧
@@ -139,6 +139,10 @@ sequenceDiagram
 - 完了条件: start→endの経路が、blockedを避けコストを正しく反映した形で計算できる
   (この時点ではまだ複数ドローンの競合・容量は考慮しない)
 - 依存: Stage 2
+- 2026-10-16更新: 複数候補経路の列挙(`find_k_paths`)はやめ、goal からのダイクストラで全ゾーンの距離を
+  1回求め、ゾーンごとの「最短の次の一手」の候補(priority は同距離時のみ先頭)を返す形にした。
+  負荷分散は、Stage 5 が毎ターン候補の中から空いている先を選ぶことで行う。到達不能はここで検出する。
+  詳細は `2026-10-16_workflow-stage3-pathfinding.md` と `docs/decisions.md` を参照
 
 ## Stage 4 — Simulation Engine
 
@@ -153,7 +157,7 @@ sequenceDiagram
 
 ## Stage 5 — Multi-Drone Scheduler
 
-- 入力: Stage 4 のシミュレーションエンジン、Stage 3 の複数経路候補
+- 入力: Stage 4 のシミュレーションエンジン、Stage 3 の距離表と次の一手の候補(2026-10-16更新)
 - 作業:
   - 複数ドローンを(重複/非重複の)複数経路に配分し、同時スループットを最大化する
   - ゾーン/リンク容量の競合・デッドロック(相互待ち)を解消する
