@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from droneflow.errors import ParseError
+from droneflow.errors import ParseError, UnreachableGoalError
 from droneflow.models.zone import ZoneRole, ZoneType
 from droneflow.parsing.map_parser import MapParser
 
@@ -302,3 +302,132 @@ def test_keyword_without_colon_raises_parse_error(tmp_path: Path) -> None:
     with pytest.raises(ParseError) as excinfo:
         MapParser(write_map(tmp_path, text)).parse()
     assert excinfo.value.line_number == 4
+
+
+def test_blocked_start_hub_raises_parse_error(tmp_path: Path) -> None:
+    """M01: start_hub with zone=blocked is rejected on its own line."""
+    text = "nb_drones: 1\nstart_hub: s 0 0 [zone=blocked]\nend_hub: e 1 1\n"
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == 2
+    assert str(excinfo.value) == "line 2: start_hub cannot have zone=blocked"
+
+
+def test_blocked_end_hub_reports_the_physical_line(tmp_path: Path) -> None:
+    """M02: end_hub is rejected too; comments and blanks count as lines."""
+    text = (
+        "nb_drones: 1\n"
+        "start_hub: s 0 0\n"
+        "# comment\n"
+        "\n"
+        "end_hub: e 1 1 [zone=blocked]\n"
+    )
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == 5
+    assert "end_hub cannot have zone=blocked" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        "[zone=blocked color=red]",
+        "[color=red zone=blocked]",
+        "[max_drones=3 color=gray zone=blocked]",
+    ],
+)
+def test_blocked_start_hub_is_rejected_regardless_of_other_options(
+    tmp_path: Path, metadata: str
+) -> None:
+    """M03: other keys and their order do not hide zone=blocked."""
+    text = f"nb_drones: 1\nstart_hub: s 0 0 {metadata}\nend_hub: e 1 1\n"
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == 2
+    assert "start_hub cannot have zone=blocked" in str(excinfo.value)
+
+
+def test_blocked_regular_hub_is_still_allowed(tmp_path: Path) -> None:
+    """M04: the ban applies to start/end only; a blocked hub is valid."""
+    text = MINIMAL_MAP + "hub: h 2 2 [zone=blocked]\n"
+    world = MapParser(write_map(tmp_path, text)).parse()
+    assert world.network.get_zone("h").zone_type is ZoneType.BLOCKED
+
+
+@pytest.mark.parametrize("keyword", ["start_hub", "end_hub"])
+@pytest.mark.parametrize(
+    ("metadata", "expected"),
+    [
+        (" [zone=normal]", ZoneType.NORMAL),
+        (" [zone=restricted]", ZoneType.RESTRICTED),
+        (" [zone=priority]", ZoneType.PRIORITY),
+        ("", ZoneType.NORMAL),
+    ],
+)
+def test_start_and_end_accept_non_blocked_zone_types(
+    tmp_path: Path, keyword: str, metadata: str, expected: ZoneType
+) -> None:
+    """M05: every zone type other than blocked (or none) is accepted."""
+    other_keyword = "end_hub" if keyword == "start_hub" else "start_hub"
+    text = (
+        "nb_drones: 1\n"
+        f"{keyword}: a 0 0{metadata}\n"
+        f"{other_keyword}: b 1 1\n"
+    )
+    world = MapParser(write_map(tmp_path, text)).parse()
+    assert world.network.get_zone("a").zone_type is expected
+
+
+@pytest.mark.parametrize("keyword", ["start_hub", "end_hub"])
+def test_start_and_end_ignore_max_drones_alongside_other_options(
+    tmp_path: Path, keyword: str
+) -> None:
+    """M06: max_drones is still discarded next to an allowed zone type."""
+    other_keyword = "end_hub" if keyword == "start_hub" else "start_hub"
+    text = (
+        "nb_drones: 1\n"
+        f"{keyword}: a 0 0 [zone=priority max_drones=5]\n"
+        f"{other_keyword}: b 1 1\n"
+    )
+    world = MapParser(write_map(tmp_path, text)).parse()
+    zone = world.network.get_zone("a")
+    assert zone.max_drones is None
+    assert zone.zone_type is ZoneType.PRIORITY
+
+
+def test_blocked_goal_fails_at_parse_time_not_pathfinding(
+    tmp_path: Path,
+) -> None:
+    """M07: a blocked end_hub is a ParseError, before any Pathfinder runs."""
+    text = (
+        "nb_drones: 1\n"
+        "start_hub: s 0 0\n"
+        "end_hub: g 1 1 [zone=blocked]\n"
+        "connection: s-g\n"
+    )
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == 3
+    assert not isinstance(excinfo.value, UnreachableGoalError)
+
+
+@pytest.mark.parametrize("keyword", ["start_hub", "end_hub"])
+@pytest.mark.parametrize("raw", ["0", "-1", "two"])
+def test_start_and_end_still_validate_ignored_max_drones(
+    tmp_path: Path, keyword: str, raw: str
+) -> None:
+    """M08: max_drones is ignored on start/end but must still be valid.
+
+    VII.4 requires capacity values to be positive integers, so a bad value
+    is a ParseError even though the value itself is discarded.
+    """
+    other_keyword = "end_hub" if keyword == "start_hub" else "start_hub"
+    text = (
+        "nb_drones: 1\n"
+        f"{keyword}: a 0 0 [max_drones={raw}]\n"
+        f"{other_keyword}: b 1 1\n"
+    )
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == 2
+    assert "max_drones must be" in str(excinfo.value)
