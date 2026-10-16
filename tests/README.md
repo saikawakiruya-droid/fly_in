@@ -37,7 +37,9 @@ python -m pytest tests/
   start/end hubの禁止オプション(`zone=blocked` は行番号つきの ParseError。コメント・空行を挟んだ
   物理行番号、他のメタデータとの組み合わせ・書き順、普通の hub の blocked と start/end の他の
   ゾーンタイプは許容、以前は経路探索で失敗したマップがパースで失敗すること)、start/end の
-  max_drones は無視されるが値は正の整数でなければ ParseError
+  max_drones は無視されるが値は正の整数でなければ ParseError、メタデータの重複キー(start/end の
+  `zone=blocked` を後ろの `zone=` で隠せないこと(両方の書き順)、end_hub 側の物理行番号、重複のない
+  複数キーのブロックは従来どおりパースできること)
 - `tests/parsing/test_map_format.py` — 仕様表(`MapFormat`)の変換部品(整数・正の整数・
   ゾーン名・ゾーンタイプ・接続の両端)、`FieldSpec` の既定値とエラー文言、hub / start_hub /
   connection / header の組み立て(max_drones の既定値と start/end での破棄)、
@@ -45,7 +47,9 @@ python -m pytest tests/
   start_hub / end_hub の両方に付くこと(max_drones は含まない)、キーが書かれた時だけ一致すること、
   変換後の値で比べて文言には書かれたとおりの値を出すこと、変換エラーが禁止の検査より先なこと
 - `tests/parsing/test_line_tokenizer.py` — `LineTokenizer` の構文検査(トークン数・括弧・
-  key=value・未知キー・未知キーワード)と行番号、ヘッダー行の別扱い
+  key=value・未知キー・未知キーワード)と行番号、ヘッダー行の別扱い、メタデータの重複キー
+  (全行種で拒否・同じ値の重複も拒否・不正なエントリとはトークン順で先の問題を報告・
+  未知キーより重複を先に報告・キーは大文字小文字を区別)
 - `tests/parsing/test_map_rules.py` — 行をまたぐ規則(ゾーン名重複・start/end重複・
   未定義ゾーンへの接続・接続重複と自己ループ)
 - `tests/output/test_formatter.py` — `TurnLogFormatter`: `D<ID>-<行き先>` の空白区切り整形、
