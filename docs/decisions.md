@@ -381,7 +381,8 @@ sequenceDiagram
   パーサーは書式と行単位の規則だけを見る、という役割分担も保てる。
 - 検討した代替案: パーサーの最終検査(`MapValidator.finish`)で連結性を調べる案。パーサーにグラフ探索を持ち込むことになり、
   距離計算と同じ探索を2回書くことになるため採用しなかった。
-- 状態: `droneflow/pathfinding/` は未実装。実装時にこの方針に従う。
+- 状態: 2026-10-16 に `feature/stage3_pathfinding` で実装(`Pathfinder` の構築時に `UnreachableGoalError` を送出。
+  下の「Stage 3 の API をスケルトンから変更する」を参照)。
 
 ## 2026-10-16: 出力の検証スクリプトは今は作らない
 
@@ -416,3 +417,64 @@ sequenceDiagram
   - 最短側が満員のとき、待つより早く着くなら遠回り側へ迂回する案。分散でターン数が減る可能性はあるが、
     判定が複雑になるため不採用。
   - グラフィカル表示に tkinter / matplotlib を使う案。ユーザーが pygame を選んだ。
+
+## 2026-10-16: Stage 3 の API をスケルトンから変更する
+
+- 決定内容: `droneflow/pathfinding/` を次の形にした(スケルトンの `find_path` / `find_k_paths` は削除)。
+  1. `DistanceMap(network)`(`distance_map.py`): `end_zone` を始点とするダイクストラ(`heapq`、グラフライブラリなし)を
+     構築時に1回だけ実行し、`distance(zone_name) -> int | None` で参照させる。goal に届かないゾーン(BLOCKED を含む)は
+     `None`、存在しない名前は `ZoneNotFoundError`。
+  2. `Pathfinder(network)`(`pathfinder.py`): `DistanceMap` を持ち(委譲)、次を提供する。
+     - `distance(zone_name) -> int | None`: `DistanceMap` への委譲。
+     - `next_hops(zone_name) -> list[Hop]`: 最短のまま goal に進める一手の候補。`Hop(connection, zone)` は
+       通る接続と入るゾーンの組(frozen dataclass)。goal 自身・goal に届かないゾーンでは空。
+     - `best_route(from_zone=None) -> Route`: `next_hops` の先頭を goal まで辿った1本(省略時は start から)。表示・テスト用。
+  3. 構築時に start の距離が無ければ `UnreachableGoalError` を送出する(下の別項目)。
+  4. 候補の並びは「priority のゾーンが先、同じ優先度の中は接続の宣言順(マップの記述順)」。安定ソートで決める。
+- 理由:
+  - 2026-10-16 のスケジューラ方針(毎ターン、最小距離の隣接ゾーンから選び、満員なら待つ)では、ドローンごとに経路を
+    事前に割り当てない。必要なのは「今いるゾーンからの最短の一手の候補」であり、複数経路の列挙(`find_k_paths`)は使い道がない。
+    最短の候補が複数あれば Stage 5 が空いている方を選ぶことで、負荷分散は自然に行われる。
+  - `Hop` に接続を含めたのは、Stage 5 が接続の `max_link_capacity` と移動先ゾーンの `max_drones`・`turn_cost`(restricted の
+    2ターン移動)を同時に必要とするため。`Network` には2ゾーン間の接続を引くメソッドがなく、Stage 5 で探し直さずに済む。
+  - 宣言順を保つと結果が決定的になり、マップを見れば順序を予想できる。
+- 検討した代替案:
+  - スケルトンどおり `find_path(start, end)` / `find_k_paths(start, end, k)` を実装する案。2点間を都度探索するのは
+    2026-10-03 の決定(goal からの1回の事前計算)と重複し、k 本の経路は上記のとおり使わないため見送った。
+  - `next_hops` がゾーン名(`list[str]`)だけを返す案。単純だが、Stage 5 で接続を探し直す処理が必要になるため見送った。
+  - 同じ優先度の中を名前順に並べる案。決定的にはなるが、マップ作者の記述順を無視する理由がないため見送った。
+
+## 2026-10-16: 「距離が最小の隣接ゾーン」は「そのゾーンに入るコスト+そこからの距離」で比べる
+
+- 決定内容: 2026-10-16「残りステージの実装方針」3 の「ゴールまでの距離が最小の隣接ゾーン」は、隣接ゾーン v の距離 `dist(v)`
+  単体ではなく、`v.zone_type.turn_cost + dist(v)`(v に進んだ場合に goal まで実際にかかるターン数)で比べる。
+  `next_hops(u)` はこれが `dist(u)` と等しい v(=最短経路上の一手)をすべて返す。priority は、この中でだけ先頭に並べる。
+- 理由: restricted のゾーンは入るのに2ターンかかるため、`dist(v)` だけを比べると遠回りを選びうる。
+  例: `s-r-g`(r は restricted)と `s-a-g`(a は normal)では `dist(r) = dist(a) = 1` で同点になるが、実際には r 経由が3ターン、
+  a 経由が2ターンかかる。入るコストを足せば a だけが候補になる。方針の意図(総ターン数を悪化させない)どおりの解釈。
+- 検討した代替案: `dist(v)` が最小のものを選ぶ(文字どおりの)案。上の例で余計に1ターンかかる移動を選びうるため見送った。
+
+## 2026-10-16: 到達不能は新しい例外 `UnreachableGoalError` で知らせ、`Pathfinder` の構築時に検出する
+
+- 決定内容: `errors.py` に `UnreachableGoalError(FlyInError)` を追加した。属性は `zone_name`(どこから)と `goal_name`、
+  メッセージは `goal 'g' is unreachable from 's'`(行番号なし)。`Pathfinder(network)` の構築時に start の距離が無ければ送出する。
+  `best_route(from_zone)` も、`from_zone` から届かない場合に同じ例外を送出する。
+- 理由: 到達不能は特定の行ではなくマップ全体の性質なので、`ParseError`(行番号つき)は合わない。`SimulationError` は
+  「起きるはずのない状態」(パーサが防ぐはずの不変条件違反)に使っており、入力マップが原因の正当なエラーとは性質が違う。
+  専用の例外にすれば、`app.py` 側で他のエラーと同様に `FlyInError` として捕まえつつ、テストで種類を区別できる。
+  構築時に検出すれば「`Pathfinder` が存在する=start から goal に届く」が保証され、Stage 5 が毎回確認せずに済む。
+- 検討した代替案:
+  - `SimulationError` を流用する案。上記の理由で意味が混ざるため見送った。
+  - `Pathfinder` は例外を出さず、`is_goal_reachable()` のような問い合わせを用意して `app.py` に判定させる案。確認を忘れると
+    Stage 5 が距離 `None` のまま動いてしまうため見送った。
+
+## 2026-10-16: start_hub / end_hub が `zone=blocked` のマップは到達不能として扱う
+
+- 決定内容: BLOCKED のゾーンは start / end を含めて距離を持たない。そのため `end_hub` が blocked なら goal に入れず、
+  `start_hub` が blocked でも start に距離が付かないので、どちらも `UnreachableGoalError` になる。パーサはこの組み合わせを拒否しない(現状どおり)。
+- 理由: 課題 VII.3 は blocked を「入ることも通過することもできない」と定めている。end には入らなければ配達できない。
+  start については「最初からそこにいるので入るわけではない」という読み方もありうるが、要件に明記がなく、
+  一律に「blocked のゾーンは経路に現れない」とする方が単純で、`turn_cost` の利用契約(blocked で `ValueError`)とも矛盾しない。
+- 検討した代替案:
+  - start が blocked でも出発だけは許す案。課題文の読み方としてはありうるため、ユーザーの判断で変更しうる(未決事項として報告)。
+  - パーサで start/end の `zone=blocked` を `ParseError` にする案。要件にない制約を加えることになるため見送った。
