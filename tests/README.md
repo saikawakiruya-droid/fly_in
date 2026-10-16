@@ -40,6 +40,8 @@ python -m pytest tests/
   key=value・未知キー・未知キーワード)と行番号、ヘッダー行の別扱い
 - `tests/parsing/test_map_rules.py` — 行をまたぐ規則(ゾーン名重複・start/end重複・
   未定義ゾーンへの接続・接続重複と自己ループ)
+- `tests/output/test_formatter.py` — `TurnLogFormatter`: `D<ID>-<行き先>` の空白区切り整形、
+  呼び出し順の保持(ソートしない)、接続名のそのまま出力、空ターンのスキップ、`capsys` での標準出力検査
 
-対象はStage 1(Domain Model)・Stage 2(Parser & Validation)。Stage 3以降
+対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 6(Output Formatter)。Stage 3以降
 (経路探索、シミュレーション等)の実装が進み次第、対応するテストディレクトリを追加していく想定。
