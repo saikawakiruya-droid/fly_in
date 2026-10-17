@@ -66,7 +66,7 @@ class MapFileError(FlyInError):
     def __init__(self, path: str, reason: str) -> None:
         self.path = path
         self.reason = reason
-        super().__init__(f"cannot read map file {path!r}: {reason}")
+        super().__init__(f"cannot read map file '{path}': {reason}")
 
 
 class VisualizationError(FlyInError):
