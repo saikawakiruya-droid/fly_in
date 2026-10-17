@@ -14,7 +14,7 @@ import pytest
 from droneflow.models.drone import DroneStatus
 from droneflow.models.network import Network
 from droneflow.output.formatter import TurnLogFormatter
-from droneflow.pathfinding.pathfinder import Pathfinder
+from droneflow.pathfinding.pathfinder import Hop, Pathfinder
 from droneflow.simulation.scheduler import Scheduler
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
 from droneflow.visualization.base import Visualizer
@@ -149,6 +149,45 @@ class RecordingVisualizer:
         )
 
 
+def place_drones(
+    network: Network,
+    nb_drones: int,
+    at: dict[int, str] | None = None,
+    flying: dict[int, tuple[str, str]] | None = None,
+) -> SimulationState:
+    """Return a state with some drones moved away from the start zone.
+
+    ``at={1: "a"}`` puts D1 in zone a (the end zone delivers it) and
+    ``flying={1: ("s", "r")}`` puts D1 in flight from s toward r. The
+    unchecked primitives are used, so the zones need not be adjacent to
+    the start; drones not listed stay in the start zone.
+    """
+    state = SimulationState(network, nb_drones)
+    for drone_id, zone in (at or {}).items():
+        state.enter_zone(drone_id, zone)
+    for drone_id, (from_zone, to_zone) in (flying or {}).items():
+        connection = network.connection_between(from_zone, to_zone)
+        assert connection is not None, f"no {from_zone}-{to_zone} link"
+        state.enter_transit(drone_id, connection, to_zone)
+    return state
+
+
+def make_hop(network: Network, from_zone: str, to_zone: str) -> Hop:
+    """Return the hop from one zone into an adjacent one, in any direction.
+
+    Unlike ``Pathfinder.next_hops`` it also builds hops that are not
+    shortest moves (back to the start, for instance).
+    """
+    connection = network.connection_between(from_zone, to_zone)
+    assert connection is not None, f"no {from_zone}-{to_zone} link"
+    return Hop(connection, network.get_zone(to_zone))
+
+
+def make_real_scheduler(network: Network) -> Scheduler:
+    """Return the Stage 5 scheduler over its own pathfinder."""
+    return Scheduler(network, Pathfinder(network))
+
+
 def take_snapshot(state: SimulationState) -> Snapshot:
     """Copy every value a turn may change, for before/after comparison."""
     network = state.network
@@ -194,6 +233,24 @@ def oscillating_scheduler() -> Callable[[Network, str, str], Scheduler]:
 def follower_scheduler() -> Callable[[Network], Scheduler]:
     """Return a factory for ``FollowerScheduler``."""
     return FollowerScheduler
+
+
+@pytest.fixture
+def place() -> Callable[..., SimulationState]:
+    """Return the ``place_drones`` helper."""
+    return place_drones
+
+
+@pytest.fixture
+def hop() -> Callable[[Network, str, str], Hop]:
+    """Return the ``make_hop`` helper."""
+    return make_hop
+
+
+@pytest.fixture
+def real_scheduler() -> Callable[[Network], Scheduler]:
+    """Return a factory for the real ``Scheduler`` (Stage 5)."""
+    return make_real_scheduler
 
 
 @pytest.fixture
