@@ -1,9 +1,10 @@
 """Color names to RGB, shared by every view (no pygame needed).
 
 The subject accepts any single-word string as a zone color, with no fixed
-list. This table covers the common names (all those used by the maps
-handed out with the subject); views fall back to a default color for any
-other name instead of failing.
+list. This table covers the common names, including every color used by
+the maps handed out with the subject except ``rainbow`` (not a single
+color, so it is deliberately left out); views fall back to a default
+color for any name not in the table instead of failing.
 """
 
 RGB = tuple[int, int, int]
