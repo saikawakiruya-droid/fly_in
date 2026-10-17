@@ -180,7 +180,7 @@ flowchart LR
 |---|---|---|---|---|
 | VC01 | 呼び出しを順に配る | ビュー a, b。`begin(state)` → `render(state, moves)` → `close()` | `log` が `[(a,begin),(b,begin),(a,render),(b,render),(a,close),(b,close)]`。各ビューが受け取った `state` / `moves` は渡したものと同一(`is`) | API7(both 用に同じ呼び出しを配る)。ビューの順序を保つ |
 | VC02 | 1つの close が失敗しても残りを閉じる | ビュー a(失敗), b | `pytest.raises(RuntimeError, match="a")`。`log` に `(b,close)` がある(a の後に b も閉じた) | API7「1つのビューが失敗しても残りをすべて閉じる」 |
-| VC03 | 複数の close が失敗した場合 | ビュー a(失敗), b(失敗), c(失敗) | 3つとも閉じる(log)。送出されるのは最後の `c`、その `__context__` が `b`、`b.__context__` が `a`(docstring どおり) | composite.py の docstring「earlier ones chained to it as context」。**現状は `__context__` が `None` で、a・b の失敗が失われる**(下記バグ1)。修正方針が決まるまで `xfail(strict=True)` |
+| VC03 | 複数の close が失敗した場合 | ビュー a(失敗), b(失敗), c(失敗) | 3つとも閉じる(log)。送出されるのは最後の `c`、その `__context__` が `b`、`b.__context__` が `a`(docstring どおり) | composite.py の docstring「earlier ones chained to it as context」。設計時は `__context__` が `None` で a・b の失敗が失われていた(下記バグ1)。2026-10-18 に実装を直したので**通常のケース**(xfail にしない) |
 | VC04 | ビューなし | `CompositeVisualizer([])` で3メソッド | 何も起きない(例外なし) | 境界。`ExitStack` が空でも動く |
 | VC05 | render の失敗はそのまま伝わる | ビュー a(render で失敗), b | `RuntimeError("a")`。b の render は呼ばれない。その後 `close()` すれば a, b とも閉じる | 現状の挙動の記録(render は後始末ではないので止めてよい)。エンジンが `finally` で close するので窓は残らない(VH04 と組で守る) |
 
@@ -223,9 +223,11 @@ VG03〜VG05 は窓を開かない(`headless` 不要)。それ以外は `headless
 | VG10 | Space で自動再生に戻る | `GV(delay=0, step=True, hold_final=False)`、`post_key(K_SPACE)` → `begin` | 戻り、`is_open is True` | ステップ 2「Space で自動再生に切り替え」、窓 2(Space で一時停止 / 再開) |
 | VG11 | 待ち時間の変更と上下限 | ① `GV(delay=1.0, step=True)`、`K_UP` → `K_RIGHT` を積んで begin、`close()` ② `delay=1.0` で `K_DOWN` ×4 → `K_RIGHT` ③ `delay=0.1` で `K_UP` ×3 → `K_RIGHT` | `close()` 後の `GV.delay` が ① `0.5` ② `5.0`(1→2→4→5 で上限)③ `0.05`(下限) | 窓 2(上下で半分 / 2倍)。`_shut` が窓の待ち時間を `delay` に書き戻すことで観察できる |
 | VG12 | close は何度呼んでもよい | ① begin 前に `close()` ② begin → `close()` → `close()` | どちらも例外なし、`is_open is False` | API7(エンジンは1回だが、both で2重に閉じても落ちない) |
+| VG18 | close の後は窓を開かない | ① begin 前に `close()` → `begin(state)` ② ① の後 `render(state, moves)` | どちらも例外なし、`is_open is False`、`pygame.display.get_surface() is None` | 2026-10-18「Stage 7 のテスト設計で挙がった点の扱い」3(窓を開く前に閉じても、以後は何もしない) |
 | VG13 | 最後の画面で閉じる操作を待つ | `GV(delay=0, hold_final=True)` で全機配達済みの状態(`place(at={1:"g"})`)を `render`、続けて `post_key(K_ESCAPE)` → `close()` | close が戻り(番犬より前)、`is_open is False` | 窓 4(完走したら `close` で Esc・q・× を待つ)。待ちの終わり方をイベントで確かめる(テストでハングしない) |
 | VG14 | 待たずに閉じる場合 | パラメタライズ: ① 完走していない状態(ターン0)で render → `close()`(エラーで止まった場合)② 完走した状態で render した後 `post_quit()` で窓を閉じてから(`render` 1回で閉じる)`close()`。`_Window.wait_for_quit` を `monkeypatch` で呼び出しを数えるスパイに差し替える | どちらも `wait_for_quit` が呼ばれない、`is_open is False` | 窓 4(エラーで止まった場合は待たずに閉じる)、窓 3(閉じた後は何もしない)。スパイは内部名への依存だが、時間を測らずに「待たなかった」を示す最小の継ぎ目 |
 | VG15 | マウスを重ねた詳細表示 | `GV(delay=60, step=True)`、`_Layout(network, size).position("a")` の位置に `post_motion` → `K_RIGHT` → `begin` | 例外なし、`is_open is True` | 窓 2(マウスで詳細)。ツールチップの描画経路のスモークテスト(画素の検査はしない) |
+| VG17 | ステップ実行の最後のフレームは待たない | パラメタライズ `hold_final`: ① `False` ② `True`。`GV(delay=60, step=True, hold_final=...)`、イベントを積まず `watchdog(2000)`。全機配達済みの状態(`place(at={1:"g"})`)を `render`。② はその後 `post_key(K_ESCAPE)` → `close()` | ① ② とも render から戻った時点で `is_open is True`(番犬は鳴っていない=右矢印を待たなかった)。② の close が戻り `is_open is False`。対照: 配達済みでない状態の render は VG08 のとおり番犬まで戻らない | 2026-10-18「…挙がった点の扱い」1、`docs/bugs.md` 2026-10-18(対応済み)。ターミナルの VT12(最後のターンの後は待たない)とそろう |
 | VG16 | import で stdout に何も出ない | サブプロセス(`sys.executable -c "import droneflow.visualization.graphical_view"`)、環境から `PYGAME_HIDE_SUPPORT_PROMPT` を除く | stdout が空、終了コード0 | 窓 5(案内文が stdout に混ざらない)。同じプロセスでは import 済みのため、サブプロセスで確かめる |
 
 ### エンジンのフック(`tests/simulation/test_engine_hooks.py`、pygame 不要)
@@ -238,6 +240,7 @@ VG03〜VG05 は窓を開かない(`headless` 不要)。それ以外は `headless
 | VH02 | render は毎ターン、そのターンの moves で | VH01 と同じ | render の記録が `len(turns)` 個で、ターン番号が 1, 2, …、各 `moves` が `turns[i]` と等しい(ドローンID順、空でない) | API7 2(`moves` はそのターンの `Move`) |
 | VH03 | 成功時の close | VH01 と同じ | 並び全体が `begin, render×n, close`。`close` はちょうど1回で最後 | API7 3 |
 | VH04 | エラーで止まっても close | パラメタライズ: ① `idle_scheduler`(1ターン目で誰も動かない)② `oscillating_scheduler` + `max_turns=3`(上限)③ `scripted_scheduler` で隣接していないゾーンへの指示(resolver の違反) | どれも `SimulationError` が**そのまま**伝わる。並びは ① `begin, close` ② `begin, render×3, close` ③ `begin, close`(違反したターンは render しない) | API7 3(`try/finally` で `SimulationError` でも close)。Stage 4 の G 系(例外の種類・render の回数)と矛盾しないこと |
+| VH06 | begin が失敗しても close | `CallLogVisualizer(fail_on="begin")` | run から `RuntimeError("view")` が伝わる。並びは `begin, close`(render なし)、スケジューラは呼ばれない(`state.turn_number == 0`) | 2026-10-18「…挙がった点の扱い」2(`begin` も `try` の中) |
 | VH05 | ビューの render が失敗しても close | `CallLogVisualizer(fail_on="render")` | run から `RuntimeError("view")` が伝わる(別の例外に包まない)。並びは `begin, render, close` | API7 3(`finally` なのでビューの失敗でも窓が残らない) |
 
 ケース数: VP 4、VC 5、VT 16、VG 16、VH 5 の **計46件**(パラメタライズの展開後は VP02 が3、VT09 が4、VG04 が3、VG05 が5、VG06 が2、
@@ -255,8 +258,7 @@ VG07 が3、VG11 が3、VG12 が2、VG14 が2、VH04 が3)。うち VG 系16件�
 5. `TerminalVisualizer` の既定の出力先は**構築時**の `sys.stderr`。VT01 は capsys が有効になってから構築する。
 6. VT12〜VT14 の `step=True` には入力ストリームを必ず渡す(省略すると本物の `sys.stdin` を見る。pytest 下では端末でないので
    待たないが、テストの意図が環境に依存する)。
-7. VC03 は `xfail(strict=True, reason="docs/bugs.md 2026-10-18 CompositeVisualizer.close")` で書く。直したら strict の xfail が
-   落ちるので、外し忘れない。docstring 側を直す方針になった場合は、VC03 を「最後の失敗が送出される」だけに書き換える。
+7. VC03 は通常のケースとして書く(2026-10-18 に実装を直したため xfail にしない)。
 8. `tests/conftest.py` への移設は単独のコミットにし、既存の 335 件が通ることを確かめてから Stage 7 のテストを足す。
 9. `flake8` と `mypy --strict`(tests を対象にしている範囲で)を通す。`_Layout` の import には `# noqa` は要らない(先頭 `_` は lint の対象外)。
 
@@ -266,12 +268,12 @@ VG07 が3、VG11 が3、VG12 が2、VG14 が2、VH04 が3)。うち VG 系16件�
    docstring は「several fail, the last failure is raised, with the earlier ones chained to it as context」だが、実際は最後の
    例外だけが送出され `__context__` は `None`。`with` の本体で例外が起きていないとき、`ExitStack` はコールバック同士の例外を
    つながない(CPython の `ExitStack._fix_exception_context` が `__context__ is None` のとき何もしない)。全ビューを閉じる点は正しい。
-   VC03 で検出。
+   VC03 で検出。→ **対応済み**(実装を docstring に合わせた。`docs/bugs.md` 参照)。
 2. **ステップ実行のグラフィカル表示で、最後のターンでも右矢印を待つ**(`droneflow/visualization/graphical_view.py:546`)。
    `_show` は `state.is_complete` でも `window.wait()` を呼ぶので、`step=True` では最後のフレームで一時停止のまま止まる。
    `hold_final=True` だと「右矢印 → finished の表示 → Esc」の2段階になり、finished の表示は右矢印を押すまで出ない。
    ターミナルのステップ実行は「最後のターンを除く」なので、両者がそろっていない。仕様(ステップの決定)が最後のターンを
-   どう扱うかを定めていないため、**要確認**として記録した(テストケースには入れていない。確認したい点 3)。
+   どう扱うかを定めていないため、**要確認**として記録した(確認したい点 3)。→ **対応済み**(最後のフレームでは待たない。VG17 を追加)。
 
 ## 確認したい点
 
@@ -281,14 +283,18 @@ VG07 が3、VG11 が3、VG12 が2、VG14 が2、VH04 が3)。うち VG 系16件�
    VG14 の `_Window.wait_for_quit` のスパイも同様に内部名への依存になる。
 3. **ステップ実行の最後のフレーム**(バグ2): グラフィカルも最後のターンでは一時停止しない(ターミナルとそろえる。`hold_final` の
    待ちに任せる)か、今のまま「最後のフレームも右矢印で確認」にするか。決まったら VG にケースを1件足す。
+   → **決定(2026-10-18)**: 最後のフレームでは待たない(ターミナルとそろえる)。VG17 を追加。
 4. **`begin` の失敗時の close**: `engine.py:71` の `visualizer.begin(...)` は `try` の外にあるため、begin が例外を出すと close が
    呼ばれない。both で「ターミナルの begin は成功、グラフィカルの窓が開けない」場合、ターミナル側の close(flush)は呼ばれない。
    API7 の「エラーでも close」は `SimulationError` を想定した決定なので現状でもよいか、begin も `try` に入れるか。
    (現状の挙動をテストで固定はしていない。)
+   → **決定(2026-10-18)**: begin も `try` に入れる。VH06 を追加。
 5. **close の失敗で run の戻り値が失われる**: 正常に完走しても、ビューの close が例外を出すと run は例外で終わり、ターン一覧を返さない。
    CLI でターンログをターンごとに出す方針(2026-10-18)なら実害は小さいが、close の失敗を握りつぶすか伝えるかを CLI のフェーズで決めたい。
 6. **close の後に begin / render**: `GraphicalVisualizer` は窓を一度も開かずに `close()` した場合、その後の `render` で窓が開く
    (`_closed` が立たない)。エンジンの呼び方では起きないので、テストでは固定していない。
+   → **決定(2026-10-18)**: 窓を開く前の `close()` でも閉じた状態にし、以後は窓を開かない。VG18 を追加。
 7. **`palette.py` の docstring**: 「all those used by the maps handed out with the subject」とあるが、challenger の end_hub の
    `color=rainbow` は表にない(決定では「ない名前の例」として挙がっている)。docstring を「rainbow 以外」と直すかどうか。VP03 は
    現状の表(rainbow は None)を期待値にしている。
+   → **決定(2026-10-18)**: docstring を「`rainbow` 以外」に直した(表は変えない)。VP03 はそのまま。
