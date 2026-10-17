@@ -90,3 +90,43 @@ def test_end_zone_raises_when_absent() -> None:
     network.add_zone(make_zone("hub"))
     with pytest.raises(SimulationError):
         network.end_zone
+
+
+def network_with(names: str, *edges: tuple[str, str]) -> Network:
+    """Build a network of NORMAL hubs and the given connections."""
+    network = Network()
+    for name in names:
+        network.add_zone(make_zone(name))
+    for zone_a, zone_b in edges:
+        network.add_connection(Connection(zone_a=zone_a, zone_b=zone_b))
+    return network
+
+
+def test_connection_between_works_in_both_directions() -> None:
+    """M02: the lookup ignores direction and returns the same object."""
+    network = network_with("ab", ("a", "b"))
+    connection = network.connections[0]
+
+    assert network.connection_between("a", "b") is connection
+    assert network.connection_between("b", "a") is connection
+
+
+def test_connection_between_returns_none_when_not_linked() -> None:
+    """M03: unlinked or unknown zones give None, not an exception."""
+    network = network_with("abc", ("a", "b"))
+
+    assert network.connection_between("a", "c") is None
+    assert network.connection_between("nope", "a") is None
+
+
+@pytest.mark.parametrize("has_loop", [True, False])
+def test_connection_between_finds_self_loop(has_loop: bool) -> None:
+    """M04: passing the same zone twice finds a declared self-loop."""
+    edges = [("a", "a"), ("a", "b")] if has_loop else [("a", "b")]
+    network = network_with("ab", *edges)
+
+    found = network.connection_between("a", "a")
+    if has_loop:
+        assert found is network.connections[0]
+    else:
+        assert found is None

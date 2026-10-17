@@ -35,3 +35,13 @@ def test_other_end_raises_for_unrelated_zone() -> None:
     connection = Connection(zone_a="a", zone_b="b")
     with pytest.raises(ValueError):
         connection.other_end("z")
+
+
+@pytest.mark.parametrize(
+    ("zone_a", "zone_b", "name"), [("a", "b", "a-b"), ("b", "a", "b-a")]
+)
+def test_name_keeps_declared_order(
+    zone_a: str, zone_b: str, name: str
+) -> None:
+    """M01: the name is zone_a-zone_b as declared, never sorted."""
+    assert Connection(zone_a=zone_a, zone_b=zone_b).name == name
