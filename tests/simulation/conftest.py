@@ -22,6 +22,7 @@ from droneflow.visualization.base import Visualizer
 
 Script = list[list[MoveOrder]]
 Record = tuple[int, int, bool]
+Call = tuple[object, ...]
 
 
 class ScriptedScheduler(Scheduler):
@@ -122,6 +123,39 @@ class RecordingVisualizer:
         """Record nothing."""
 
 
+class CallLogVisualizer:
+    """Log every call, in order, in one list (Stage 7 hook tests).
+
+    Entries are ``("begin", turn, drones in the start zone)``,
+    ``("render", turn, moves)`` and ``("close",)``. Values are copied
+    when the call is made, since the engine keeps changing the state.
+    ``fail_on`` names a method that raises ``RuntimeError("view")``
+    after logging its call.
+    """
+
+    def __init__(self, fail_on: str | None = None) -> None:
+        self.calls: list[Call] = []
+        self.fail_on = fail_on
+
+    def begin(self, state: SimulationState) -> None:
+        """Log the turn and how many drones wait in the start zone."""
+        start = state.network.start_zone.name
+        self._log("begin", state.turn_number, state.occupancy(start))
+
+    def render(self, state: SimulationState, moves: list[Move]) -> None:
+        """Log the turn and a copy of its moves."""
+        self._log("render", state.turn_number, list(moves))
+
+    def close(self) -> None:
+        """Log the call."""
+        self._log("close")
+
+    def _log(self, name: str, *values: object) -> None:
+        self.calls.append((name, *values))
+        if self.fail_on == name:
+            raise RuntimeError("view")
+
+
 def make_hop(network: Network, from_zone: str, to_zone: str) -> Hop:
     """Return the hop from one zone into an adjacent one, in any direction.
 
@@ -185,3 +219,9 @@ def recorder() -> tuple[Visualizer, list[Record]]:
 def fmt() -> Callable[[list[Move]], str]:
     """Return a function formatting one turn as it would be printed."""
     return TurnLogFormatter().format_turn
+
+
+@pytest.fixture
+def call_log() -> Callable[..., CallLogVisualizer]:
+    """Return a factory for ``CallLogVisualizer`` (``fail_on`` optional)."""
+    return CallLogVisualizer
