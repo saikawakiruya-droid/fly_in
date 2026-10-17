@@ -47,12 +47,15 @@ _MAX_DOTS = 12
 _MIN_DELAY = 0.05
 _MAX_DELAY = 5.0
 _MAX_STRETCH = 2.0
-_LABEL_ROOM = 50
+_LABEL_ROOM = 72
 _HELP = "space: pause  right: step  up/down: speed  esc: quit"
 
 
 class _Layout:
     """Maps zone coordinates to window pixels, scaled to fit.
+
+    The map's y axis points up (math orientation): a larger y is drawn
+    higher in the window.
 
     Each axis is scaled to fill the window, but one axis is never
     stretched more than ``_MAX_STRETCH`` times the other, so long flat
@@ -67,9 +70,9 @@ class _Layout:
         top = _HUD_HEIGHT + _MARGIN // 2
         bottom = height - _FOOTER_HEIGHT - _LABEL_ROOM
         min_x = min((z.x for z in zones), default=0)
-        min_y = min((z.y for z in zones), default=0)
+        max_y = max((z.y for z in zones), default=0)
         span_x = max((z.x for z in zones), default=0) - min_x
-        span_y = max((z.y for z in zones), default=0) - min_y
+        span_y = max_y - min((z.y for z in zones), default=0)
         scale_x = (right - left) / span_x if span_x else math.inf
         scale_y = (bottom - top) / span_y if span_y else math.inf
         if math.isinf(scale_x) and math.isinf(scale_y):
@@ -81,7 +84,7 @@ class _Layout:
         self._points: dict[str, Point] = {
             z.name: (
                 round(offset_x + (z.x - min_x) * scale_x),
-                round(offset_y + (z.y - min_y) * scale_y),
+                round(offset_y + (max_y - z.y) * scale_y),
             )
             for z in zones
         }
@@ -479,7 +482,7 @@ class GraphicalVisualizer:
         delay: float = 0.5,
         size: Point = (1200, 800),
         hold_final: bool = True,
-        start_paused: bool = False,
+        step: bool = False,
     ) -> None:
         """Store the settings; no window is opened yet.
 
@@ -488,12 +491,13 @@ class GraphicalVisualizer:
             size: Window size in pixels.
             hold_final: After the last turn, keep the window open until
                 the user closes it (only if the run completed).
-            start_paused: Start paused, stepping with the right arrow.
+            step: Step mode: start paused and advance one turn per right
+                arrow press (Space still switches to auto-play).
         """
         self.delay = delay
         self.size = size
         self.hold_final = hold_final
-        self.start_paused = start_paused
+        self.step = step
         self._window: _Window | None = None
         self._closed = False
         self._finished = False
@@ -557,7 +561,7 @@ class GraphicalVisualizer:
             return None
         if self._window is None:
             self._window = _Window(network, self.size, self.delay)
-            self._window.paused = self.start_paused
+            self._window.paused = self.step
         return self._window
 
     def _shut(self) -> None:
