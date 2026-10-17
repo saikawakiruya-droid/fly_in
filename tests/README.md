@@ -22,10 +22,12 @@ python -m pytest tests/
 
 - `tests/models/test_zone.py` — `ZoneType.turn_cost` / `is_traversable`、
   `Zone.has_unlimited_capacity`
-- `tests/models/test_connection.py` — `Connection.involves` / `other_end`
-- `tests/models/test_drone.py` — `Drone.is_delivered`
+- `tests/models/test_connection.py` — `Connection.involves` / `other_end`、`Connection.name`
+  (宣言どおりの `zone_a-zone_b` で並べ替えない)
+- `tests/models/test_drone.py` — `Drone.is_delivered`、`Drone.transit_target`(既定は `None`・飛行中は値を保持)
 - `tests/models/test_network.py` — `Network` の登録・検索・隣接・start/end取得と、
-  それぞれの例外契約(`ZoneNotFoundError` / `SimulationError`)
+  それぞれの例外契約(`ZoneNotFoundError` / `SimulationError`)、`connection_between`
+  (両方向で同じ接続・つながっていない/存在しない名前は `None`・同じ名前2つで自己ループ)
 - `tests/test_errors.py` — `ZoneNotFoundError` の例外階層・属性、`UnreachableGoalError` の例外階層
   (`FlyInError` の子で `ParseError` / `SimulationError` とは別)・属性・行番号なしのメッセージ
 - `tests/parsing/test_map_parser.py` — `MapParser`(章VII.4のパーサ制約全般):
@@ -55,8 +57,11 @@ python -m pytest tests/
 - `tests/output/test_formatter.py` — `TurnLogFormatter`: `D<ID>-<行き先>` の空白区切り整形、
   呼び出し順の保持(ソートしない)、接続名のそのまま出力、空ターンのスキップ、`capsys` での標準出力検査
 
-- `tests/pathfinding/conftest.py` — 共有フィクスチャ: `make_network`(`"s-a a-g"` のような記述から
-  `Network` をコード内で組む。記述順=接続の宣言順)、`grid_network`(20×20 の格子)、`write_map`(`tmp_path` にマップを書く)
+- `tests/conftest.py` — 全テスト共通のフィクスチャ: `make_network`(`"s-a a-g"` のような記述から
+  `Network` をコード内で組む。記述順=接続の宣言順=接続名。hub の `max_drones` は既定 1(パーサーと同じ)で
+  `capacity` で、接続の `max_link_capacity` は既定 1 で `links` で個別に指定できる。start/end は常に `None`)、
+  `write_map`(`tmp_path` にマップを書く。1行目は必ず `nb_drones:`)
+- `tests/pathfinding/conftest.py` — `grid_network`(20×20 の格子。`make_network` で組む)
 - `tests/pathfinding/test_distance_map.py` — `DistanceMap`: ゾーンタイプ別の進入コスト(restricted=2・priority=1、
   restricted な end を含む)、blocked の除外と通過不可、行き止まり・孤立ゾーン、自己ループ・閉路、
   存在しない名前の `ZoneNotFoundError`、end が blocked のときの防御的な挙動、20×20 格子での距離
@@ -66,5 +71,23 @@ python -m pytest tests/
   `best_route` の `total_cost` と `from_zone` 指定・例外の種類、経路の整合性チェック、
   パーサー経由の E2E(課題のサンプルマップ、到達不能マップはパース成功・経路探索で失敗)
 
-対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 6(Output Formatter)。
-Stage 4以降(シミュレーション等)の実装が進み次第、対応するテストディレクトリを追加していく想定。
+- `tests/simulation/conftest.py` — スタブのスケジューラ(台本どおりの `ScriptedScheduler`、最短経路を貪欲にたどる
+  `FollowerScheduler`、何もしない `IdleScheduler`、往復し続ける `OscillatingScheduler`。本物の `Scheduler` は Stage 5)、
+  render の呼び出しを記録する `recorder`、状態の値をコピーする `snapshot`、1ターンを出力の文字列にする `fmt`
+- `tests/simulation/test_state.py` — `SimulationState`: 構築(全機が start に `AT_ZONE`)、`free_capacity`
+  (start/end は `None`)、`enter_zone` の数え方、end への到着で配達済み(占有に残らない)、`enter_transit` の予約と
+  接続の使用、`complete_transit` で予約が占有に置き換わること、restricted な end への到着、基本操作の前提違反
+- `tests/simulation/test_turn_resolver.py` — `TurnResolver`: 出力のドローンID順(自動の到着と指示が混ざっても)、
+  ゾーン容量(上限ちょうどは合法・同じターンに出ていく分は使える・3機の循環)、start/end は無制限、接続容量
+  (両方向で共有・入れ替わり)、restricted の2ターン移動(出発時は宣言どおりの接続名、次ターンに自動到着・予約で満杯・
+  到着のターンも接続容量に数える・飛行中への指示は拒否・restricted な end)、不正な指示(存在しないドローン/ゾーン・
+  隣接していない・blocked・2つの指示・今いるゾーン)、配達済みへの指示と出力、違反後に状態が一切変わらないこと
+  (到着も適用されない)とその後も続けられること、自己ループでの移動の拒否(normal / restricted)、戻り値が `Move` であること
+- `tests/simulation/test_engine.py` — `SimulationEngine`: 正常終了(空のターンなし・ID順)、render はターンの適用後に
+  1回ずつ(visualizer は省略可)、誰も動かないターンの `SimulationError`、到着だけのターンは進行とみなすこと、
+  ターン数の上限(振動・ちょうど上限で終わる境界)、既定の上限 `default_turn_limit`、resolver の例外が伝わり違反した
+  ターンでは render しないこと、構築直後の状態、パーサー経由の E2E(課題のサンプルマップの出力7行、corridorA を
+  blocked にして restricted の roof1 を通る出力12行)
+
+対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
+Stage 6(Output Formatter)。Stage 5(Scheduler)以降の実装が進み次第、対応するテストを追加していく想定。
