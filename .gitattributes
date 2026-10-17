@@ -1,0 +1,2 @@
+# Keep the Makefile with LF line endings on every platform.
+Makefile text eol=lf
