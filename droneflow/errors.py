@@ -52,3 +52,26 @@ class UnreachableGoalError(FlyInError):
         super().__init__(
             f"goal {goal_name!r} is unreachable from {zone_name!r}"
         )
+
+
+class MapFileError(FlyInError):
+    """Raised when the map file cannot be opened or read as text.
+
+    Attributes:
+        path: The map file path as given on the command line.
+        reason: Why it could not be read (e.g. "No such file or
+            directory").
+    """
+
+    def __init__(self, path: str, reason: str) -> None:
+        self.path = path
+        self.reason = reason
+        super().__init__(f"cannot read map file {path!r}: {reason}")
+
+
+class VisualizationError(FlyInError):
+    """Raised when the requested visualization cannot be used.
+
+    For example when the graphical view is asked for but pygame is not
+    installed, or when no window can be opened.
+    """
