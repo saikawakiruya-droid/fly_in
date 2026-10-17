@@ -142,11 +142,17 @@ class RecordingVisualizer:
     def __init__(self) -> None:
         self.records: list[Record] = []
 
-    def render(self, state: SimulationState) -> None:
+    def begin(self, state: SimulationState) -> None:
+        """Record nothing: only renders after a turn are recorded."""
+
+    def render(self, state: SimulationState, moves: list[Move]) -> None:
         """Append a summary of the state."""
         self.records.append(
             (state.turn_number, state.delivered_count, state.is_complete)
         )
+
+    def close(self) -> None:
+        """Record nothing."""
 
 
 def place_drones(
