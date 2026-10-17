@@ -1,7 +1,7 @@
 # テスト設計: Stage 5(Multi-Drone Scheduler)
 
 - 日付: 2026-10-17
-- フェーズ: **テスト設計**(テストコードはまだ書かない。作成は別フェーズで行う)
+- フェーズ: **テスト設計** → **テスト作成済み**(2026-10-17。末尾の「作成フェーズの結果」を参照)
 - 対象ブランチ: `test/stage5_scheduler`(`feature/stage5_scheduler` から分岐)
 - 対象コード: `droneflow/simulation/turn_ledger.py`(`TurnLedger`)、`droneflow/simulation/scheduler.py`
   (`Scheduler.decide_moves` / `Scheduler.is_on_priority_route`)。`Pathfinder` / `SimulationState` / `TurnResolver` /
@@ -217,6 +217,8 @@ hub の容量は省略時 1、接続容量は省略時 1。`cap(a)=2` は hub a 
 
 ## 設計中に気づいた点・確認したい点(実装のバグではない)
 
+(→ 5点とも作成フェーズの前に決定済み。下記「確認したい点への回答(決定)」)
+
 実装のバグは見つからなかった(`docs/bugs.md` への追記なし)。L01〜L12・D01〜D17・R01〜R08 の期待値は、設計時に実装で確認済み。
 
 1. **配布マップの読み方**: リポジトリ直下の `maps.tar.gz`(git 管理)を `tarfile` で読む案を推奨した(上記の理由)。
@@ -229,3 +231,51 @@ hub の容量は省略時 1、接続容量は省略時 1。`cap(a)=2` は hub a 
    restricted の扱いを変えるときはこのケースが最初に落ちる。
 5. **D16 の前提**: 「end に届かないゾーンにいる機」は通常の運用では起きない(最短の一手は距離が真に減る)。状態を直接作って
    例外の契約だけを確かめるテストで、異常系の保険という位置づけでよいか。
+
+## 確認したい点への回答(決定、2026-10-17)
+
+1. **配布マップの読み方**: リポジトリ直下の `maps.tar.gz`(git 管理)を `tarfile` でメモリ上で読み、先頭のコメント行・
+   空行だけを取り除く案で決定。アーカイブが無い場合は `skip` ではなく分かりやすいメッセージで失敗させる(R06 ほか、
+   アーカイブを読むすべてのケース)。
+2. **課題の例の定数の置き場所**: `tests/simulation/conftest.py` のフィクスチャ(`subject_map` / `subject_output` /
+   `restricted_only_map`)に移し、`test_engine.py`(G07・G09・G10)もそれを使うよう書き換える(意味は変えない)。
+3. **challenger の上限**: 全25機の配達と `len(turns) < 45`(現状43)を確認する。
+4. **circular_loop が目標と同数(15)**: 目標ちょうど(`<= 15`)で合格とする。
+5. **D16**: 例外の契約を確かめる異常系の保険のテストとして残す。
+
+## 作成フェーズの結果(2026-10-17)
+
+### コミット(`test/stage5_scheduler`)
+
+| コミット | 内容 |
+|---|---|
+| `76ce76f` | 課題の例の定数を `tests/simulation/conftest.py` のフィクスチャへ移設、`test_engine.py` の G07・G09・G10 を書き換え |
+| `2009f5e` | `place` / `hop` / `real_scheduler` フィクスチャの追加と `test_turn_ledger.py`(L01〜L12) |
+| `72c9c98` | `test_scheduler.py`(D01〜D17) |
+| `4b972dc` | `test_scheduler_maps.py`(R01〜R08) |
+| (本コミット) | `tests/README.md` のカバレッジ欄、本ファイルの決定・結果の追記 |
+
+### 結果
+
+- 追加したテスト: L 系12件、D 系17ケース(D07 のパラメタライズで展開後21件)、R 系8ケース(展開後37件)。
+  計 70 件(展開後)。
+- `pytest tests -q`: **335 passed**(全体)、約 0.6 秒。Stage 5 の追加分(E2E 含む)は約 0.3 秒で、配布マップ10枚を
+  複数回走らせても全体の実行時間はほとんど増えていない。
+- `flake8 droneflow tests fly_in.py`: 指摘なし。`mypy --strict droneflow fly_in.py`: 指摘なし。
+- `droneflow/` は変更していない。`revie_case/` と scratchpad のスクリプトには依存していない。
+- 実装のバグは見つからなかった(`xfail` なし、`docs/bugs.md` への追記なし)。
+- 実測のターン数(R04・R05 の記録。テストは目標値で比べる): linear_path 4 / simple_fork 4 / basic_capacity 4 /
+  dead_end_trap 8 / circular_loop 15 / priority_puzzle 8 / maze_nightmare 13 / capacity_hell 16 /
+  ultimate_challenge 26 / challenger 43。ベンチマーク(`2026-10-17_stage5-benchmark.md`)と一致。
+
+### 設計からの細かな変更・補足
+
+- `place` / `hop` / `real_scheduler` は conftest のモジュール関数(`place_drones` / `make_hop` / `make_real_scheduler`)を
+  返すフィクスチャとして実装した(既存のスタブと同じ形。テストファイルから conftest を import しない)。
+- `test_scheduler.py` の `MoveOrder` は別名 `O` を使わずにそのまま書いた(flake8 の E741「紛らわしい変数名」を避けるため)。
+- R03〜R08 のマップの読み込みは、`test_scheduler_maps.py` 内のフィクスチャ `load_world` にまとめた(キー `subject` /
+  `restricted_only` か、アーカイブ内のパスを受け取り、`write_map` → `MapParser` で `World` を返す)。
+- R05 の上限は `< 45` で書いた(`PROVIDED_MAPS` の表の 44 と同じ意味)。
+- R08 で「課題の例は `== 7`」としたのはターン数(1機の最短距離は3)。`len(turns) >= 最短距離` は全10件で確認する。
+- アーカイブが無いときの失敗(`pytest.fail`)は、`MAPS_ARCHIVE` を存在しないパスに差し替えてアドホックに確認した
+  (コミットしない)。

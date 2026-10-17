@@ -72,8 +72,11 @@ python -m pytest tests/
   パーサー経由の E2E(課題のサンプルマップ、到達不能マップはパース成功・経路探索で失敗)
 
 - `tests/simulation/conftest.py` — スタブのスケジューラ(台本どおりの `ScriptedScheduler`、最短経路を貪欲にたどる
-  `FollowerScheduler`、何もしない `IdleScheduler`、往復し続ける `OscillatingScheduler`。本物の `Scheduler` は Stage 5)、
-  render の呼び出しを記録する `recorder`、状態の値をコピーする `snapshot`、1ターンを出力の文字列にする `fmt`
+  `FollowerScheduler`、何もしない `IdleScheduler`、往復し続ける `OscillatingScheduler`)、
+  render の呼び出しを記録する `recorder`、状態の値をコピーする `snapshot`、1ターンを出力の文字列にする `fmt`、
+  Stage 5 用の `place`(検査をしない基本操作でドローンをゾーン・飛行中に置いた状態を作る)・`hop`(隣接する2ゾーン間の
+  `Hop` を向きを問わず作る)・`real_scheduler`(本物の `Scheduler`)、課題のサンプルマップと期待出力
+  (`subject_map` / `subject_output`、corridorA を blocked にした `restricted_only_map`。engine と Stage 5 の E2E で共有)
 - `tests/simulation/test_state.py` — `SimulationState`: 構築(全機が start に `AT_ZONE`)、`free_capacity`
   (start/end は `None`)、`enter_zone` の数え方、end への到着で配達済み(占有に残らない)、`enter_transit` の予約と
   接続の使用、`complete_transit` で予約が占有に置き換わること、restricted な end への到着、基本操作の前提違反
@@ -88,6 +91,22 @@ python -m pytest tests/
   ターン数の上限(振動・ちょうど上限で終わる境界)、既定の上限 `default_turn_limit`、resolver の例外が伝わり違反した
   ターンでは render しないこと、構築直後の状態、パーサー経由の E2E(課題のサンプルマップの出力7行、corridorA を
   blocked にして restricted の roof1 を通る出力12行)
+- `tests/simulation/test_turn_ledger.py` — `TurnLedger`: ゾーン・接続の両方の空き、ゾーン容量の境界(上限ちょうどまで)、
+  記録した退出だけが同じターンの空きになること(記録前の退出は数えない=保守的)、start/end は無制限、
+  restricted の予約で満杯になること、飛行中の機が接続を使うこと(到着のターンも数える)とその使用数と記録の合算、
+  接続は両方向で共有、記録が他の接続・ゾーンに漏れないこと、台帳が状態を変えないこと
+- `tests/simulation/test_scheduler.py` — `Scheduler`: 判断の順序(距離が近い順 → 優先ルート → drone_id。並びを
+  リストの順序ごと検査)、退出で空いたゾーンを同じターンに後ろの機が使うこと、`is_on_priority_route`(今いるゾーン・
+  次の一手が priority なら True、2手先・遠回りの priority・end は False、存在しない名前の `ZoneNotFoundError`)、
+  遠回りせず待つこと、先頭の候補のゾーン/接続が満杯なら次の最短候補、飛行中・配達済みの機には指示しないこと、
+  restricted への指示はゾーン名、restricted な end は接続容量だけで止まること、end に届かないゾーンにいる機の
+  `SimulationError`、状態を変えず指示が `TurnResolver` に受理されること
+- `tests/simulation/test_scheduler_maps.py` — 本物の `Scheduler` の E2E: 課題のサンプルマップの出力7行と完全一致、
+  restricted だけの経路の出力12行、毎ターンの不変条件(1機1指示・指示は `AT_ZONE` の機だけ・最短の一手で距離が減る・
+  resolver が受理・誰かが動く・既定の上限内)を課題の例と配布マップ10枚で確認、配布マップのターン数(VII.7 の目標以内、
+  challenger は IX の45ターン未満)、アーカイブの中身、決定的であること、1機の最短距離を下回らないこと。
+  配布マップはリポジトリ直下の `maps.tar.gz`(git 管理)を `tarfile` でメモリ上で読み、先頭のコメント行・空行だけを
+  取り除く(アーカイブが無ければ分かりやすいメッセージで失敗する。skip にはしない)
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
-Stage 6(Output Formatter)。Stage 5(Scheduler)以降の実装が進み次第、対応するテストを追加していく想定。
+Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)。以降のステージの実装が進み次第、対応するテストを追加していく想定。
