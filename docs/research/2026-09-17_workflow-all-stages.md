@@ -191,6 +191,11 @@ sequenceDiagram
   - Stage 6完成後、ターンごとのドローン位置・ゾーン充填率を実データで描画する
 - 完了条件: シミュレーションの進行が目視で確認できる(静止画/アニメーションいずれでも可)
 - 依存: Stage 2(早期スキャフォールド), Stage 6(実データ連携)
+- 2026-10-17更新: ターミナル(ANSI カラー、stderr に出力)とグラフィカル(pygame-ce)の両方を作り、`CompositeVisualizer` で
+  両方を同時に使えるようにする。`Visualizer` は `begin(state)` / `render(state, moves)` / `close()` の3つにし、
+  エンジンが開始時・毎ターン・終了時(エラーでも)に呼ぶ。上の実行時シーケンス図の `render_initial(world)` は
+  `begin(state)` にあたる。stdout はターンログだけのまま。
+  詳細は `2026-10-17_workflow-stage7-visualization.md` と `docs/decisions.md` を参照
 
 ## Stage 8 — Validation & Testing
 
