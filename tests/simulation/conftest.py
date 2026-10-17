@@ -1,9 +1,10 @@
 """Fixtures for the simulation tests.
 
-The real ``Scheduler`` belongs to Stage 5, so the engine tests drive the
-loop with small stub schedulers. They subclass ``Scheduler`` (a concrete
-class, not a Protocol) and are handed out through factory fixtures, so the
-test files never import this module directly.
+The engine tests (Stage 4) drive the loop with small stub schedulers.
+They subclass ``Scheduler`` (a concrete class, not a Protocol) and are
+handed out through factory fixtures, so the test files never import this
+module directly. The subject's sample map and its expected output are
+shared the same way, by the engine tests and the Stage 5 end-to-end tests.
 """
 
 from typing import Callable
@@ -21,6 +22,39 @@ from droneflow.visualization.base import Visualizer
 Script = list[list[MoveOrder]]
 Record = tuple[int, int, bool]
 Snapshot = dict[str, object]
+
+SUBJECT_SAMPLE_MAP = """\
+nb_drones: 5
+
+start_hub: hub 0 0 [color=green]
+end_hub: goal 10 10 [color=yellow]
+hub: roof1 3 4 [zone=restricted color=red]
+hub: roof2 6 2 [zone=normal color=blue]
+hub: corridorA 4 3 [zone=priority color=green max_drones=2]
+hub: tunnelB 7 4 [zone=normal color=red]
+hub: obstacleX 5 5 [zone=blocked color=gray]
+connection: hub-roof1
+connection: hub-corridorA
+connection: roof1-roof2
+connection: roof2-goal
+connection: corridorA-tunnelB [max_link_capacity=2]
+connection: tunnelB-goal
+"""
+
+# The same map with corridorA blocked, so roof1 is the only way through.
+RESTRICTED_ONLY_MAP = SUBJECT_SAMPLE_MAP.replace(
+    "zone=priority color=green max_drones=2", "zone=blocked color=green"
+)
+
+SAMPLE_OUTPUT = [
+    "D1-corridorA",
+    "D1-tunnelB D2-corridorA",
+    "D1-goal D2-tunnelB D3-corridorA",
+    "D2-goal D3-tunnelB D4-corridorA",
+    "D3-goal D4-tunnelB D5-corridorA",
+    "D4-goal D5-tunnelB",
+    "D5-goal",
+]
 
 
 class ScriptedScheduler(Scheduler):
@@ -179,3 +213,21 @@ def snapshot() -> Callable[[SimulationState], Snapshot]:
 def fmt() -> Callable[[list[Move]], str]:
     """Return a function formatting one turn as it would be printed."""
     return TurnLogFormatter().format_turn
+
+
+@pytest.fixture
+def subject_map() -> str:
+    """Return the subject's sample map (the one before chapter VII.5)."""
+    return SUBJECT_SAMPLE_MAP
+
+
+@pytest.fixture
+def subject_output() -> list[str]:
+    """Return the expected seven output lines of the sample map."""
+    return list(SAMPLE_OUTPUT)
+
+
+@pytest.fixture
+def restricted_only_map() -> str:
+    """Return the sample map with corridorA blocked (roof1 only)."""
+    return RESTRICTED_ONLY_MAP

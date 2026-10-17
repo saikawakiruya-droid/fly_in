@@ -27,39 +27,6 @@ Recorder = tuple[Visualizer, list[tuple[int, int, bool]]]
 
 R = ZoneType.RESTRICTED
 
-SUBJECT_SAMPLE_MAP = """\
-nb_drones: 5
-
-start_hub: hub 0 0 [color=green]
-end_hub: goal 10 10 [color=yellow]
-hub: roof1 3 4 [zone=restricted color=red]
-hub: roof2 6 2 [zone=normal color=blue]
-hub: corridorA 4 3 [zone=priority color=green max_drones=2]
-hub: tunnelB 7 4 [zone=normal color=red]
-hub: obstacleX 5 5 [zone=blocked color=gray]
-connection: hub-roof1
-connection: hub-corridorA
-connection: roof1-roof2
-connection: roof2-goal
-connection: corridorA-tunnelB [max_link_capacity=2]
-connection: tunnelB-goal
-"""
-
-# The same map with corridorA blocked, so roof1 is the only way through.
-RESTRICTED_ONLY_MAP = SUBJECT_SAMPLE_MAP.replace(
-    "zone=priority color=green max_drones=2", "zone=blocked color=green"
-)
-
-SAMPLE_OUTPUT = [
-    "D1-corridorA",
-    "D1-tunnelB D2-corridorA",
-    "D1-goal D2-tunnelB D3-corridorA",
-    "D2-goal D3-tunnelB D4-corridorA",
-    "D3-goal D4-tunnelB D5-corridorA",
-    "D4-goal D5-tunnelB",
-    "D5-goal",
-]
-
 
 def script_from_output(lines: list[str]) -> Script:
     """Turn ``D<n>-<zone>`` lines into one order per move (no restricted)."""
@@ -192,10 +159,10 @@ def test_turn_limit_boundary(
 
 
 def test_default_turn_limit(
-    write_map: WriteMap, idle_scheduler: Idle
+    write_map: WriteMap, idle_scheduler: Idle, subject_map: str
 ) -> None:
     """G07: the default limit is 2 * zones * nb_drones."""
-    world = MapParser(write_map(SUBJECT_SAMPLE_MAP)).parse()
+    world = MapParser(write_map(subject_map)).parse()
     scheduler = idle_scheduler(world.network)
 
     assert default_turn_limit(world) == 70
@@ -231,25 +198,28 @@ def test_subject_sample_map_end_to_end(
     write_map: WriteMap,
     scripted_scheduler: Scripted,
     capsys: pytest.CaptureFixture[str],
+    subject_map: str,
+    subject_output: list[str],
 ) -> None:
     """G09: parser, engine and formatter together print the sample run."""
-    world = MapParser(write_map(SUBJECT_SAMPLE_MAP)).parse()
+    world = MapParser(write_map(subject_map)).parse()
     scheduler = scripted_scheduler(
-        world.network, script_from_output(SAMPLE_OUTPUT)
+        world.network, script_from_output(subject_output)
     )
 
     TurnLogFormatter().emit(SimulationEngine(world, scheduler).run())
 
-    assert capsys.readouterr().out.splitlines() == SAMPLE_OUTPUT
+    assert capsys.readouterr().out.splitlines() == subject_output
 
 
 def test_restricted_route_end_to_end(
     write_map: WriteMap,
     follower_scheduler: Follower,
     capsys: pytest.CaptureFixture[str],
+    restricted_only_map: str,
 ) -> None:
     """G10: restricted moves print the declared connection, then the zone."""
-    world = MapParser(write_map(RESTRICTED_ONLY_MAP)).parse()
+    world = MapParser(write_map(restricted_only_map)).parse()
     engine = SimulationEngine(world, follower_scheduler(world.network))
 
     TurnLogFormatter().emit(engine.run())
