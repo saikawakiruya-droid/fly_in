@@ -14,6 +14,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
 import pygame  # noqa: E402
 
+from ..errors import VisualizationError  # noqa: E402
 from ..models.connection import Connection  # noqa: E402
 from ..models.drone import Drone  # noqa: E402
 from ..models.network import Network  # noqa: E402
@@ -510,7 +511,13 @@ class GraphicalVisualizer:
         return self._window is not None
 
     def begin(self, state: SimulationState) -> None:
-        """Open the window and show the initial state."""
+        """Open the window and show the initial state.
+
+        Raises:
+            VisualizationError: If the window cannot be opened (for
+                example when there is no display). The view is then
+                closed for good.
+        """
         self._show(state, [])
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
@@ -567,7 +574,16 @@ class GraphicalVisualizer:
         if self._closed:
             return None
         if self._window is None:
-            self._window = _Window(network, self.size, self.delay)
+            try:
+                self._window = _Window(network, self.size, self.delay)
+            except pygame.error as exc:
+                # e.g. no display: give up on the view for good and say
+                # why in one line instead of a pygame traceback.
+                _Window.close()
+                self._closed = True
+                raise VisualizationError(
+                    f"cannot open the graphical window: {exc}"
+                ) from exc
             self._window.paused = self.step
         return self._window
 
