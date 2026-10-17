@@ -107,3 +107,34 @@
 - 対応状況: 対応済み(c832eb1)。バグとして扱い、最後のフレーム(全機配達済み)では、一時停止中(ステップ実行)または
   `hold_final=True` のとき `wait()` を呼ばないようにした。`hold_final=True` なら `close()` が finished の表示で閉じる操作を待つ。
   決定は `docs/decisions.md` 2026-10-18「Stage 7 のテスト設計で挙がった点の扱い」。テスト設計に VG17 を追加した。
+
+## 2026-10-18: `flake8 .` が `.venv` の中まで検査し、`mypy .` が `conftest.py` の重複で止まる
+
+- 発生箇所: リポジトリ直下での課題 III.2 の lint コマンド(`flake8 .` / `mypy . ...`)。Makefile の作成中に発見。
+- 症状: `flake8 .` が `.venv/Lib/site-packages` の中まで検査して数千件のエラーになる。`mypy .` は
+  `Duplicate module named "conftest"`(`tests/pathfinding` / `tests/simulation` / `tests/visualization`)で検査の前に止まる。
+- 原因: flake8 の既定の除外に `.venv` が入っていない。`tests/` の各フォルダには `__init__.py` がなく、mypy が3つの
+  `conftest.py` をどれも `conftest` という名前のモジュールとして扱う。
+- 対応状況: 対応済み。`setup.cfg` に `[flake8] extend-exclude = .venv,...` と `[mypy] explicit_package_bases = True` を置いた
+  (decisions.md 2026-10-18「Makefile / requirements.txt / setup.cfg」)。
+
+## 2026-10-18: `mypy . --strict` が `tests/simulation/test_turn_resolver.py:203` を誤って報告する
+
+- 発生箇所: `tests/simulation/test_turn_resolver.py:203`(`assert drone.status is DroneStatus.AT_ZONE`)
+- 症状: `make lint-strict` の `mypy . --strict` で
+  `Non-overlapping identity check (left operand type: "Literal[DroneStatus.IN_TRANSIT]", ...)  [comparison-overlap]`。
+- 原因: 直前の `assert drone.status is DroneStatus.IN_TRANSIT` で mypy が `drone.status` の型を絞り込んだまま、
+  `resolver.resolve(...)` が `drone` を書き換えたことを知らない。`--strict` に含まれる `strict_equality` がこれを報告する。
+  コード(`droneflow/`)の問題ではない。
+- 対応状況: 対応済み(テストは変えていない)。`setup.cfg` で `tests.*` だけ `strict_equality = False` にした。
+  `# type: ignore` は、`--strict` なしの `make lint`(`--warn-unused-ignores`)で「使われていない ignore」になるため使えない。
+
+## 2026-10-18: Windows で stdout のパイプが閉じると、`BrokenPipeError` ではなく `OSError(EINVAL)` になる
+
+- 発生箇所: `fly_in.py`(`main`)/ `droneflow/output/turn_log_view.py`(`TurnLogPrinter.render` の flush)。CLI の確認中に発見。
+- 症状: 読み手が先に閉じたパイプに stdout を書くと、Windows では `OSError: [Errno 22] Invalid argument` のトレースバックと、
+  終了時の `Exception ignored while flushing sys.stdout` が出た(終了コード120)。
+- 原因: POSIX では `BrokenPipeError`(EPIPE)になるが、Windows では EINVAL として報告される。最初の実装は `BrokenPipeError` だけを
+  受けていた。
+- 対応状況: 対応済み。`_is_closed_pipe` で、`BrokenPipeError` と(Windows の場合だけ)EINVAL を「パイプが閉じた」とみなし、
+  stdout を devnull に向け直して終了コード1で静かに終える。

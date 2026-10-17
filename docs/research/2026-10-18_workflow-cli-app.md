@@ -40,8 +40,9 @@
 | `droneflow/errors.py` | `MapFileError`(マップが開けない・読めない)、`VisualizationError`(可視化が使えない) | 追加 |
 | `droneflow/visualization/graphical_view.py` | 窓を開くときの `pygame.error` を `VisualizationError` にする | 小変更 |
 | `fly_in.py` | `KeyboardInterrupt`(Ctrl+C)と `BrokenPipeError`(`| head` など)も1行で終える | 変更 |
-| `Makefile` | install / run / debug / clean / lint / lint-strict(+ install-dev / test / fclean) | 新規 |
-| `requirements.txt` / `requirements-dev.txt` | 実行と lint に要るもの / テスト用(pytest) | 新規 |
+| `Makefile` | install / run / debug / clean / lint / lint-strict(+ test / fclean) | 新規 |
+| `.gitattributes` | `Makefile` の改行を LF に固定(Windows の `core.autocrlf` 対策) | 新規 |
+| `requirements.txt` | pygame-ce / flake8 / mypy / pytest(pytest は `mypy . --strict` が `tests/` を検査するのにも要る) | 新規 |
 | `setup.cfg` | flake8 の除外(`.venv` など)と mypy の設定(`explicit_package_bases` など) | 新規 |
 | `maps/subject_example.txt` | 課題 VII.5 の例のマップ(`make run` の既定) | 新規 |
 
@@ -236,7 +237,9 @@ sequenceDiagram
    (pygame の `ModuleNotFoundError` → `VisualizationError`)、`_GuardedView`、警告とまとめの出力。
 5. `graphical_view.py`: 窓を開くときの `pygame.error` を `VisualizationError` にし、pygame の表示を片付けて「閉じた」状態にする。
 6. `fly_in.py`: `KeyboardInterrupt` と `BrokenPipeError` の扱い。
-7. `Makefile` / `requirements.txt` / `requirements-dev.txt` / `setup.cfg` / `maps/subject_example.txt`。
+7. `Makefile` / `requirements.txt` / `setup.cfg` / `.gitattributes` / `maps/subject_example.txt`。
+   (当初は `requirements-dev.txt` に pytest を分ける案だったが、`tests/` があると `mypy . --strict` が pytest なしでは通らないため、
+   `requirements.txt` にまとめた。`docs/decisions.md` 2026-10-18 参照)
 8. アドホックな確認(コミットしない): 課題の例とコメントを除いた配布マップを、`--visual` の4つのモードで実行し、
    stdout が同一であること、終了コード、エラーメッセージ(不正なマップ、ないファイル、ディレクトリ)を確かめる。
    グラフィカルは `SDL_VIDEODRIVER=dummy` と、窓を閉じるイベントを送るスクリプトで確かめる。

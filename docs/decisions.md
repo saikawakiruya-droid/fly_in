@@ -835,3 +835,140 @@ sequenceDiagram
   1. 最後のフレームも右矢印で確認させる(初版の動き)。ターミナルと食い違い、finished の表示が遅れるため見送った。
   2. `begin` は `try` の外のまま(`SimulationError` だけを想定)。ビューが部分的に開いたまま残りうるため見送った。
   3. 窓を開く前の `close()` は何もしない(初版の動き)。エンジンの呼び方では起きないが、約束として曖昧なため見送った。
+
+## 2026-10-18: CLI の形(`--visual` / `--delay` / `--step`、`--debug` はなくす)
+
+- 決定内容(`docs/research/2026-10-18_workflow-cli-app.md`):
+  1. `python fly_in.py MAP [--visual {terminal,graphical,both,none}] [--delay SECONDS] [--step]`。argparse で解釈する。
+     既定は `--visual terminal`、`--delay 0.5`。
+  2. スケルトンにあった `Args.debug`(pdb の下で動かすフラグ)はなくす。`make debug` が `python -m pdb fly_in.py ...` で
+     起動するので、アプリ側に同じ機能は要らない。
+  3. 引数の誤り(未知のオプション、`MAP` なし、`--visual` の値の誤り、`--delay` が負・非数・無限大)は argparse の
+     慣例どおり、usage とエラーを stderr に出して**終了コード2**(マップや実行のエラーの1とは分ける)。
+  4. `--delay` はグラフィカル表示だけが使い、`--step` は `none` では使わない。どちらも関係のないモードではエラーにせず無視する。
+  5. `--step` の組み立ては 2026-10-18「ステップ実行…」のとおり: `terminal` → `TerminalVisualizer(step=True)`、
+     `graphical` → `GraphicalVisualizer(step=True)`、`both` → グラフィカルだけ `step=True`(ターミナルは `step=False`)。
+     グラフィカルは常に `hold_final=True`。
+- 理由: 2 は同じことを2か所でできるようにしない。3 は argparse の標準の動きで、使い方の誤りと実行の失敗を区別できる。
+  4 は、terminal で `--delay` を付けた程度でエラーにする利点が小さいため。
+- 検討した代替案:
+  - `--debug` を残し、例外時にトレースバックを出すフラグにする案。課題の `debug` は pdb を求めており、`make debug` で足りるため見送った。
+  - 引数の誤りも終了コード1にそろえる案。argparse の既定を曲げる必要があり、利点が小さいため見送った。
+
+## 2026-10-18: ターンログはエンジンの観測者 `TurnLogPrinter` がターンごとに stdout へ書く
+
+- 決定内容:
+  1. `droneflow/output/turn_log_view.py` に `TurnLogPrinter` を置く。`Visualizer` と同じ `begin` / `render` / `close` の形で、
+     `render` のたびに `TurnLogFormatter.format_turn(moves)` の1行を stdout に書き、**1行ごとに flush** する
+     (空のターンは書かない。フォーマッタは状態を持たないまま)。
+  2. `Application` は `CompositeVisualizer([TurnLogPrinter, ターミナル/グラフィカルのビュー...])` をエンジンに渡す。
+     プリンタを**先頭**に置くので、各ターンで stdout の行が stderr のフレームより先に出る。
+  3. stdout に書くのはこのプリンタだけ。まとめ・警告・エラー・ターミナル表示は stderr。課題の例と配布マップ10枚
+     (コメント行を除いたもの)で、`--visual` の4つのモードの stdout がバイト単位で同じことを確かめた。
+- 理由: 2026-10-18「CLI のフェーズで実装する可視化まわりの方針」1(ターンごとに出す)。ビューと同じ形にすれば、エンジンにも
+  フォーマッタにも手を入れずに、ビューと同じタイミングで出せる(合成で並べるだけ、継承なし)。flush は、stdout と stderr を
+  同じファイルにリダイレクトしたときやパイプのときにも、行とフレームの順が崩れないようにするため。
+- 検討した代替案:
+  - `engine.run` の戻り値を最後に `TurnLogFormatter.emit` で出す案(Stage 7 時点の動き)。グラフィカルでは窓を閉じるまでログが
+    出ないため見送った(上記の方針)。
+  - `TurnLogFormatter` に出力先と印字を持たせる案。Stage 6 の「フォーマッタは状態を持たない」を崩すため見送った。
+
+## 2026-10-18: 実行の最後に、総ターン数と副次指標2つを stderr に1行出す
+
+- 決定内容: 正常に完走したとき、stderr に
+  `summary: 7 turns, 5 drones, 5.00 turns per drone on average, 2.14 moves per turn` の1行を出す
+  (`droneflow/output/summary.py` の `RunSummary`)。`--visual` によらず毎回出す。エラーで止まったときは出さない。
+  - 1機あたりの平均ターン数 = 各ドローンが配達された(最後に動いた)ターンの平均。
+  - 1ターンあたりの移動数 = ターンログの項目数の合計 / ターン数。
+  - 課題 VII.6 の3つ目(経路コストの合計)は出さない。
+- 理由: 課題 VII.6 は副次指標を「出力やドキュメントに出すことを勧める」としている。stdout は課題の形式だけにするため stderr。
+  2つに絞ったのは、ターンログから計算でき、新しい状態を持たずに済むため(控えめにする、というユーザーの指示)。
+- 検討した代替案: `--visual none` のときは出さない案。stderr なので stdout の検査を妨げず、出し分ける利点が小さいため見送った。
+
+## 2026-10-18: エラーの扱い(マップが読めない、pygame がない・窓が開けない、Ctrl+C、パイプが閉じた)
+
+- 決定内容: どのエラーも stderr に1行、トレースバックなし。
+  1. `FlyInError`(パース・到達不能・シミュレーション)→ `error: <説明>`、終了コード1(従来どおり)。
+  2. マップファイルが開けない・読めない(ない、ディレクトリ、権限、UTF-8 でない)→ 新しい `MapFileError` にして
+     `error: cannot read map file 'x.txt': No such file or directory`、終了コード1。`OSError` / `UnicodeDecodeError` の変換は
+     `Application._load_world` で行い、パーサー(Stage 2)には手を入れない。
+  3. `--visual graphical/both` で pygame(pygame-ce)が入っていない → 新しい `VisualizationError` で
+     `error: the graphical view needs pygame (pygame-ce): run 'make install' or 'pip install pygame-ce', or use --visual terminal`、
+     終了コード1。pygame は `graphical` / `both` のときだけ import する(`terminal` / `none` は pygame なしで動く)。
+  4. 窓が開けない(画面がない、SDL のドライバがない)→ `GraphicalVisualizer` が窓を開くときの `pygame.error` を
+     `VisualizationError("cannot open the graphical window: ...")` にし、ビューは閉じた状態にする(`graphical_view.py` の小変更)。
+  5. 確認の順番は「マップを読む → 到達可能か → ビューを組み立てる → 実行」。マップの誤りを先に知らせる。
+  6. Ctrl+C → `error: interrupted`、終了コード130(シェルの慣例 128+SIGINT)。ビューはエンジンの `finally` で閉じる。
+  7. stdout の読み手がいなくなった(`| head` など)→ 何も出さずに終了コード1(stdout を devnull に向け直し、終了時の flush の
+     エラーも出さない)。POSIX の `BrokenPipeError` と、Windows でこの場合に出る `OSError(EINVAL)` を対象にする。
+- 理由: 課題 III.1(例外で落ちない)。1行のメッセージで原因と対処が分かるようにする。3 は依存が任意であることを保つため。
+- 検討した代替案:
+  - パーサーの `MapReader` で `OSError` を変換する案。設計としては自然だが、Stage 2 はユーザーが実装した部分で、パーサーの約束
+    (送出する例外)を変えずに済むアプリ側で変換した。
+  - pygame がないとき、ターミナル表示に切り替えて続ける案。指定と違う動きを黙ってするより、明確に止めるほうがよいとして見送った。
+  - 予期しない例外(バグ)もすべて `except Exception` で1行にする案。バグを隠すため今回は入れていない(未決。下の
+    「CLI のフェーズで残った未決事項」を参照)。
+
+## 2026-10-18: ビューの `close()` の失敗は、実行の結果を変えずに警告1行にする
+
+- 決定内容(Stage 7 のテスト設計の確認したい点5への回答):
+  1. `Application` はターミナル・グラフィカルのビューを `_GuardedView` で包んでからエンジンに渡す。`_GuardedView.close()` は
+     ビューの `close()` の例外を送出せずに覚え、`run` の後に `warning: could not close the graphical view: <説明>` を stderr に出す。
+  2. 正常に完走していれば、終了コード0・ターンログ(すでにターンごとに出ている)・まとめはそのまま。
+     エラーで止まった場合は、警告の後に元のエラーを `error: ...` で出し、終了コード1。
+  3. `TurnLogPrinter` は包まない(stdout に書けないことは隠さない)。
+- 理由: ターンログはターンごとに出し終えているので、窓の後始末の失敗で実行全体を失敗にする理由がない。また、エンジンの
+  `finally` で `close()` が例外を出すと、元のエラー(例: `SimulationError`)がその例外に置き換わって表に出なくなる。
+- 検討した代替案:
+  - 何もしない(close の例外がそのまま出る)。pygame の例外ならトレースバックで落ち、元のエラーも隠れるため見送った。
+  - `CompositeVisualizer` に握りつぶしを持たせる案。Stage 7 で「最後の失敗を送出し、前の失敗を context でつなぐ」と決めて
+    テストもあるため、変えずにアプリ側で包んだ。
+  - 警告を出し、終了コードを1にする案。出力は完全なので、成功を失敗と報告することになるため見送った。
+
+## 2026-10-18: Makefile / requirements.txt / setup.cfg
+
+- 決定内容:
+  1. `Makefile`(リポジトリ直下): `install`(`.venv` がなければ作り、`requirements.txt` を入れる)、`run`(`MAP=` と `ARGS=` で
+     上書き可)、`debug`(`python -m pdb`)、`clean`(`.venv` 以外の `__pycache__` / `.mypy_cache` / `.pytest_cache` / `*.pyc`)、
+     `lint`(`flake8 .` と、課題 III.2 のフラグそのままの `mypy .`)、`lint-strict`(`flake8 .` と `mypy . --strict`)。
+     追加で `test`(`pytest tests -q`)と `fclean`(`clean` + `.venv` の削除)。
+  2. どの規則も `.venv` の python(`-m flake8` などモジュールとして)を使う。Linux/macOS は `.venv/bin`、Windows
+     (`OS=Windows_NT`)は `.venv/Scripts`。venv を作る python は `PYTHON_SYS`(既定 `python3`、Windows は `python`)で変えられる。
+  3. `run` / `debug` / `lint` / `lint-strict` / `test` は、`.venv/.installed`(`install` が作る印)が `requirements.txt` より古いか
+     ないときに、先に `install` を走らせる。
+  4. `requirements.txt` は `pygame-ce>=2.5`(pygame は Python 3.14 用のビルドがない。2026-10-16 の決定)、`flake8>=7.0`、
+     `mypy>=1.10`、`pytest>=8.0`。pytest は実行には要らないが、`tests/` がリポジトリにある間は `mypy . --strict` が
+     pytest の型情報なしでは通らない(デコレータが型なしと判定される)ため、同じファイルに入れた。
+  5. `setup.cfg` に flake8 と mypy の設定を置く: flake8 は `.venv` などを除外(`flake8 .` が `.venv` の中まで見て数千件の
+     エラーになるため)。mypy は `explicit_package_bases = True`(`tests/` の各フォルダの `conftest.py` が同じモジュール名になって
+     止まるため)と、`tests.*` だけ `strict_equality = False`(`docs/bugs.md` 2026-10-18 参照)。
+  6. `.gitattributes` で `Makefile` の改行を LF に固定する(Windows の `core.autocrlf=true` で CRLF になるのを避ける)。
+- 理由: 課題 III.2。採点は Linux/macOS なので、そちらで素直に動く書き方(`find`、`test -d`、`touch`)にした。
+- 確認できたこと・できなかったこと: 開発機(Windows + Git Bash)には `make` がなく、WSL の Ubuntu も起動できなかった
+  (vhdx のある外付けドライブが未接続)ため、**`make` 自体での実行は未確認**。各規則のコマンドを Git Bash で手で展開して実行し、
+  リポジトリの写し(scratchpad、`.venv` なし)で `python -m venv` → `pip install -r requirements.txt` → 実行・lint・lint-strict・
+  pytest(410件)が通ることを確かめた。
+- 検討した代替案:
+  - pytest を `requirements-dev.txt` と `make install-dev` に分ける案。`tests/` を提出物に含めた場合に `make lint-strict` が
+    `make install` だけでは通らないため見送った。
+  - `pyproject.toml` に設定を書く案。パッケージとして配布しないので設定だけの `setup.cfg` にした(flake8 は `pyproject.toml`
+    を読まないことも理由)。
+
+## 2026-10-18: `make run` の既定マップは課題の例(`maps/subject_example.txt`)
+
+- 決定内容: 課題 VII.5 の例のマップを `maps/subject_example.txt` として提出物に含め、`make run` の既定にする
+  (`make run MAP=path/to/map.txt` で変更)。
+- 理由: 2026-10-16 の決定(`nb_drones` は物理的な1行目に限る)により、**配布マップ(`maps.tar.gz`)10枚はどれも1行目が
+  コメントなので、そのままでは `line 1: the first line must be 'nb_drones: <n>'` の `ParseError` で終了する**。
+  既定の実行が必ず成功するよう、1行目が `nb_drones:` のマップを同梱した。
+- 評価への影響(要確認): 評価者が配布マップをそのまま渡すと、どれもパースエラーになる。仕様の読み方としては一貫しているが、
+  評価の場で説明が要る(README に書く、またはコメント行を除いた配布マップを同梱する、などは Stage 9 / ユーザー判断)。
+- 検討した代替案: コメント行を除いた配布マップを `maps/` に同梱し、そのうち1枚を既定にする案。配布物の改変版を含めることになり、
+  ユーザーの判断が要るため、今回は課題の例だけにした。
+
+## 2026-10-18: CLI のフェーズで残った未決事項
+
+- 予期しない例外(バグ)の扱い: 今は `FlyInError` 以外の例外はトレースバックで落ちる。課題 III.1 は「未処理の例外で落ちると
+  動かないものとみなす」とするため、`fly_in.py` に最後の砦として `except Exception` を置き、`error: internal error: <型>: <説明>`
+  の1行で終了コード1にする案がある(デバッグは `make debug` で行う)。おすすめは「入れる」だが、バグを隠す面もあるのでユーザー判断。
+- 配布マップをそのまま読めないこと(上の決定)を、README に書くか、コメント行を除いた版を同梱するか。
