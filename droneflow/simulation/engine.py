@@ -55,7 +55,8 @@ class SimulationEngine:
         Args:
             visualizer: Optional view: ``begin`` is called before the
                 first turn, ``render(state, moves)`` after every applied
-                turn, and ``close`` once at the end, even on error.
+                turn, and ``close`` once at the end, even on error
+                (including an error raised by ``begin``).
 
         Returns:
             All turns, each a list of the moves made during that turn, in
@@ -67,9 +68,9 @@ class SimulationEngine:
                 change again), or if ``max_turns`` is exceeded.
         """
         turns: list[list[Move]] = []
-        if visualizer is not None:
-            visualizer.begin(self.state)
         try:
+            if visualizer is not None:
+                visualizer.begin(self.state)
             while not self.state.is_complete:
                 turns.append(self._play_turn())
                 if visualizer is not None:
