@@ -25,9 +25,8 @@ _ROLE_TAGS: dict[ZoneRole, str] = {
     ZoneRole.END: "E",
 }
 _LEGEND = (
-    "legend: S start  E end  . normal  P priority  R restricted  "
-    "X blocked | "
-    "in/max (- no limit, +N arriving, * full)"
+    "key: S=start E=end .=normal P=priority R=restricted X=blocked | "
+    "in/max: -=no limit +N=arriving *=full"
 )
 _NAME_WIDTH_LIMIT = 18
 _CELL_GAP = "   "
