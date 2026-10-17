@@ -470,7 +470,8 @@ class GraphicalVisualizer:
     """Renders the network and drone positions in a graphical window.
 
     The window opens on the first ``begin`` or ``render``. After each
-    frame it waits ``delay`` seconds while handling input: Space pauses
+    frame (except the final one when paused or ``hold_final``) it waits
+    ``delay`` seconds while handling input: Space pauses
     or resumes, the right arrow steps one turn, up/down (or +/-) change
     the delay, and Esc, q or the window's close button quit. Quitting
     only closes the window: later calls do nothing and the simulation
@@ -517,11 +518,13 @@ class GraphicalVisualizer:
         self._show(state, moves)
 
     def close(self) -> None:
-        """Close the window, first waiting for the user if requested."""
+        """Close the window, first waiting for the user if requested.
+
+        The view is closed for good afterwards, even if no window was
+        ever opened: later ``begin`` / ``render`` calls do nothing.
+        """
         window = self._window
-        if window is None:
-            return
-        if self.hold_final and self._finished:
+        if window is not None and self.hold_final and self._finished:
             window.redraw("finished - press esc to close")
             window.wait_for_quit()
         self._shut()
@@ -543,6 +546,10 @@ class GraphicalVisualizer:
             if (point := window.drone_point(drone)) is not None
         }
         self._finished = state.is_complete
+        if self._finished and (window.paused or self.hold_final):
+            # Nothing comes next: don't ask for a step. With hold_final,
+            # close() keeps the final frame up until the user quits.
+            return
         if not window.wait():
             self._shut()
 
