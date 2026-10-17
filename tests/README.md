@@ -18,6 +18,9 @@
 python -m pytest tests/
 ```
 
+`tests/visualization/test_graphical_view.py` は pygame(pygame-ce)が必要。入っていなければこのファイルだけ skip され、
+ほかのテストは pygame なしで走る。グラフィカル表示のテストはヘッドレス(`SDL_VIDEODRIVER=dummy`)で動くので、画面は要らない。
+
 ## 現在のカバレッジ範囲
 
 - `tests/models/test_zone.py` — `ZoneType.turn_cost` / `is_traversable`、
@@ -60,7 +63,12 @@ python -m pytest tests/
 - `tests/conftest.py` — 全テスト共通のフィクスチャ: `make_network`(`"s-a a-g"` のような記述から
   `Network` をコード内で組む。記述順=接続の宣言順=接続名。hub の `max_drones` は既定 1(パーサーと同じ)で
   `capacity` で、接続の `max_link_capacity` は既定 1 で `links` で個別に指定できる。start/end は常に `None`)、
-  `write_map`(`tmp_path` にマップを書く。1行目は必ず `nb_drones:`)
+  `write_map`(`tmp_path` にマップを書く。1行目は必ず `nb_drones:`)、`load_world`(`write_map` で書いて
+  `MapParser` で読んだ `World`)、`place`(検査をしない基本操作でドローンをゾーン・飛行中に置いた状態を作る)、
+  `snapshot`(状態の値をコピーする)、課題のサンプルマップと期待出力(`subject_map` / `subject_output`、
+  corridorA を blocked にした `restricted_only_map`)。後の4つは Stage 7 で `tests/simulation/conftest.py` から移した
+  (simulation と visualization のテストで共有)
+
 - `tests/pathfinding/conftest.py` — `grid_network`(20×20 の格子。`make_network` で組む)
 - `tests/pathfinding/test_distance_map.py` — `DistanceMap`: ゾーンタイプ別の進入コスト(restricted=2・priority=1、
   restricted な end を含む)、blocked の除外と通過不可、行き止まり・孤立ゾーン、自己ループ・閉路、
@@ -73,10 +81,9 @@ python -m pytest tests/
 
 - `tests/simulation/conftest.py` — スタブのスケジューラ(台本どおりの `ScriptedScheduler`、最短経路を貪欲にたどる
   `FollowerScheduler`、何もしない `IdleScheduler`、往復し続ける `OscillatingScheduler`)、
-  render の呼び出しを記録する `recorder`、状態の値をコピーする `snapshot`、1ターンを出力の文字列にする `fmt`、
-  Stage 5 用の `place`(検査をしない基本操作でドローンをゾーン・飛行中に置いた状態を作る)・`hop`(隣接する2ゾーン間の
-  `Hop` を向きを問わず作る)・`real_scheduler`(本物の `Scheduler`)、課題のサンプルマップと期待出力
-  (`subject_map` / `subject_output`、corridorA を blocked にした `restricted_only_map`。engine と Stage 5 の E2E で共有)
+  render の呼び出しを記録する `recorder`、`begin` / `render` / `close` を呼ばれた順に1つのリストに記録し、指定した
+  メソッドで失敗もできる `call_log`(Stage 7)、1ターンを出力の文字列にする `fmt`、
+  Stage 5 用の `hop`(隣接する2ゾーン間の `Hop` を向きを問わず作る)・`real_scheduler`(本物の `Scheduler`)
 - `tests/simulation/test_state.py` — `SimulationState`: 構築(全機が start に `AT_ZONE`)、`free_capacity`
   (start/end は `None`)、`enter_zone` の数え方、end への到着で配達済み(占有に残らない)、`enter_transit` の予約と
   接続の使用、`complete_transit` で予約が占有に置き換わること、restricted な end への到着、基本操作の前提違反
@@ -108,5 +115,31 @@ python -m pytest tests/
   配布マップはリポジトリ直下の `maps.tar.gz`(git 管理)を `tarfile` でメモリ上で読み、先頭のコメント行・空行だけを
   取り除く(アーカイブが無ければ分かりやすいメッセージで失敗する。skip にはしない)
 
+- `tests/simulation/test_engine_hooks.py` — `SimulationEngine.run` が可視化を呼ぶ契約(Stage 7): `begin` は1ターン目の前に
+  1回(ターン0・全機が start)、`render` は毎ターンそのターンの `moves` で、`close` は最後に1回。`SimulationError`
+  (誰も動かない・ターン数の上限・不正な指示)、`begin` の失敗、`render` の失敗のどれでも `close` を呼び、例外はそのまま伝わること
+
+- `tests/visualization/conftest.py` — `tty_stream`(`isatty()` が True の `StringIO`。端末の代わり)、
+  `coord_network`(座標と色つきでゾーンを登録する。最初が start、最後が end)
+- `tests/visualization/test_palette.py` — `rgb`: 表の値(似た赤を区別)・全エントリが 0〜255 の3つ組、大文字小文字を
+  区別しないこと、配布マップ(`maps.tar.gz`)の色名17種のうち `rainbow` 以外がすべて表にあること、知らない名前・空・`None` は
+  `None`、エンジン・ターミナル表示・composite・palette を import しても pygame が読まれないこと(サブプロセス)
+- `tests/visualization/test_composite.py` — `CompositeVisualizer`: 呼び出しをビューの順に配る(同じ `state` / `moves`)、
+  1つの close が失敗しても残りを閉じる、複数の失敗は最後を送出し前の失敗を `__context__` でつなぐ、ビューなし、
+  render の失敗はそのまま伝わる
+- `tests/visualization/test_terminal_view.py` — `TerminalVisualizer`: 既定の出力先が stderr(stdout は空)、begin の見出し・
+  凡例・ゾーンの表・`drones:`、`frame` は書かずに行を返し render がそれを書くこと、restricted(接続名・予約 `+1`・飛行中)・
+  blocked(`--`)・end(配達数)の表示、ドローンIDの範囲表記、幅での折り返しと長い名前の省略、色の強制 on/off・自動判定
+  (端末かどうか・`NO_COLOR` は空でない値のときだけ)、知らない色・色なしは塗らない、close は flush するだけ、
+  ステップ実行(最後のターン以外で Enter を待つ・端末でない入力や `step=False` では読まない・EOF で以後待たない)、
+  状態を変えないこと、課題のサンプルマップの E2E
+- `tests/visualization/test_graphical_view.py` — `GraphicalVisualizer` をヘッドレス(`SDL_VIDEODRIVER=dummy`)で:
+  構築では窓を開かない、begin で開き close で閉じる、`_Layout` の座標変換(y は上向き・縮退した配置)、`zone_rgb` の
+  色の引き方、課題のサンプルマップ・restricted だけのマップを最後まで描いて閉じる、途中で閉じても(×・Esc・q)計算は続く、
+  ステップ実行(一時停止で始まる・右矢印で1ターン・Space で自動再生・最後のフレームは待たない)、上下の矢印での待ち時間の
+  変更と上下限、close は何度でも・close の後は窓を開かない、`hold_final` の最後の画面での待ちと待たない場合、マウスでの
+  詳細表示、import で stdout に何も出ないこと(サブプロセス)。pygame が無ければファイルごと skip。入力イベントは
+  呼び出しの前に積み、番犬のタイマー(QUIT)でハングを防ぐ。実時間の sleep や経過時間のアサーションは使わない
+
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
-Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)。以降のステージの実装が進み次第、対応するテストを追加していく想定。
+Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization)。以降のステージの実装が進み次第、対応するテストを追加していく想定。

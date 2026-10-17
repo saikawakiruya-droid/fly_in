@@ -1,7 +1,7 @@
 # テスト設計: Stage 7(Visualization)
 
 - 日付: 2026-10-18
-- フェーズ: **テスト設計**(テストコードはまだ書かない。作成フェーズは別途)
+- フェーズ: **テスト設計**(テストコードはまだ書かない。作成フェーズは別途)→ 2026-10-18 に作成済み(末尾「作成フェーズの結果」)
 - 対象ブランチ: `test/stage7_visualization`(`feature/stage7_visualization` から分岐)
 - 対象コード: `droneflow/visualization/palette.py`(`rgb`)、`composite.py`(`CompositeVisualizer`)、
   `terminal_view.py`(`TerminalVisualizer` / `color_enabled`)、`graphical_view.py`(`GraphicalVisualizer` / `zone_rgb` / `_Layout`)、
@@ -279,8 +279,10 @@ VG07 が3、VG11 が3、VG12 が2、VG14 が2、VH04 が3)。うち VG 系16件�
 
 1. **フィクスチャの移設**: `place` / `snapshot` / `subject_map` / `restricted_only_map` / `subject_output` を `tests/conftest.py` に
    上げ、`load_world` を新設する案でよいか(`tests/simulation/` のテストは書き換えず、そのまま通る想定)。
+   → **決定(2026-10-18)**: 推奨案どおり `tests/conftest.py` に上げ、`load_world` を追加した(意味は変えない)。
 2. **`_Layout` の扱い**: 内部クラスのまま import してテストする(推奨。コード変更なし)か、`Layout` として公開名にするか。
    VG14 の `_Window.wait_for_quit` のスパイも同様に内部名への依存になる。
+   → **決定(2026-10-18)**: 内部名のまま `_Layout` を import し、`_Window.wait_for_quit` を `monkeypatch` のスパイに差し替える(コード変更なし)。
 3. **ステップ実行の最後のフレーム**(バグ2): グラフィカルも最後のターンでは一時停止しない(ターミナルとそろえる。`hold_final` の
    待ちに任せる)か、今のまま「最後のフレームも右矢印で確認」にするか。決まったら VG にケースを1件足す。
    → **決定(2026-10-18)**: 最後のフレームでは待たない(ターミナルとそろえる)。VG17 を追加。
@@ -291,6 +293,7 @@ VG07 が3、VG11 が3、VG12 が2、VG14 が2、VH04 が3)。うち VG 系16件�
    → **決定(2026-10-18)**: begin も `try` に入れる。VH06 を追加。
 5. **close の失敗で run の戻り値が失われる**: 正常に完走しても、ビューの close が例外を出すと run は例外で終わり、ターン一覧を返さない。
    CLI でターンログをターンごとに出す方針(2026-10-18)なら実害は小さいが、close の失敗を握りつぶすか伝えるかを CLI のフェーズで決めたい。
+   → **決定(2026-10-18)**: CLI のフェーズで扱う。Stage 7 のテストでは固定しない(ケースを足さない)。
 6. **close の後に begin / render**: `GraphicalVisualizer` は窓を一度も開かずに `close()` した場合、その後の `render` で窓が開く
    (`_closed` が立たない)。エンジンの呼び方では起きないので、テストでは固定していない。
    → **決定(2026-10-18)**: 窓を開く前の `close()` でも閉じた状態にし、以後は窓を開かない。VG18 を追加。
@@ -298,3 +301,32 @@ VG07 が3、VG11 が3、VG12 が2、VG14 が2、VH04 が3)。うち VG 系16件�
    `color=rainbow` は表にない(決定では「ない名前の例」として挙がっている)。docstring を「rainbow 以外」と直すかどうか。VP03 は
    現状の表(rainbow は None)を期待値にしている。
    → **決定(2026-10-18)**: docstring を「`rainbow` 以外」に直した(表は変えない)。VP03 はそのまま。
+
+## 作成フェーズの結果(2026-10-18)
+
+- ブランチ: `test/stage7_visualization`。コミットは「フィクスチャの移設 → VH → VP(+ visualization の conftest)→ VC → VT → VG →
+  README・本ドキュメント」の順に分けた。
+- 追加したファイル: `tests/simulation/test_engine_hooks.py`、`tests/visualization/` の `README.md` / `conftest.py` /
+  `test_palette.py` / `test_composite.py` / `test_terminal_view.py` / `test_graphical_view.py`。変更: `tests/conftest.py`
+  (移設と `load_world`)、`tests/simulation/conftest.py`(移設したものを削除、`CallLogVisualizer` / `call_log` を追加)、`tests/README.md`。
+- 移設は単独のコミットで行い、既存の 335 件がそのまま通ることを確認した。
+- 結果: `pytest tests` は **410 passed**(既存 335 + Stage 7 の 75。パラメタライズ展開後)、約 1.3 秒。2回続けて実行して同じ結果
+  (不安定なテストなし)。pygame を import できない環境を模擬すると `test_graphical_view.py` だけが skip され、377 passed / 1 skipped。
+  `flake8 droneflow tests fly_in.py` と `mypy --strict droneflow fly_in.py` は通る(新しいテストファイルも個別に `mypy --strict` を通した)。
+- 実時間: 最も長いのは VG08(番犬の 200ms まで待つことが期待どおりの動作)で約 0.2 秒。ほかに `sleep` や経過時間のアサーションはない。
+- **新たなバグは見つからなかった**(xfail なし)。VC03・VG17・VG18・VH06 は 2026-10-18 の修正どおりに通る。
+
+### 設計からの調整
+
+- **VP03**: 配布マップの色名は17種(`rainbow` を含む)。課題の例のマップには配布マップにない `gray` があるので、17種の数は
+  配布マップだけで数え、課題の例の色を足した集合で「`rainbow` 以外はすべて表にある」を確かめた。
+- **VG14 ②**: 設計の「完走した状態で render した後 `post_quit()`」は、VG17 の修正(`hold_final=True` なら最後のフレームでは
+  待たない)の後では render がイベントを読まないため、QUIT が `close` の `wait_for_quit` まで残ってしまう。そこで「`post_quit()` →
+  `begin`(待ちで窓が閉じる)→ 完走した状態の `render`(何もしない)→ `close()`」の順にし、窓を閉じた後は `wait_for_quit` を
+  呼ばないことを確かめた。
+- **VG08** は `step=True`(番犬まで戻らない)と `step=False`(対照。すぐ戻る)をパラメタライズにした。
+- **VG06 / VG07** は、ターン数に加えて、可視化なしで走らせたターン一覧と完全に等しいことも確かめた。
+- **VH04** の網は、隣接していないゾーンへの指示を作るため `s-a a-g b-g` にした(D1 に `b` を指示)。
+- `CallLogVisualizer` の `begin` の記録は start の占有数(`occupancy(start)`)。テスト側では `call_log` の戻り値の型を
+  `Protocol`(`LoggingView`)で書き、conftest を import しない方針を保った。
+- `tests/README.md` は日本語のみの既存の書式に合わせ、`tests/visualization/README.md` も日本語で作った。
