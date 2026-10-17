@@ -1,7 +1,6 @@
 """CompositeVisualizer: show the same run in several views at once."""
 
 from collections.abc import Sequence
-from contextlib import ExitStack
 
 from ..simulation.state import Move, SimulationState
 from .base import Visualizer
@@ -33,6 +32,13 @@ class CompositeVisualizer:
         Views are closed in order. If several fail, the last failure is
         raised, with the earlier ones chained to it as context.
         """
-        with ExitStack() as stack:
-            for view in reversed(self.views):
-                stack.callback(view.close)
+        self._close_from(0)
+
+    def _close_from(self, index: int) -> None:
+        """Close views[index:]; ``finally`` chains failures as context."""
+        if index >= len(self.views):
+            return
+        try:
+            self.views[index].close()
+        finally:
+            self._close_from(index + 1)
