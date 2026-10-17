@@ -93,6 +93,8 @@ classDiagram
         -stream : TextIO
         -color : bool
         -width : int
+        -step : bool
+        -input : TextIO
         +begin(state)
         +render(state, moves)
         +close()
@@ -103,6 +105,7 @@ classDiagram
     class GraphicalVisualizer {
         -delay : float
         -hold_final : bool
+        -step : bool
         -window : _Window | None
         -closed : bool
         +begin(state)
@@ -178,7 +181,7 @@ in flight: D7 micro_gate1-overflow_hell1 -> overflow_hell1   (restricted へ飛�
 
 ### グラフィカル表示の形
 
-- 配置: ゾーンの `(x, y)` を窓に収まるよう拡大縮小する(y は下向き=画面の向きのまま)。x と y は別々に拡大するが、
+- 配置: ゾーンの `(x, y)` を窓に収まるよう拡大縮小する。**y は上向き**(数学の向き。y が大きいほど上に描く。2026-10-18 ユーザー判断)。x と y は別々に拡大するが、
   一方を他方の2倍より大きくは伸ばさない(横長のマップでも上下の段の間にラベルの余白を取るため)。
   ゾーンの大きさは、最も近い2ゾーンの間隔から決める。
 - ゾーン: `color=` の色で塗る(不明・なしは灰色)。normal は丸、priority は金色の縁の丸、restricted は赤い縁の四角、
@@ -218,8 +221,23 @@ sequenceDiagram
     Cmp->>Gfx: close() → 最後まで進んでいれば最終画面で閉じる操作を待ち、窓を閉じる
     Cmp->>Term: close() → 何もしない
     Eng-->>App: turns
-    App->>Out: emit(turns) → stdout にターンログだけ
 ```
+
+この図はビュー同士のやり取りだけを示す。ターンログ(stdout)は、CLI/アプリのフェーズで**ターンごとに**フレームと並べて出す
+(2026-10-18 ユーザー判断。例えば各ターンの `D<ID>-<zone>` 行を `render` の中で stdout に出す小さなビューを
+`CompositeVisualizer` に加える)。ビューの出力は stderr、ターンログは stdout のままなので、stdout の中身は変わらない。
+
+### (c) ステップ実行(`--step`、CLI のフェーズでつなぐ)
+
+| `--visual` | ステップの担当 | 1ターン進める操作 |
+|---|---|---|
+| `terminal` | `TerminalVisualizer(step=True)` | Enter(各フレームの後に `-- press Enter for the next turn --` を出して1行読む) |
+| `graphical` | `GraphicalVisualizer(step=True)` | 右矢印(一時停止で始まる。Space で自動再生に切り替えも可) |
+| `both` | **グラフィカルだけ**(`GraphicalVisualizer(step=True)` + `TerminalVisualizer(step=False)`) | 右矢印のみ。ターミナルは待たずに毎ターン出す |
+
+- ターミナルのステップは、入力(`input_stream`、既定は `sys.stdin`)が端末のときだけ待つ。端末でなければ(パイプ・リダイレクト)
+  待たずに流す。入力が終わった(EOF)ら、以後は待たない。最後のターンの後は待たない(次のターンがないため)。
+  初期状態(`begin`)の後は待つ。
 
 ### (b) グラフィカルの待ち(1ターン分の event loop)
 
@@ -241,6 +259,7 @@ stateDiagram-v2
 - マウスをゾーンに重ねると、正式名・役割と種別・色・占有数・いるドローンの ID を小さな枠で表示する
   (ゾーンが密なマップでは、ゾーン名を間隔に合わせて `~` で切り詰めて描くため)。
 - 待っている間も60fps程度でイベントを処理し、窓が固まらないようにする。
+- `step=True` なら一時停止(Paused)で始まり、右矢印1回で1ターン進む(次のターンも一時停止のまま)。
 - `close()` のとき、最後のターンまで描いていて `hold_final=True` なら、「finished」と表示して Esc / q / × を待つ。
   途中で止まった場合(エラー)は待たずに閉じる。
 
