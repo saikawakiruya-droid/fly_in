@@ -17,11 +17,11 @@ class Scheduler:
     1. drones in flight toward a restricted zone get no order (the engine
        lands them; their reservations and connection use are already
        counted in the state);
-    2. drones on the priority route (see ``is_on_priority_route``) come
-       first;
-    3. then the others. Inside both groups, drones closer to the end zone
-       come first, so drones leaving a zone free its room before the
-       drones behind them ask for it; ties go by drone_id.
+    2. the others are decided closest to the end zone first, so drones
+       leaving a zone free its room before the drones behind them ask for
+       it;
+    3. among drones at the same distance, those on the priority route
+       (see ``is_on_priority_route``) come first, then by drone_id.
 
     A drone takes the first hop of ``Pathfinder.next_hops`` (shortest moves
     only, priority zones first) that still has room this turn according to
@@ -92,7 +92,7 @@ class Scheduler:
         drones.sort(key=self._decision_key)
         return drones
 
-    def _decision_key(self, drone: Drone) -> tuple[bool, int, int]:
+    def _decision_key(self, drone: Drone) -> tuple[int, bool, int]:
         here = self._zone_of(drone)
         distance = self.pathfinder.distance(here)
         if distance is None:
@@ -100,7 +100,7 @@ class Scheduler:
                 f"D{drone.drone_id} is in {here!r}, which cannot reach "
                 "the end zone"
             )
-        return (not self.is_on_priority_route(here), distance, drone.drone_id)
+        return (distance, not self.is_on_priority_route(here), drone.drone_id)
 
     def _first_free_hop(self, here: str, ledger: TurnLedger) -> Hop | None:
         for hop in self._hops.get(here, []):
