@@ -96,8 +96,8 @@ classDiagram
         +begin(state)
         +render(state, moves)
         +close()
-        -frame(state, moves) str
-        -zone_cell(state, zone) str
+        +frame(state, moves) str[]
+        -zone_cell(state, zone) _Chunk
         -paint(text, color) str
     }
     class GraphicalVisualizer {
@@ -114,12 +114,15 @@ classDiagram
         <<pygame を持つ>>
         -screen : Surface
         -layout : _Layout
-        +draw(state, moves)
-        +wait(delay) bool
+        +show(state, moves, trails)
+        +wait() bool
+        +wait_for_quit()
     }
     class _Layout {
+        +radius : int
         +position(zone) (int, int)
-        +on_link(connection) (int, int)
+        +midpoint(connection) (int, int)
+        +zone_at(point) str | None
     }
     class palette {
         <<module>>
@@ -157,20 +160,34 @@ classDiagram
 ### ターミナル表示の形(1ターン分)
 
 ```
-=== Turn 3 | moved 2 | delivered 1/5 ===
-moves: D1-goal D4-corridorA
-  hub         start  2/-     corridorA   P      2/2*   roof1       R      0/1
-  roof2       .      1/1*    tunnelB     .      1/1*   obstacleX   X      --
-  goal        end    1/-
-drones: hub[D5] corridorA[D3 D4] roof2[D2] tunnelB[...]
-in flight: D2 hub-roof1 -> roof1
+=== Turn 2 | moved 2 | delivered 0/5 ===
+moves: D1-tunnelB D2-corridorA
+  hub       S 3/-        goal      E 0/-        roof1     R 0/1        roof2     . 0/1
+  corridorA P 1/2        tunnelB   . 1/1*       obstacleX X --
+drones: tunnelB[D1] corridorA[D2] hub[D3..D5]
+in flight: D7 micro_gate1-overflow_hell1 -> overflow_hell1   (restricted へ飛行中の例)
 ```
 
 - ゾーンは宣言順に、端末の幅に合わせて1行に複数並べる(54ゾーンのマップでも数十行にならないように)。
-- 種別の印: `.` normal、`P` priority、`R` restricted、`X` blocked、start / end は `start` / `end`。
-- 容量: `いる数/max_drones`(start / end は `/-` で無制限)、満員は `*`、予約(飛行中の到着予定)があれば `+N`。blocked は `--`。
+- 種別の印: `.` normal、`P` priority、`R` restricted、`X` blocked、start / end は `S` / `E`(1文字にして1行に多く並べる)。
+- 容量: `いる数/max_drones`(start は `/-` で無制限、end は配達済みの数)、満員は `*`、予約(飛行中の到着予定)があれば `+N`。blocked は `--`。
+- `drones:` の ID は連番を `D3..D5` に縮める(`-` は出力形式の `D<ID>-<zone>` と紛らわしいので使わない)。
+- 最初の `begin` では、ターン0の見出しと記号の凡例(`key: ...`)も出す。
 - ゾーン名を `color=` の色で塗る。色を出さない設定でも、文字だけで同じ情報が読める。
 - 出力はすべて ASCII(Windows でリダイレクトしたときの文字コードで落ちないように)。
+
+### グラフィカル表示の形
+
+- 配置: ゾーンの `(x, y)` を窓に収まるよう拡大縮小する(y は下向き=画面の向きのまま)。x と y は別々に拡大するが、
+  一方を他方の2倍より大きくは伸ばさない(横長のマップでも上下の段の間にラベルの余白を取るため)。
+  ゾーンの大きさは、最も近い2ゾーンの間隔から決める。
+- ゾーン: `color=` の色で塗る(不明・なしは灰色)。normal は丸、priority は金色の縁の丸、restricted は赤い縁の四角、
+  blocked は暗い灰色に×、start / end は白い縁の丸。
+- 容量: ゾーンの下に「埋まり具合のバー」(負荷 / `max_drones`、緑→橙→赤)と `負荷/max` の文字。start はいる数、end は `N in`(配達済み)。
+- 接続: 線。太さは容量に応じて太くし、容量が2以上なら `xN` を添える。飛行中のドローンがいる接続は明るくする。
+- ドローン: 点(最大12個まで格子状、超えた分は `+N`)。ゾーンにいるのは白、restricted へ飛行中は水色で接続の中点に描く。
+  そのターンに動いたドローンは黄色の縁にし、移動元から移動先へ黄色の線(軌跡)を引く。
+- 上の帯: ターン数・動いた数・配達済み/全機・飛行中の数、操作の説明、待ち時間、`PAUSED`。下の帯: このターンの移動(出力と同じ書式)。
 
 ## 挙動図(実行時の振る舞い)
 
@@ -221,6 +238,8 @@ stateDiagram-v2
 ```
 
 - 上下の矢印(または `+` / `-`)で待ち時間を半分 / 2倍にする。
+- マウスをゾーンに重ねると、正式名・役割と種別・色・占有数・いるドローンの ID を小さな枠で表示する
+  (ゾーンが密なマップでは、ゾーン名を間隔に合わせて `~` で切り詰めて描くため)。
 - 待っている間も60fps程度でイベントを処理し、窓が固まらないようにする。
 - `close()` のとき、最後のターンまで描いていて `hold_final=True` なら、「finished」と表示して Esc / q / × を待つ。
   途中で止まった場合(エラー)は待たずに閉じる。
