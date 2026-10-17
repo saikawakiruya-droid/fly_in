@@ -2,6 +2,7 @@
 
 - 日付: 2026-10-16
 - フェーズ: **テスト設計**(テストコードはまだ書かない。作成は別フェーズで行う)
+  → 2026-10-17 に作成フェーズ完了(末尾「作成フェーズの結果」を参照)
 - 対象ブランチ: `test/stage4_simulation`(`feature/stage4_simulation` から分岐)
 - 対象コード: `droneflow/simulation/state.py`(`Move` / `MoveOrder` / `SimulationState`)、
   `droneflow/simulation/turn_resolver.py`(`TurnResolver`)、`droneflow/simulation/engine.py`
@@ -253,7 +254,7 @@ hub の容量は省略時 1、接続容量は省略時 1。`cap(a)=2` は hub a 
 | G07 | 既定の上限 | 課題のサンプルマップ(ゾーン7、5機) | `default_turn_limit(world) == 70`(`2 × 7 × 5`)、`SimulationEngine(world, sch).max_turns == 70`、`max_turns=3` を渡せば 3 | 無限ループ 2 の既定値 |
 | G08 | 不正な指示はエンジンから伝わる | `s-a a-g`、2機、link(s-a)=2、台本 `[[O(1,"a")], [O(2,"a")]]`(2ターン目、D1 がまだ a にいる)、`RecordingVisualizer` | `SimulationError`、render は1回だけ(違反したターンでは呼ばれない)、`engine.state` はターン1後のまま | ★8、エンジンが resolver の例外を握りつぶさない |
 | G09 | E2E: 課題のサンプルマップ | `write_map` で Stage 3 の E01 と同じサンプルマップ(1行目 `nb_drones: 5`)を書き、`MapParser(path).parse()` → `SimulationEngine(world, ScriptedScheduler(...))` → `TurnLogFormatter().emit(turns)`、`capsys` で標準出力を取る。台本は下の期待出力どおりの指示(corridorA → tunnelB → goal を1機ずつ) | 標準出力が次の7行と一致: `D1-corridorA` / `D1-tunnelB D2-corridorA` / `D1-goal D2-tunnelB D3-corridorA` / `D2-goal D3-tunnelB D4-corridorA` / `D3-goal D4-tunnelB D5-corridorA` / `D4-goal D5-tunnelB` / `D5-goal` | パーサー・エンジン・フォーマッタの結合、VII.5。hub-corridorA の接続容量1で1機ずつ、corridorA(容量2)・tunnelB(容量1)は退出で空く(★5) |
-| G10 | E2E: restricted を通るマップ | G09 のマップの corridorA を `zone=blocked` にしたもの(roof1 経由しかない)を `FollowerScheduler` で実行 | 13行。先頭3行が `D1-hub-roof1` / `D1-roof1` / `D1-roof2 D2-hub-roof1`、最終行 `D5-goal`。全行で `D<n>-hub-roof1` の次の行に `D<n>-roof1` がある | ★4 の出力書式を実マップで確認(接続名 `hub-roof1` は宣言どおり)。roof1 が容量1なので予約により1機ずつ |
+| G10 | E2E: restricted を通るマップ | G09 のマップの corridorA を `zone=blocked` にしたもの(roof1 経由しかない)を `FollowerScheduler` で実行 | ~~13行~~ **12行**(作成フェーズで訂正。末尾参照)。先頭3行が `D1-hub-roof1` / `D1-roof1` / `D1-roof2 D2-hub-roof1`、最終行 `D5-goal`。全行で `D<n>-hub-roof1` の次の行に `D<n>-roof1` がある | ★4 の出力書式を実マップで確認(接続名 `hub-roof1` は宣言どおり)。roof1 が容量1なので予約により1機ずつ |
 | G11 | 構築直後の状態 | `s-a a-g`、4機 | `run()` 前に `engine.state.turn_number == 0`、`occupancy("s") == 4`、`engine.max_turns == default_turn_limit(world)` | API 4(構築時に全機を start に置く) |
 
 ### モデルの追加分(`tests/models/`)
@@ -295,3 +296,27 @@ hub の容量は省略時 1、接続容量は省略時 1。`cap(a)=2` は hub a 
    前の状態と比べる必要がある。Stage 4 のテストでは扱わない(G02 は呼ばれる回数とタイミングだけを見る)。
 4. **共有フィクスチャの昇格**(`tests/conftest.py`)は `tests/pathfinding/conftest.py` の変更を伴う。hub の既定容量を `None` → `1`
    にしても Stage 3 のテストは通る見込みだが、昇格するか simulation 専用の組み立て関数を作るかは作成フェーズの開始時に決めたい。
+
+## 作成フェーズの結果(2026-10-17)
+
+- 作成したファイル: `tests/conftest.py`(昇格)、`tests/pathfinding/conftest.py`(`grid_network` のみに縮小)、
+  `tests/simulation/conftest.py`、`tests/simulation/test_state.py`(S01〜S08)、`tests/simulation/test_turn_resolver.py`
+  (T01〜T24)、`tests/simulation/test_engine.py`(G01〜G11)、`tests/models/` の各ファイルへの追記(M01〜M05)。
+  設計した 48 件をすべて実装した(parametrize の展開込みで 66 件増、全体 265 件)。
+- 確認したい点への決定の反映:
+  - 1(自己ループ): T23 は normal / restricted の両方で `SimulationError`(メッセージ「already is」)と状態の不変を確認。
+    T18 f もメッセージ「already is」で確認する。
+  - 2・4(共有ヘルパー): `tests/conftest.py` に昇格した。hub の既定 `max_drones` は 1、`capacity` / `links` で個別に指定。
+    Stage 3 のテストは容量を見ないため、期待値を変えずにすべて通った(`max_drones=None` に依存するテストはなかった)。
+  - 3(Visualizer が状態だけを受け取る): Stage 7 に先送り。テストしない。
+  - 振動: G05 は `max_turns=5` を渡す。
+- 実装上の判断:
+  - スタブと記録用の可視化は `tests/simulation/conftest.py` に置き、テストファイルからは import せずフィクスチャ
+    (`scripted_scheduler` などのファクトリ、`recorder` は `(visualizer, records)` の組)経由で使う。`conftest` を
+    import すると、`__init__.py` のない構成では複数の `conftest` モジュールが衝突するため。
+  - T21 の4場面は、場面を組み立てる関数を parametrize で渡す形にした(T22 は T21-b の関数を再利用)。
+- 設計の訂正: **G10 の期待行数は 13 ではなく 12**。roof1 は容量1なので、D<n> は roof1 が空く 2n-1 ターン目に出発し、
+  D5 は 9 ターン目に出発・10 到着・11 roof2・12 goal となる(先頭3行は設計どおり)。設計時の「13行」は数え違いで、
+  実装のバグではない。テストは手計算した12行全体と一致することを確認する形にした。
+- 見つかったバグ: なし(`docs/bugs.md` への追記なし。xfail なし)。
+- チェック: `pytest tests` 265 passed、`flake8 droneflow tests fly_in.py` 指摘なし、`mypy --strict droneflow fly_in.py` 指摘なし。
