@@ -111,30 +111,35 @@ def test_reservation_fills_restricted_zone(
     assert ledger.has_room(hop(network, "q", "r")) is False
 
 
-def test_drone_in_flight_uses_its_link(
+def test_landing_drone_frees_its_link(
     make_network: MakeNetwork, place: Place, hop: MakeHop
 ) -> None:
-    """L08: r has room, but the landing drone still uses link s-r."""
+    """L08: the landing D1 does not use link s-r, so D2 may depart."""
     network = make_network("s-r r-g", types={"r": R}, capacity={"r": 2})
     ledger = TurnLedger(place(network, 2, flying={1: ("s", "r")}))
 
-    assert ledger.has_room(hop(network, "s", "r")) is False
+    assert ledger.has_room(hop(network, "s", "r")) is True
 
 
-def test_link_counts_flight_and_orders_together(
+def test_link_counts_only_departures(
     make_network: MakeNetwork, place: Place, hop: MakeHop
 ) -> None:
-    """L09: link use is the landing drones plus the recorded orders."""
+    """L09: link use is the recorded departures; the landing is not one."""
     network = make_network(
-        "s-r r-g", types={"r": R}, capacity={"r": 3}, links={"s-r": 2}
+        "s-r r-g", types={"r": R}, capacity={"r": 4}, links={"s-r": 2}
     )
-    ledger = TurnLedger(place(network, 3, flying={1: ("s", "r")}))
+    ledger = TurnLedger(place(network, 4, flying={1: ("s", "r")}))
     into_r = hop(network, "s", "r")
 
     assert ledger.has_room(into_r) is True
     ledger.record("s", into_r)
-    # r still has one place left, so the link is what is full.
+    assert ledger.has_room(into_r) is True
+    ledger.record("s", into_r)
+    # r still has a place left on turn 2, so the link is what is full.
     assert ledger.has_room(into_r) is False
+    assert ledger.link_free(into_r.connection, 1) is False
+    assert ledger.has_seats(network.get_zone("r"), 2) is True
+    assert ledger.projected("r", 2) == 3
 
 
 # --- connections ------------------------------------------------------

@@ -177,11 +177,15 @@ def test_second_hop_when_first_link_full(
 def test_no_order_for_drone_in_flight(
     make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
 ) -> None:
-    """D12: D1 is in flight; D2 waits for link s-a; nobody is ordered."""
+    """D12: D1 is in flight, so it gets no order.
+
+    Its landing frees link s-r, so D2 departs: r holds the landed D1 and
+    D2 on turn 2, which fits its capacity of 2.
+    """
     network = make_network("s-r r-g", types={"r": R}, capacity={"r": 2})
     state = place(network, 2, flying={1: ("s", "r")})
 
-    assert real_scheduler(network).decide_moves(state) == []
+    assert real_scheduler(network).decide_moves(state) == [MoveOrder(2, "r")]
 
 
 def test_no_order_for_delivered_drone(

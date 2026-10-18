@@ -159,21 +159,21 @@ def test_subject_sample_map_output(
 def test_restricted_only_map_output(
     load_world: Load, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """R02: through restricted roof1 only, the run takes twelve turns."""
+    """R02: through restricted roof1 only, the run takes eight turns.
+
+    The drone landing in roof1 is planned to leave it (for roof2) on the
+    next turn, so one drone can take off toward roof1 every turn.
+    """
     TurnLogFormatter().emit(run_engine(load_world(RESTRICTED_ONLY)))
 
     assert capsys.readouterr().out.splitlines() == [
         "D1-hub-roof1",
-        "D1-roof1",
-        "D1-roof2 D2-hub-roof1",
-        "D1-goal D2-roof1",
-        "D2-roof2 D3-hub-roof1",
-        "D2-goal D3-roof1",
-        "D3-roof2 D4-hub-roof1",
-        "D3-goal D4-roof1",
-        "D4-roof2 D5-hub-roof1",
-        "D4-goal D5-roof1",
-        "D5-roof2",
+        "D1-roof1 D2-hub-roof1",
+        "D1-roof2 D2-roof1 D3-hub-roof1",
+        "D1-goal D2-roof2 D3-roof1 D4-hub-roof1",
+        "D2-goal D3-roof2 D4-roof1 D5-hub-roof1",
+        "D3-goal D4-roof2 D5-roof1",
+        "D4-goal D5-roof2",
         "D5-goal",
     ]
 
