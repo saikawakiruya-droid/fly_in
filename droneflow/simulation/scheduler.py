@@ -55,8 +55,9 @@ class Scheduler:
 
     ``decide_moves`` is meant to be called once per turn, in turn order.
     Called again for the same turn, it drops the moves it planned for that
-    turn and plans it again; called for an earlier turn (a new simulation),
-    it starts over with an empty table.
+    turn and plans it again from the state it is given (landings
+    included); called for an earlier turn (a new simulation), it starts
+    over with an empty table.
     """
 
     def __init__(self, network: Network, pathfinder: Pathfinder) -> None:
@@ -131,12 +132,16 @@ class Scheduler:
         return bool(hops) and hops[0].zone.zone_type is ZoneType.PRIORITY
 
     def _start_turn(self, state: SimulationState) -> None:
-        """Prepare the table for the state's next turn."""
+        """Prepare the table for the state's next turn.
+
+        Called again for the same turn, the moves planned for that turn are
+        undone first, then the table is prepared from the given state like
+        on the first call (its landings replace the previous ones).
+        """
         turn = state.turn_number + 1
         if self._planned_turn == turn:
             self._table.rollback(self._turn_mark)
-            return
-        if self._planned_turn is not None and turn < self._planned_turn:
+        elif self._planned_turn is not None and turn < self._planned_turn:
             self._table.clear()
         self._table.start_turn(state)
         self._turn_mark = self._table.mark()
