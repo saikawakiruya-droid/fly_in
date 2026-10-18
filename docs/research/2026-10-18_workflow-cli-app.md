@@ -206,7 +206,7 @@ sequenceDiagram
     loop 全機が配達済みになるまで
         Eng->>Eng: スケジューラ → 検査 → 適用
         Eng->>Comp: render(state, moves)
-        Comp->>Log: render → "D1-roof1 D2-corridorA" を stdout に書いて flush
+        Comp->>Log: render → "D1-tunnelB D2-corridorA" などの1行を stdout に書いて flush
         Comp->>View: render → フレーム(stderr / 窓)、--step なら待つ
     end
     Eng->>Comp: close()(finally)
@@ -256,7 +256,7 @@ sequenceDiagram
 ## 完了条件(Done)
 
 - `cli.py` / `app.py` に `NotImplementedError` が残っていない。
-- 課題の例で `D1-roof1 D2-corridorA` で始まる7行が stdout に出て、`--visual` の4つのモードで stdout がバイト単位で同じ。
+- 課題の例で `D1-corridorA` で始まる7行(`tests/conftest.py` の `subject_output` と同じ)が stdout に出て、`--visual` の4つのモードで stdout がバイト単位で同じ。
 - 不正なマップ・ないファイル・ディレクトリ・到達不能のマップで、`error: ...` の1行と終了コード1になり、トレースバックが出ない。
 - `make` がある環境で、`make install` → `make run` / `make lint` / `make lint-strict` / `make clean` が動く。
 - 既存テスト(410件)がすべて通り、`flake8` と `mypy --strict`、課題 III.2 の lint コマンドがエラーなしで通る。

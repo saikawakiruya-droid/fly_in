@@ -997,3 +997,18 @@ sequenceDiagram
   (2026-10-16「`nb_drones` は物理的な1行目に限る」を維持し、コメントを除いた配布マップも同梱しない)。
 - 理由: 仕様の読み方(課題 VII.4)として一貫しており、制約を README に明記すれば利用者に必要な情報は伝わる。
 - 検討した代替案: コメントを除いた配布マップを同梱する案、README で配布マップに触れる案。どちらもユーザー判断で採らなかった。
+
+## 2026-10-18: CLI のテスト設計で見つかった点の対応(`--delay` の上限、パスの表示、`main(argv)`)
+
+- 決定内容(ユーザー判断。`docs/research/2026-10-18_test-design-cli-app.md`、`docs/bugs.md` 2026-10-18 の2件):
+  1. `--delay` は 0〜60 秒。60 を超える値は argparse の usage エラー(`must be between 0 and 60 seconds: '...'`、終了コード2)。
+     `GraphicalVisualizer` も念のため、構築時に delay を 0〜60 秒に頭打ちにする(NaN は 0。`OverflowError` を起こさない)。
+     矢印キーで変えられる範囲(0.05〜5秒)は変えない。
+  2. マップのパスは、メッセージでは入力どおりの文字列を出す。`Args` に `map_arg`(入力どおりの文字列、`compare=False`)と
+     `map_name`(`map_arg`、なければ `str(map_path)`)を足し、I/O は `Path` の `map_path` のまま。
+  3. `fly_in.main(argv: list[str] | None = None)` にして `parse_args(argv)` に渡す(動きは変わらない。テストのため)。
+- 理由: 1 は大きな値で内部エラーになるのを入口で止め、ビュー単体で使われた場合にも落ちないようにするため。60 秒は1ターンを
+  見るには十分長い。2 は `MapFileError.path` の docstring(「コマンドラインで与えたとおり」)に合わせるため。`compare=False` に
+  したのは、手で作った `Args` と解釈した `Args` が等しいままになるようにするため。
+- 検討した代替案: 1 で頭打ちだけにする案(上限を超えた値が黙って変わる)、`delay * 1000` の有限性だけを検査する案。
+  2 で `Args.map_path` を `str` にする案(I/O 側の型が変わる)、docstring を「正規化したパス」に直す案。

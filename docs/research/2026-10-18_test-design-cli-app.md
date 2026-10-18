@@ -91,7 +91,7 @@ tests/
 
 | 名前 | 中身 | 使うケース |
 |---|---|---|
-| `TtyStringIO` | `isatty()` が True の `io.StringIO`(2行。`tests/visualization/conftest.py` のものと同じ。conftest 同士の import はしない方針なので複製する。確認したい点 2) | AA04, AG02 |
+| `TtyStringIO` | `isatty()` が True の `io.StringIO`(2行。`tests/visualization/conftest.py` のものと同じ。**決定: `tests/conftest.py` に上げて共有する**(作成フェーズで移す)。確認したい点 2) | AA04, AG02 |
 | `run_app(args) -> tuple[str, str]` | `out, err = StringIO(), StringIO()`、`Application(args, out, err).run()`、`(out.getvalue(), err.getvalue())` を返す。例外はそのまま伝える(呼び出し側で `pytest.raises`) | AA01〜AA14 |
 | `sample_path` フィクスチャ | `write_map(subject_map)` | ほぼ全部 |
 | `no_pygame` フィクスチャ | 上記「方針」の `sys.modules` の差し替え | AA09, AA10 |
@@ -256,7 +256,25 @@ tests/
    `Application` が `MapFileError` に元の文字列を渡す。AE02 / AM02 は正規化の影響を受けないパス(`no_such_map.txt`、
    `str(tmp_path / ...)`)を使うので、どちらに決まっても通る。決まったら AM02 に `./` 付きのケースを足すかを決める。
 
-## 確認したい点
+## 確認したい点の決定(2026-10-18、ユーザー判断)
+
+1. 内部名への依存: **このままでよい**(`_make_views` / `_GuardedView` / `_is_closed_pipe` / `_silence_stdout` を使う)。
+2. `TtyStringIO`: **`tests/conftest.py` に上げて共有する**(`tests/visualization/conftest.py` から移す。作成フェーズで行う)。
+3. `main(argv=None)`: **追加した**(291c37c)。`fly_in.main(["m.txt", ...])` で呼べる。`sys.argv` の差し替えは不要。
+4. AM07: **`monkeypatch.setattr(fly_in.os, "name", ...)` で切り替えてよい**(monkeypatch で元に戻すこと)。
+5. ワークフロー文書の1行目の記述: **直した**(`D1-corridorA`)。
+6. 問題 1・2: **直した**(`docs/bugs.md` 参照)。追加するケース:
+
+| ID | 対象 | セットアップ | 期待結果 | 意義・守る決定/仕様 |
+|---|---|---|---|---|
+| AC09 | `--delay` の上限 | パラメタライズ: `"60"` → 受理(60.0)、`"60.5"` / `"1e308"` → 拒否 | 受理は `args.delay == 60.0`。拒否は `SystemExit` code 2、stderr の最後の行が `fly_in.py: error: argument --delay: must be between 0 and 60 seconds: '60.5'`(`'1e308'`) | 問題 1(上限 60 秒、usage エラー)。60 ちょうどは受理(境界) |
+| AA09 | マップのパスは書かれたとおり | `Args` を `parse_args(["./" + 存在しない名前, "--visual", "none"])` で作り、`run_app`(または `call_main`)。名前には `//` も含める(例: `./no_such//map.txt`) | `MapFileError` の `str(exc)`(main なら `err` の1行)が `cannot read map file './no_such//map.txt': ` で始まる。あわせて `parse_args(["./m.txt"]) == parse_args(["m.txt"])`(`map_arg` は比較に使わない)、`.map_name == "./m.txt"` | 問題 2(表示は入力どおり、I/O は `Path`) |
+
+(AC01 の `Args(...)` との比較は、`map_arg` が `compare=False` なのでそのまま通る。`GraphicalVisualizer(delay=1e308).delay == 60.0`
+の頭打ちは、必要なら Stage 7 のテストに1件足してよい。)
+
+## 確認したい点(設計時の記録)
+
 
 1. **内部名への依存**: AA04・AA05・AG02 は `Application._make_views()` と `_GuardedView.name` / `.view` を、AM06〜AM08 は
    `fly_in._silence_stdout` / `_is_closed_pipe` を使う。Stage 7 と同じく内部名のまま使う(推奨。コード変更なし)か、

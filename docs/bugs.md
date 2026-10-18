@@ -147,8 +147,10 @@
   `error: internal error: OverflowError: cannot convert float infinity to integer`・終了コード1になる(`SDL_VIDEODRIVER=dummy` で再現)。
 - 原因: `delay * 1000` が float の範囲を超えて `inf` になる。上下の矢印での変更は `_MAX_DELAY`(5秒)で頭打ちにしているが、
   起動時に渡された値は頭打ちにしていない。
-- 対応状況: 未対応(ユーザー判断待ち)。候補: `--delay` に上限を設ける / `GraphicalVisualizer` で `_MAX_DELAY` に頭打ちにする /
-  `_delay` で `value * 1000` も有限であることを検査する。
+- 対応状況: 対応済み(a448708、7089fe7)。ユーザー判断で両方を行った: CLI は `--delay` を 0〜60 秒に限り、60 を超えると
+  argparse の usage エラー(`must be between 0 and 60 seconds: '61'`、終了コード2)。`GraphicalVisualizer` も構築時に
+  delay を 0〜60 秒に頭打ちにする(NaN は 0)。矢印キーでの変更の上限 `_MAX_DELAY`(5秒)は変えていない。
+  decisions.md 2026-10-18「CLI のテスト設計で見つかった点の対応」。
 
 ## 2026-10-18: マップのパスがエラーメッセージで「書かれたとおり」に出ない
 
@@ -158,5 +160,7 @@
   (Windows では `'maps\none.txt'`)と表示される。`MapFileError.path` の docstring「as given on the command line」と、
   コミット c9f48eb の「show map paths as given」に食い違う。
 - 原因: `pathlib.Path` が `./` や連続した `/` を正規化し、Windows では区切りを `\` にする。
-- 対応状況: 未対応(軽微。ユーザー判断待ち)。候補: `Args.map_path` を `str` で持つ / 元の文字列を `MapFileError` に渡す /
-  docstring を「正規化したパス」に直す。
+- 対応状況: 対応済み(7089fe7)。`Args` に、入力どおりの文字列 `map_arg`(比較には使わない)と、それを返す `map_name` を足した。
+  I/O は従来どおり `Path` の `map_path` で行い、`MapFileError` には `map_name` を渡す
+  (`./maps//none.txt` は `error: cannot read map file './maps//none.txt': ...` と出る)。
+  decisions.md 2026-10-18「CLI のテスト設計で見つかった点の対応」。
