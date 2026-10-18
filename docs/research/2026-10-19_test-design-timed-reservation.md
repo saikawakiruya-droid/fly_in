@@ -174,10 +174,10 @@ link(z3-z2)=2、link(s-z4)=2、6機(以下 **網M6'**。ランダムなマップ
 | D24 | 同じターンに呼び直しても同じ | ① D20 の状態で `decide_moves` を2回 ② K1(D21 の網、4機、全機 s)と、`s-r1 r1-r2 r2-r3 r3-g`(r1〜r3 restricted、3機)を、毎ターン `decide_moves` を3回呼んでから最後の結果で resolve して完走させる | ① 2回とも `[O(2,"r")]`、その後のターンも D20 と同じ(立ち退きが二重にならない)② 毎ターン3回の結果が等しく、K1 は6ターン、3連続は9ターンで完走(R09・R12 と同じ行) | 細部6(同じターンの再呼び出しは、そのターンの予約を取り消して計画し直す) |
 | D25 | 新しい実行は表を空にして始める | K1 を1つの `Scheduler` で完走させた後、同じ `Scheduler` で新しい `SimulationState(network, 4)` から完走させる | 2回とも R10 の6行と同じ | 細部6(前のターンを渡されたら clear)。前の実行の予約が残ると結果が変わる |
 
-- **D26(バグの記録用。下記「バグ」)**: 同じ `Scheduler` に、同じターン番号の**別の状態**を渡すと、前の状態の着陸が表に残る。
-  `s-r r-g`、r restricted(cap 1)。`decide_moves(place(n,2,flying={1:("s","r")}))` の後に `decide_moves(place(n,2))` が `[]` を返す
-  (新しい `Scheduler` なら `[O(1,"r")]`)。docstring の契約(「同じターンに呼ばれたら計画し直す」)をどう決めるかの判断を待ち、
-  テストにするなら `xfail(strict=True)` で置く案(確認したい点 1)。ケース数には数えない。
+- **D26(通常のテスト。2026-10-19 にバグを修正済み、acc1f71)**: 同じ `Scheduler` に、同じターン番号の**別の状態**を渡すと、
+  渡された状態から計画し直す(前の状態の着陸は残らない)。`s-r r-g`、r restricted(cap 1)。
+  `decide_moves(place(n,2,flying={1:("s","r")}))` の後に `decide_moves(place(n,2))` が、新しい `Scheduler` と同じ `[O(1,"r")]` を返す。
+  `xfail` にはしない(確認したい点 1 は (a) に決定)。
 
 ### SimulationEngine の追加(`tests/simulation/test_engine.py`)
 
@@ -267,13 +267,15 @@ link(z3-z2)=2、link(s-z4)=2、6機(以下 **網M6'**。ランダムなマップ
   同じターンの再呼び出しでは `rollback(self._turn_mark)` だけを行い `start_turn(state)` をやり直さないため、渡された状態が前と違うと、
   前の状態の着陸(と、それに合わせた判断)が残る。例: 上記 D26(新しい `Scheduler` なら `[O(1,"r")]` のところ `[]`)。
   アプリ(`droneflow/app.py:96`)は実行ごとに新しい `Scheduler` を作り、エンジンは毎ターン1回だけ呼ぶので、今の使い方では起きない。
-  docstring の「Called again for the same turn, it drops the moves it planned for that turn and plans it again」と食い違う。コードは直していない。
+  docstring の「Called again for the same turn, it drops the moves it planned for that turn and plans it again」と食い違う。
+  → 2026-10-19 に修正済み(acc1f71。同じターンでも `start_turn(state)` をやり直す)。D26 は通常のテスト。
 
 ## 設計中に気づいた点・確認したい点
 
 1. **D26(上のバグ)の扱い**: (a) `_start_turn` で同じターンでも `start_turn(state)` をやり直す(着陸は状態から作り直す方針、Q-A と一致)、
    (b) docstring に「同じ状態で」と前提を書くだけにする、のどちらにするか。(a) なら D26 を通常のテストにし、(b) なら D26 は作らない。
    決まるまでは `xfail(strict=True)` で置く案。
+   → **(a) に決定・修正済み(acc1f71)**。D26 は通常のテストにする。
 2. **「このターンの判断の途中で立ち退かされた機は待つ」の分岐(`decide_moves` の `continue`)に届く場面が見つからない**。
    立ち退かされるのは、立ち退かせる機より真にゴールに近いゾーンにいる機(next_hops で距離が減る)なので、判断の順序(距離が近い順)で
    必ず先に判断済みになる。防御のための分岐とみなしてテストを作らない案。到達できる場面をご存じなら教えてほしい。
