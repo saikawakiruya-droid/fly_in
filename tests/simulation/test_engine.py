@@ -260,3 +260,22 @@ def test_engine_starts_with_every_drone_at_start(
     assert engine.state.turn_number == 0
     assert engine.state.occupancy("s") == 4
     assert engine.max_turns == default_turn_limit(world)
+
+
+def test_stuck_drone_propagates(
+    make_network: MakeNetwork,
+    scripted_scheduler: Scripted,
+    recorder: Recorder,
+) -> None:
+    """G12: a drone stuck on its connection stops the run on turn 3."""
+    network = make_network("s-r r-g", types={"r": R}, links={"s-r": 2})
+    script = [[MoveOrder(1, "r")], [MoveOrder(2, "r")]]
+    engine = SimulationEngine(
+        World(network, 2), scripted_scheduler(network, script)
+    )
+    visualizer, records = recorder
+
+    with pytest.raises(SimulationError, match="stuck on connection 's-r'"):
+        engine.run(visualizer)
+    assert [turn for turn, _, _ in records] == [1, 2]
+    assert engine.state.turn_number == 2
