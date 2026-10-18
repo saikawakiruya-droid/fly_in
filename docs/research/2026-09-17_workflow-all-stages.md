@@ -211,6 +211,8 @@ sequenceDiagram
   parse_error 35枚はすべて行番号つきの1行エラー、到達不能の3枚は `goal ... is unreachable` で終了。
   配布マップはすべて VII.7 の目標ターン以内(challenger は43ターン)。期待結果が古くなっていたのは S07 の1件
   (現在の規則では5ターンが最適)。新しいバグはなし。詳細は `docs/research/2026-10-18_stage8-validation.md`。
+  - 追記(2026-10-18、`fix/restricted_link_release`): restricted の到着ターンを接続容量に数えない規則に変えた後、challenger は45ターン
+    (S07 は5ターンのまま)。`docs/decisions.md` 2026-10-18 を参照。
 
 ## Stage 9 — Documentation
 
