@@ -55,12 +55,6 @@ class ReservationTable:
         self._departing: dict[int, list[Reservation]] = {}
         self._by_drone: dict[int, list[Reservation]] = {}
         self._log: list[tuple[bool, Reservation]] = []
-        self._version = 0
-
-    @property
-    def version(self) -> int:
-        """Return a number that changes whenever the table changes."""
-        return self._version
 
     def start_turn(self, state: SimulationState) -> None:
         """Prepare the table for planning the state's next turn.
@@ -163,7 +157,6 @@ class ReservationTable:
         self._by_drone.setdefault(reservation.drone_id, []).append(
             reservation
         )
-        self._version += 1
 
     def _discard(self, reservation: Reservation) -> None:
         key = (reservation.zone, reservation.arrive_turn)
@@ -182,7 +175,6 @@ class ReservationTable:
         moves.remove(reservation)
         if not moves:
             del self._by_drone[reservation.drone_id]
-        self._version += 1
 
 
 def landings(state: SimulationState) -> list[Reservation]:
