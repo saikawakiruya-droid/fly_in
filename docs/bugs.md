@@ -164,3 +164,17 @@
   I/O は従来どおり `Path` の `map_path` で行い、`MapFileError` には `map_name` を渡す
   (`./maps//none.txt` は `error: cannot read map file './maps//none.txt': ...` と出る)。
   decisions.md 2026-10-18「CLI のテスト設計で見つかった点の対応」。
+
+## 2026-10-19: 同じターン番号の別の状態を `decide_moves` に渡すと、前の状態の着陸が予約表に残る
+
+- 発生箇所: `droneflow/simulation/scheduler.py:133-143`(`Scheduler._start_turn`)。予約表のテスト設計
+  (`docs/research/2026-10-19_test-design-timed-reservation.md` の D26)で発見。
+- 症状: `s-r r-g`(r は restricted・容量1)で、1つの `Scheduler` に `place(n, 2, flying={1: ("s", "r")})` を渡して
+  `decide_moves` した後、同じターン番号(0)の別の状態 `place(n, 2)`(全機が s)を渡すと `[]` が返る。新しい `Scheduler` なら
+  `[MoveOrder(1, "r")]`。前の状態の D1 の着陸 `(r, 1)` が表に残り、r に席がないと判断される。
+- 原因: 同じターンの再呼び出しでは `rollback(self._turn_mark)`(そのターンに作った予約の取り消し)だけを行い、
+  `ReservationTable.start_turn(state)`(着陸を状態から作り直す)をやり直さない。docstring の「Called again for the same turn,
+  it drops the moves it planned for that turn and plans it again」は、状態が同じ前提を書いていない。
+- 影響: アプリ(`droneflow/app.py:96`)は実行ごとに新しい `Scheduler` を作り、エンジンは毎ターン1回だけ呼ぶので、今の使い方では起きない。
+  同じ状態での再呼び出し(D24)は正しく動く。
+- 対応状況: 未対応(コードは変えていない)。直す(同じターンでも `start_turn(state)` をやり直す)か、docstring に前提を書くかはユーザー判断待ち。
