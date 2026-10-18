@@ -47,6 +47,7 @@ _FPS = 60
 _MAX_DOTS = 12
 _MIN_DELAY = 0.05
 _MAX_DELAY = 5.0
+_MAX_INITIAL_DELAY = 60.0
 _MAX_STRETCH = 2.0
 _LABEL_ROOM = 72
 _HELP = "space: pause  right: step  up/down: speed  esc: quit"
@@ -489,14 +490,20 @@ class GraphicalVisualizer:
         """Store the settings; no window is opened yet.
 
         Args:
-            delay: Seconds each turn stays on screen in auto-play.
+            delay: Seconds each turn stays on screen in auto-play,
+                clamped to 0..60.
             size: Window size in pixels.
             hold_final: After the last turn, keep the window open until
                 the user closes it (only if the run completed).
             step: Step mode: start paused and advance one turn per right
                 arrow press (Space still switches to auto-play).
         """
-        self.delay = delay
+        # Clamped so that delay * 1000 always fits in an int of ticks
+        # (NaN counts as 0).
+        self.delay = (
+            0.0 if math.isnan(delay)
+            else min(max(delay, 0.0), _MAX_INITIAL_DELAY)
+        )
         self.size = size
         self.hold_final = hold_final
         self.step = step
