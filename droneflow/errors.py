@@ -33,3 +33,45 @@ class ZoneNotFoundError(FlyInError):
 
 class SimulationError(FlyInError):
     """Raised when the simulation reaches an illegal or unresolvable state."""
+
+
+class UnreachableGoalError(FlyInError):
+    """Raised when the end zone cannot be reached from a given zone.
+
+    This is a property of the whole map rather than of a single line, so
+    the message carries zone names instead of a line number.
+
+    Attributes:
+        zone_name: The zone the goal was looked for from (usually start).
+        goal_name: The name of the end zone.
+    """
+
+    def __init__(self, zone_name: str, goal_name: str) -> None:
+        self.zone_name = zone_name
+        self.goal_name = goal_name
+        super().__init__(
+            f"goal {goal_name!r} is unreachable from {zone_name!r}"
+        )
+
+
+class MapFileError(FlyInError):
+    """Raised when the map file cannot be opened or read as text.
+
+    Attributes:
+        path: The map file path as given on the command line.
+        reason: Why it could not be read (e.g. "No such file or
+            directory").
+    """
+
+    def __init__(self, path: str, reason: str) -> None:
+        self.path = path
+        self.reason = reason
+        super().__init__(f"cannot read map file '{path}': {reason}")
+
+
+class VisualizationError(FlyInError):
+    """Raised when the requested visualization cannot be used.
+
+    For example when the graphical view is asked for but pygame is not
+    installed, or when no window can be opened.
+    """

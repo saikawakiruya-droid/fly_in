@@ -18,6 +18,16 @@ class Connection:
     zone_b: str
     max_link_capacity: int = 1
 
+    @property
+    def name(self) -> str:
+        """Return the connection's name as declared, ``zone_a-zone_b``.
+
+        This is the ``<connection>`` printed for drones in flight toward a
+        restricted zone. Duplicate connections (a-b and b-a) are rejected
+        by the parser, so the name is unique within a network.
+        """
+        return f"{self.zone_a}-{self.zone_b}"
+
     def involves(self, zone_name: str) -> bool:
         """Return whether the zone is one of this connection's endpoints."""
         return zone_name == self.zone_a or zone_name == self.zone_b

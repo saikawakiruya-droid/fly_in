@@ -67,13 +67,13 @@ sequenceDiagram
         Parser->>Net: Zone/Connectionを組み立てNetworkを構築
         Parser-->>App: World(network, nb_drones)
     end
-    App->>PF: find_paths(network)
-    PF-->>App: 候補経路(複数)
+    App->>PF: Pathfinder(network)
+    PF-->>App: ゴールまでの距離表(goal に届かなければ UnreachableGoalError)
     App->>Vis: render_initial(world)
     Vis-->>User: 初期状態を表示
 
     loop 全ドローンが到達するまで1ターンずつ
-        App->>Sched: decide_moves(state, candidate_paths)
+        App->>Sched: decide_moves(state)(内部で pathfinder.next_hops を参照)
         Sched->>Sim: apply(moves)
         Sim-->>Sched: 更新後の占有状況・ドローン状態
         Sched-->>App: このターンに動いたドローン一覧
@@ -139,6 +139,10 @@ sequenceDiagram
 - 完了条件: start→endの経路が、blockedを避けコストを正しく反映した形で計算できる
   (この時点ではまだ複数ドローンの競合・容量は考慮しない)
 - 依存: Stage 2
+- 2026-10-16更新: 複数候補経路の列挙(`find_k_paths`)はやめ、goal からのダイクストラで全ゾーンの距離を
+  1回求め、ゾーンごとの「最短の次の一手」の候補(priority は同距離時のみ先頭)を返す形にした。
+  負荷分散は、Stage 5 が毎ターン候補の中から空いている先を選ぶことで行う。到達不能はここで検出する。
+  詳細は `2026-10-16_workflow-stage3-pathfinding.md` と `docs/decisions.md` を参照
 
 ## Stage 4 — Simulation Engine
 
@@ -150,16 +154,24 @@ sequenceDiagram
   - start/endはmax_drones制限の対象外にする
 - 完了条件: 単一ドローンをstartからendまで、容量・restrictedのルールを守って1体だけ動かせる
 - 依存: Stage 1, Stage 3
+- 2026-10-16更新: スケジューラは「ドローン d をゾーン z へ」という指示(`MoveOrder`)だけを返し、エンジン
+  (`TurnResolver`)がルールを検査して出力用の `Move` を作る(restricted は接続名で出力し、次ターンの到着を自動で足す)。
+  restricted の到着先は出発時に予約する。誰も動かないターンとターン数の上限超えは `SimulationError`。
+  詳細は `2026-10-16_workflow-stage4-simulation.md` と `docs/decisions.md` を参照
 
 ## Stage 5 — Multi-Drone Scheduler
 
-- 入力: Stage 4 のシミュレーションエンジン、Stage 3 の複数経路候補
+- 入力: Stage 4 のシミュレーションエンジン、Stage 3 の距離表と次の一手の候補(2026-10-16更新)
 - 作業:
   - 複数ドローンを(重複/非重複の)複数経路に配分し、同時スループットを最大化する
   - ゾーン/リンク容量の競合・デッドロック(相互待ち)を解消する
   - どの合法手を取ってもターン数が減らない場合の戦略的待機を選択する
 - 完了条件: 提供マップの `nb_drones` 全数が、ルール違反なく全員endに到達するまでシミュレーションできる
 - 依存: Stage 3, Stage 4
+- 2026-10-17更新: 経路の事前配分や戦略的な迂回はせず、ユーザーの設計どおり毎ターン「飛行中は指示なし →
+  ゴールに近い順(同じ距離なら優先ルート上のドローンを先、次にID順)」に判断し、`next_hops`(最短の一手)の中で空きのある最初の候補へ進める。
+  空きは `TurnResolver` と同じ規則の台帳(`TurnLedger`)で数える。距離が単調に減る移動だけなのでデッドロックは起きない。
+  詳細は `2026-10-17_workflow-stage5-scheduler.md` と `docs/decisions.md` を参照
 
 ## Stage 6 — Output Formatter
 
@@ -179,6 +191,11 @@ sequenceDiagram
   - Stage 6完成後、ターンごとのドローン位置・ゾーン充填率を実データで描画する
 - 完了条件: シミュレーションの進行が目視で確認できる(静止画/アニメーションいずれでも可)
 - 依存: Stage 2(早期スキャフォールド), Stage 6(実データ連携)
+- 2026-10-17更新: ターミナル(ANSI カラー、stderr に出力)とグラフィカル(pygame-ce)の両方を作り、`CompositeVisualizer` で
+  両方を同時に使えるようにする。`Visualizer` は `begin(state)` / `render(state, moves)` / `close()` の3つにし、
+  エンジンが開始時・毎ターン・終了時(エラーでも)に呼ぶ。上の実行時シーケンス図の `render_initial(world)` は
+  `begin(state)` にあたる。stdout はターンログだけのまま。
+  詳細は `2026-10-17_workflow-stage7-visualization.md` と `docs/decisions.md` を参照
 
 ## Stage 8 — Validation & Testing
 
@@ -189,6 +206,11 @@ sequenceDiagram
   - 最終状態だけでなく、ターンごとにルール違反ゼロであることを確認
 - 完了条件: 提供マップ+自作エッジケースマップの双方で、ルール違反なしに完走することを確認済み
 - 依存: Stage 6, Stage 7
+- 状態(2026-10-18、`test/stage8_validation`): 完了条件を満たした。`revie_case/maps/` の63枚、配布マップ10枚
+  (1行目のコメントを除いた写し)、課題の例を実行し、完走した36回すべてでターンログを再生して違反0件。
+  parse_error 35枚はすべて行番号つきの1行エラー、到達不能の3枚は `goal ... is unreachable` で終了。
+  配布マップはすべて VII.7 の目標ターン以内(challenger は43ターン)。期待結果が古くなっていたのは S07 の1件
+  (現在の規則では5ターンが最適)。新しいバグはなし。詳細は `docs/research/2026-10-18_stage8-validation.md`。
 
 ## Stage 9 — Documentation
 
