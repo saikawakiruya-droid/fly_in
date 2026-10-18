@@ -138,3 +138,25 @@
   受けていた。
 - 対応状況: 対応済み。`_is_closed_pipe` で、`BrokenPipeError` と(Windows の場合だけ)EINVAL を「パイプが閉じた」とみなし、
   stdout を devnull に向け直して終了コード1で静かに終える。
+
+## 2026-10-18: 大きな `--delay` がグラフィカル表示で `OverflowError` になる
+
+- 発生箇所: `droneflow/visualization/graphical_view.py:208`(`_Window.wait` の `int(self.delay * 1000)`)。
+  CLI のテスト設計(`docs/research/2026-10-18_test-design-cli-app.md`)で発見。
+- 症状: `--delay 1e308` は `droneflow/cli.py` の `_delay` の検査(有限・0 以上)を通るが、`--visual graphical` / `both` で
+  `error: internal error: OverflowError: cannot convert float infinity to integer`・終了コード1になる(`SDL_VIDEODRIVER=dummy` で再現)。
+- 原因: `delay * 1000` が float の範囲を超えて `inf` になる。上下の矢印での変更は `_MAX_DELAY`(5秒)で頭打ちにしているが、
+  起動時に渡された値は頭打ちにしていない。
+- 対応状況: 未対応(ユーザー判断待ち)。候補: `--delay` に上限を設ける / `GraphicalVisualizer` で `_MAX_DELAY` に頭打ちにする /
+  `_delay` で `value * 1000` も有限であることを検査する。
+
+## 2026-10-18: マップのパスがエラーメッセージで「書かれたとおり」に出ない
+
+- 発生箇所: `droneflow/cli.py:50`(`type=Path`)と `droneflow/app.py:120`(`MapFileError(str(path), ...)`)。
+  CLI のテスト設計で発見。
+- 症状: `python fly_in.py ./maps/none.txt` や `maps//none.txt` が `error: cannot read map file 'maps/none.txt': ...`
+  (Windows では `'maps\none.txt'`)と表示される。`MapFileError.path` の docstring「as given on the command line」と、
+  コミット c9f48eb の「show map paths as given」に食い違う。
+- 原因: `pathlib.Path` が `./` や連続した `/` を正規化し、Windows では区切りを `\` にする。
+- 対応状況: 未対応(軽微。ユーザー判断待ち)。候補: `Args.map_path` を `str` で持つ / 元の文字列を `MapFileError` に渡す /
+  docstring を「正規化したパス」に直す。
