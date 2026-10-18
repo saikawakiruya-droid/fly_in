@@ -290,3 +290,50 @@ tests/
    で始まる7行」とあるが、実際の(そして `subject_output` の)1行目は `D1-corridorA`(2026-10-17 の判断の順序の決定以降)。
    挙動図の例の行も同様。文書の誤りでコードは正しいと考えるが、直してよいか。
 6. **設計中に見つけた問題 1・2** の扱い(上記)。
+
+## 作成フェーズの結果(2026-10-18)
+
+設計したケースをすべて実装した(ブランチ `test/cli_app_makefile`)。`droneflow/` と `fly_in.py` は変更していない。
+
+| ファイル | ケース | 実行数(パラメタライズ展開後) |
+|---|---|---|
+| `tests/test_cli.py` | AC01〜AC09、AA15 の一部 | 28 |
+| `tests/output/test_turn_log_view.py` | AP01〜AP04 | 5 |
+| `tests/output/test_summary.py` | AS01〜AS03 | 3 |
+| `tests/test_app.py` | AA01〜AA15 | 23 |
+| `tests/test_app_graphical.py` | AG01〜AG04 | 8 |
+| `tests/test_fly_in.py` | AM01〜AM10、AE01〜AE02 | 28 |
+
+- 合計 95 件を追加(全体 410 → 505 件、すべて成功)。`python -m pytest tests -q` は2回とも約 1.8 秒
+  (サブプロセスの AE01・AE02 は各 0.1 秒程度)。実時間の sleep・ハングはない。
+- `flake8 droneflow tests fly_in.py`、`mypy --strict droneflow fly_in.py`、課題の `flake8 .` / `mypy . <課題のフラグ>` /
+  `mypy . --strict` はすべてエラーなし。
+- `TtyStringIO` / `tty_stream` は `tests/visualization/conftest.py` から `tests/conftest.py` に移した(確認したい点 2 の決定。
+  visualization のテストは fixture 名で使っているので、テストの中身は変えていない)。
+
+### 設計からの変更・補足
+
+1. **ID の重複**: 決定 6 で足した「マップのパスは書かれたとおり」が、既存の AA09(確認の順番)と同じ ID だったので、
+   **AA15** とした。`parse_args` の比較と `map_name` の部分は `tests/test_cli.py`、`MapFileError` の文言の部分は
+   `tests/test_app.py` に置いた(`monkeypatch.chdir(tmp_path)` で、カレントに同名のファイルがないことを保証)。
+2. **AC04 の `"1e3"`**: 上限 60 秒(AC09)で拒否される値になったので、`"1e1"` → 10.0 に替えた。
+3. **AC05 の `-inf`**: `--delay -inf` と別の語で渡すと、argparse は `-inf` を負の数と認めずオプションとみなし、
+   `argument --delay: expected one argument`(終了コード2)になる。`_delay` の文言を確かめるため `--delay=-inf` で渡した。
+   拒否されること自体は変わらないので、バグとしては扱わない。
+4. **AC08**: ヘルプの折り返しが端末の幅に左右されないよう `COLUMNS=200` にした。`0 to 60` の表示も見る。
+5. **AA10・AM08 ③**: pygame の代わりに空のモジュールを `sys.modules["pygame"]` に入れてから palette の import を壊す。
+   pygame の有無によらず、失敗する import が palette になる(pygame が無い環境で `VisualizationError` に化けない)。
+6. **AM07**: `monkeypatch.setattr(fly_in.os, "name", ...)` は `mypy --strict` が「`fly_in` は `os` を公開していない」と
+   報告するため、同じオブジェクトである標準の `os` に対して `monkeypatch.setattr(os, "name", ...)` とした(意味は同じ)。
+7. **`main(argv)`**: 決定 3 のとおり `fly_in.main([...])` で呼び、`sys.argv` の差し替えは使っていない。
+   AM06 ③ は `sys.stdout` を `BrokenPipeError` を出す `StringIO` に差し替え、stderr は capsys で見た。
+8. **AG01 の `wait_for_quit` のスパイは関数にした**: `calls.append`(組み込みのメソッド)をクラスに置くと self に束縛されず、
+   引数なしで呼ばれて `TypeError` になり、それを `_GuardedView` が close の警告として飲み込むため、呼ばれた回数が数えられない。
+   AG01 は `warning:` が出ないことも確かめる。Stage 7 の VG14 は同じ書き方だが「呼ばれないこと」を見るテストで、呼ばれれば
+   `TypeError` で落ちるため、判定としては有効(変更していない)。
+9. 番犬は 5 秒(`WATCHDOG_MS = 5000`)。AG03・AG04 は `SDL_VIDEODRIVER=nosuch` の `no_window` フィクスチャで、
+   前後に `pygame.display.quit()` する。
+
+### 見つかったバグ
+
+なし(`xfail` のケースはない)。
