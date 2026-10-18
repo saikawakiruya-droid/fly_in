@@ -4,9 +4,12 @@
 writes a map file for end-to-end tests that go through the parser
 (``load_world`` parses it too). ``place`` and ``snapshot`` build and copy
 simulation states, and the subject's sample map with its expected output
-is shared by the simulation and the visualization tests.
+is shared by the simulation and the visualization tests. ``tty_stream``
+makes a ``StringIO`` that claims to be a terminal, for the terminal view
+(which only asks ``isatty()``) and the application tests.
 """
 
+import io
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -53,6 +56,14 @@ SAMPLE_OUTPUT = [
     "D4-goal D5-tunnelB",
     "D5-goal",
 ]
+
+
+class TtyStringIO(io.StringIO):
+    """A StringIO that reports itself as a terminal."""
+
+    def isatty(self) -> bool:
+        """Claim to be a terminal."""
+        return True
 
 
 class NetworkFactory(Protocol):
@@ -248,3 +259,13 @@ def subject_output() -> list[str]:
 def restricted_only_map() -> str:
     """Return the sample map with corridorA blocked (roof1 only)."""
     return RESTRICTED_ONLY_MAP
+
+
+@pytest.fixture
+def tty_stream() -> Callable[..., TtyStringIO]:
+    """Return a factory for terminal-like streams, for input or output."""
+
+    def make(text: str = "") -> TtyStringIO:
+        return TtyStringIO(text)
+
+    return make

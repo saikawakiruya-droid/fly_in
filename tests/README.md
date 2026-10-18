@@ -67,7 +67,8 @@ python -m pytest tests/
   `MapParser` で読んだ `World`)、`place`(検査をしない基本操作でドローンをゾーン・飛行中に置いた状態を作る)、
   `snapshot`(状態の値をコピーする)、課題のサンプルマップと期待出力(`subject_map` / `subject_output`、
   corridorA を blocked にした `restricted_only_map`)。後の4つは Stage 7 で `tests/simulation/conftest.py` から移した
-  (simulation と visualization のテストで共有)
+  (simulation と visualization のテストで共有)。`tty_stream`(`isatty()` が True の `StringIO`。端末の代わり)は CLI の
+  フェーズで `tests/visualization/conftest.py` から移した(visualization と Application のテストで共有)
 
 - `tests/pathfinding/conftest.py` — `grid_network`(20×20 の格子。`make_network` で組む)
 - `tests/pathfinding/test_distance_map.py` — `DistanceMap`: ゾーンタイプ別の進入コスト(restricted=2・priority=1、
@@ -119,8 +120,7 @@ python -m pytest tests/
   1回(ターン0・全機が start)、`render` は毎ターンそのターンの `moves` で、`close` は最後に1回。`SimulationError`
   (誰も動かない・ターン数の上限・不正な指示)、`begin` の失敗、`render` の失敗のどれでも `close` を呼び、例外はそのまま伝わること
 
-- `tests/visualization/conftest.py` — `tty_stream`(`isatty()` が True の `StringIO`。端末の代わり)、
-  `coord_network`(座標と色つきでゾーンを登録する。最初が start、最後が end)
+- `tests/visualization/conftest.py` — `coord_network`(座標と色つきでゾーンを登録する。最初が start、最後が end)
 - `tests/visualization/test_palette.py` — `rgb`: 表の値(似た赤を区別)・全エントリが 0〜255 の3つ組、大文字小文字を
   区別しないこと、配布マップ(`maps.tar.gz`)の色名17種のうち `rainbow` 以外がすべて表にあること、知らない名前・空・`None` は
   `None`、エンジン・ターミナル表示・composite・palette を import しても pygame が読まれないこと(サブプロセス)

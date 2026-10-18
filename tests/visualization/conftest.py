@@ -1,14 +1,13 @@
 """Fixtures for the visualization tests (none of them need pygame).
 
-``tty_stream`` makes a ``StringIO`` that claims to be a terminal, since
-the terminal view only asks ``isatty()``. ``coord_network`` registers
-zones with coordinates and colors, which ``make_network`` leaves at
-(0, 0) and unset. The graphical view's headless fixture lives in its own
-test file, which is skipped as a whole without pygame.
+``coord_network`` registers zones with coordinates and colors, which
+``make_network`` leaves at (0, 0) and unset. ``tty_stream`` (a terminal
+stand-in) comes from ``tests/conftest.py``. The graphical view's headless
+fixture lives in its own test file, which is skipped as a whole without
+pygame.
 """
 
-import io
-from typing import Callable, Protocol
+from typing import Protocol
 
 import pytest
 
@@ -17,14 +16,6 @@ from droneflow.models.network import Network
 from droneflow.models.zone import Zone, ZoneRole, ZoneType
 
 ZoneSpec = tuple[str, int, int]
-
-
-class TtyStringIO(io.StringIO):
-    """A StringIO that reports itself as a terminal."""
-
-    def isatty(self) -> bool:
-        """Claim to be a terminal."""
-        return True
 
 
 class CoordNetworkFactory(Protocol):
@@ -78,16 +69,6 @@ def build_coord_network(
         zone_a, zone_b = edge.split("-")
         network.add_connection(Connection(zone_a, zone_b, 1))
     return network
-
-
-@pytest.fixture
-def tty_stream() -> Callable[..., TtyStringIO]:
-    """Return a factory for terminal-like streams, for input or output."""
-
-    def make(text: str = "") -> TtyStringIO:
-        return TtyStringIO(text)
-
-    return make
 
 
 @pytest.fixture
