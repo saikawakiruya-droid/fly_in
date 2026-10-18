@@ -39,7 +39,7 @@
 | `droneflow/output/summary.py` | `RunSummary`: ターン一覧から総ターン数・1機あたりの平均ターン数・1ターンあたりの移動数を求める | 新規 |
 | `droneflow/errors.py` | `MapFileError`(マップが開けない・読めない)、`VisualizationError`(可視化が使えない) | 追加 |
 | `droneflow/visualization/graphical_view.py` | 窓を開くときの `pygame.error` を `VisualizationError` にする | 小変更 |
-| `fly_in.py` | `KeyboardInterrupt`(Ctrl+C)と `BrokenPipeError`(`| head` など)も1行で終える | 変更 |
+| `fly_in.py` | `KeyboardInterrupt`(Ctrl+C)と `BrokenPipeError`(`| head` など)も1行で終える。予期しない例外は最後の砦で1行(`FLYIN_DEBUG=1` では送出) | 変更 |
 | `Makefile` | install / run / debug / clean / lint / lint-strict(+ test / fclean) | 新規 |
 | `.gitattributes` | `Makefile` の改行を LF に固定(Windows の `core.autocrlf` 対策) | 新規 |
 | `requirements.txt` | pygame-ce / flake8 / mypy / pytest(pytest は `mypy . --strict` が `tests/` を検査するのにも要る) | 新規 |
@@ -220,7 +220,7 @@ sequenceDiagram
     App-->>User: "summary: 7 turns, 5 drones, ..."(stderr)
     App-->>Main: 正常終了
     Main-->>User: 終了コード0
-    Note over Main,User: FlyInError → "error: <説明>" を stderr、終了コード1<br/>Ctrl+C → "error: interrupted"、終了コード130<br/>stdout のパイプが閉じた → 何も出さず終了コード1
+    Note over Main,User: FlyInError → "error: <説明>" を stderr、終了コード1<br/>Ctrl+C → "error: interrupted"、終了コード130<br/>stdout のパイプが閉じた → 何も出さず終了コード1<br/>予期しない例外 → "error: internal error: <型>: <説明>"、終了コード1(FLYIN_DEBUG=1 なら送出)
 ```
 
 - シミュレーション中のエラー(`SimulationError`)のときも、エンジンの `finally` でビューは閉じられ、それまでのターンログは
@@ -236,7 +236,8 @@ sequenceDiagram
 4. `app.py`: `Application.run`、`_load_world`(`OSError` / `UnicodeDecodeError` → `MapFileError`)、`_make_views`
    (pygame の `ModuleNotFoundError` → `VisualizationError`)、`_GuardedView`、警告とまとめの出力。
 5. `graphical_view.py`: 窓を開くときの `pygame.error` を `VisualizationError` にし、pygame の表示を片付けて「閉じた」状態にする。
-6. `fly_in.py`: `KeyboardInterrupt` と `BrokenPipeError` の扱い。
+6. `fly_in.py`: `KeyboardInterrupt` と `BrokenPipeError` の扱い。予期しない例外の最後の砦(`make debug` は `FLYIN_DEBUG=1` で pdb に渡す。
+   2026-10-18 のユーザー判断で追加)。
 7. `Makefile` / `requirements.txt` / `setup.cfg` / `.gitattributes` / `maps/subject_example.txt`。
    (当初は `requirements-dev.txt` に pytest を分ける案だったが、`tests/` があると `mypy . --strict` が pytest なしでは通らないため、
    `requirements.txt` にまとめた。`docs/decisions.md` 2026-10-18 参照)
@@ -251,7 +252,6 @@ sequenceDiagram
 - README(VIII)。Stage 9 で行う。
 - 配布マップを読めるようにすること(`nb_drones` は物理的な1行目に限る、という決定は変えない)。
 - `--visual` のほかの細かい設定(窓の大きさ、色のオン・オフ)を CLI に出すこと。色は `NO_COLOR` で消せる。
-- 予期しない例外(バグ)をまとめて1行にする「最後の砦」の `except Exception`。(未決事項として報告する)
 
 ## 完了条件(Done)
 
