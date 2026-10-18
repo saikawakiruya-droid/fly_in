@@ -18,8 +18,8 @@
 python -m pytest tests/
 ```
 
-`tests/visualization/test_graphical_view.py` は pygame(pygame-ce)が必要。入っていなければこのファイルだけ skip され、
-ほかのテストは pygame なしで走る。グラフィカル表示のテストはヘッドレス(`SDL_VIDEODRIVER=dummy`)で動くので、画面は要らない。
+`tests/visualization/test_graphical_view.py` と `tests/test_app_graphical.py` は pygame(pygame-ce)が必要。入っていなければ
+この2ファイルだけ skip され、ほかのテストは pygame なしで走る。グラフィカル表示のテストはヘッドレス(`SDL_VIDEODRIVER=dummy`)で動くので、画面は要らない。
 
 ## 現在のカバレッジ範囲
 
@@ -59,6 +59,32 @@ python -m pytest tests/
   未定義ゾーンへの接続・接続重複と自己ループ)
 - `tests/output/test_formatter.py` — `TurnLogFormatter`: `D<ID>-<行き先>` の空白区切り整形、
   呼び出し順の保持(ソートしない)、接続名のそのまま出力、空ターンのスキップ、`capsys` での標準出力検査
+- `tests/output/test_turn_log_view.py` — `TurnLogPrinter`(AP01〜AP04): begin は何も書かない・既定の出力先は stdout、
+  1ターン1行で書いた直後に flush、空のターンは書かず flush もしない、close は flush だけでストリームを閉じない、
+  整形は `TurnLogFormatter` に委譲(同じ `moves` を渡す)
+- `tests/output/test_summary.py` — `RunSummary`(AS01〜AS03): 課題の例の数値と文言(7ターン・5.00・2.14)、
+  配達ターン=最後に出たターン(接続名の項目も1手)、ターンなし・ドローンなしでゼロ除算しないこと
+
+- `tests/test_cli.py` — 引数(AC01〜AC09): 既定値(terminal・0.5秒・ステップなし)、`--visual` の4つの値と誤った値
+  (大文字小文字を区別)、`--delay` の受理(0 ちょうど・`-0`・`=` の書き方)と拒否(負・nan・inf・数でない・60 秒超、
+  文言まで)、MAP なし・`--debug`・余分な引数の終了コード2、関係のないモードでの `--step`、`--help`(stdout・終了コード0・既定値)、
+  入力どおりのパス(`map_name`。比較には使わない)
+- `tests/test_app.py` — `Application`(pygame 不要。AA01〜AA15): none / terminal で stdout が課題の例と完全一致し、
+  stderr はターミナル表示とまとめの1行、ターンの行がそのフレームより先に出ること、ステップ実行のビューの組み立て
+  (`_make_views`)、none はビューを作らず pygame の表示を import しない、マップが読めない(存在しない・ディレクトリ・
+  UTF-8 でない)の `MapFileError` と原因、パース・到達不能のエラーはそのまま、pygame がない(`sys.modules` で再現)の
+  `VisualizationError` とマップのエラーが先なこと、pygame 以外の import の失敗は包まない、close の失敗は警告だけ・
+  元のエラーを隠さない、途中のエラーでもそれまでのログとビューの後始末が残る、ターンログ側の失敗は包まない、
+  エラーのパスは入力どおり
+- `tests/test_app_graphical.py` — `Application` のグラフィカル(AG01〜AG04)。ヘッドレス(`SDL_VIDEODRIVER=dummy`)・
+  `--delay 0` 相当・`_Window.wait_for_quit` のスパイ・番犬(QUIT)で動かし、pygame が無ければファイルごと skip:
+  graphical / both でも stdout が同じで最後の画面を待つ配線があること、ビューの組み立て(both ではグラフィカルだけが
+  ステップ実行)、窓が開けない(存在しないドライバ)の `VisualizationError` と both でのターミナルの後始末、main での1行のエラー
+- `tests/test_fly_in.py` — エントリポイント(AM01〜AM10・AE01〜AE02): `main(argv)` の例外表(正常 0、`FlyInError` 1、
+  引数の誤り 2 で `Application` を作らない、Ctrl+C 130(実行中の割り込みでもログとビューの後始末が残る)、閉じたパイプは
+  何も出さず 1(Windows の EINVAL を含む。`_is_closed_pipe` の判定表は `os.name` を切り替えて両方)、予期しない例外は
+  `internal error` の1行、`FLYIN_DEBUG=1` のときだけ送出、close の失敗と終了コード・行の順序)。`_silence_stdout` は
+  常にスパイに差し替える。サブプロセスは2回だけ(課題の例の正常終了と、存在しないマップのエラー)
 
 - `tests/conftest.py` — 全テスト共通のフィクスチャ: `make_network`(`"s-a a-g"` のような記述から
   `Network` をコード内で組む。記述順=接続の宣言順=接続名。hub の `max_drones` は既定 1(パーサーと同じ)で
@@ -142,4 +168,7 @@ python -m pytest tests/
   呼び出しの前に積み、番犬のタイマー(QUIT)でハングを防ぐ。実時間の sleep や経過時間のアサーションは使わない
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
-Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization)。以降のステージの実装が進み次第、対応するテストを追加していく想定。
+Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization)と、CLI / Application / エントリポイント
+(`droneflow/cli.py`・`droneflow/app.py`・`droneflow/output/turn_log_view.py`・`droneflow/output/summary.py`・`fly_in.py`)。
+`Makefile` は単体テストの対象外(手動で確認する。`docs/research/2026-10-18_test-design-cli-app.md`、develop ブランチ)。
+以降の実装が進み次第、対応するテストを追加していく想定。
