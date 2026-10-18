@@ -15,9 +15,9 @@ class TurnLedger:
       flight toward a restricted zone already take room), minus drones
       ordered out of it, plus drones ordered into it; the start and end
       zones have no limit;
-    * a connection's use is the drones landing through it this turn
-      (``SimulationState.link_load``) plus the drones ordered across it,
-      in either direction.
+    * a connection's use is the drones ordered across it, in either
+      direction; drones landing through it this turn leave it, so they
+      take none of its capacity.
 
     Only the orders recorded so far are counted. Later orders can only add
     departures, which free more room, or entries, which are checked again,
@@ -36,9 +36,7 @@ class TurnLedger:
         Both the connection and the zone entered must have room left.
         """
         connection = hop.connection
-        used = self.state.link_load(connection) + self._link_use.get(
-            connection.name, 0
-        )
+        used = self._link_use.get(connection.name, 0)
         if used >= connection.max_link_capacity:
             return False
         free = self.state.free_capacity(hop.zone.name)

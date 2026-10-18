@@ -15,8 +15,8 @@ class Scheduler:
     Each turn the drones standing in zones are considered one by one:
 
     1. drones in flight toward a restricted zone get no order (the engine
-       lands them; their reservations and connection use are already
-       counted in the state);
+       lands them; their reservations are already counted in the state,
+       and their connections are free again for this turn's orders);
     2. the others are decided closest to the end zone first, so drones
        leaving a zone free its room before the drones behind them ask for
        it;

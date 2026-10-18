@@ -105,8 +105,10 @@ class SimulationState:
     def link_load(self, connection: Connection) -> int:
         """Return how many drones are in flight on the connection.
 
-        Each of them still uses the connection during the next turn, so
-        this many slots of ``max_link_capacity`` are already taken.
+        These drones land at the start of the next turn and leave the
+        connection then, so they do not take any of its
+        ``max_link_capacity`` during that turn: a connection is used only
+        on the turn a drone departs across it.
         """
         return self._link_load.get(connection.name, 0)
 

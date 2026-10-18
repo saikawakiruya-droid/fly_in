@@ -31,8 +31,10 @@ class TurnResolver:
        order per drone, into an existing, non-blocked, adjacent zone other
        than the one the drone is in (waiting means giving no order, so a
        move along a self-loop is rejected);
-    3. checks connection capacity: drones landing plus drones departing on
-       the same connection must not exceed ``max_link_capacity``;
+    3. checks connection capacity: drones departing on the same connection
+       must not exceed ``max_link_capacity``. Drones landing this turn leave
+       the connection, so they free their slot for departures during the
+       same turn (like drones leaving a zone);
     4. checks zone capacity on the final counts, so drones leaving a zone
        free room for drones entering it during the same turn. A restricted
        destination is reserved on departure and counted from then on.
@@ -141,10 +143,12 @@ class TurnResolver:
     def _check_links(
         self, state: SimulationState, steps: list[_Step]
     ) -> None:
-        # Landing drones are the ones counted in state.link_load, so the
-        # turn's usage is simply every step's connection.
+        # Landing drones leave their connection this turn, so only the
+        # departures use connection capacity.
         usage: dict[str, int] = {}
         for step in steps:
+            if step.is_arrival:
+                continue
             name = step.connection.name
             usage[name] = usage.get(name, 0) + 1
             if usage[name] > step.connection.max_link_capacity:
