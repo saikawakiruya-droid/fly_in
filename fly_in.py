@@ -5,11 +5,15 @@ import os
 import sys
 
 from droneflow.app import Application
-from droneflow.cli import parse_args
+from droneflow.cli import Args, parse_args
 from droneflow.errors import FlyInError
 
 EXIT_INTERRUPTED = 130
 """Exit status after Ctrl+C (128 + SIGINT), as shells report it."""
+
+
+DEBUG_ENV = "FLYIN_DEBUG"
+"""Set to 1 (``make debug`` does) to let unexpected exceptions propagate."""
 
 
 def main() -> int:
@@ -17,11 +21,28 @@ def main() -> int:
 
     Returns:
         0 on success, 1 if a FlyInError was raised anywhere in the
-        pipeline or standard output was closed early (e.g. ``| head``),
-        130 if the user pressed Ctrl+C. Invalid arguments exit with 2
-        from argparse.
+        pipeline, standard output was closed early (e.g. ``| head``) or
+        an unexpected exception occurred, 130 if the user pressed Ctrl+C.
+        Invalid arguments exit with 2 from argparse.
     """
     args = parse_args()
+    try:
+        return _run(args)
+    except Exception as exc:
+        # Last resort for bugs: one line instead of a traceback. With
+        # FLYIN_DEBUG=1 (make debug) the exception propagates, so pdb
+        # can inspect it post mortem.
+        if os.environ.get(DEBUG_ENV) == "1":
+            raise
+        print(
+            f"error: internal error: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+
+
+def _run(args: Args) -> int:
+    """Run the application, turning expected failures into exit codes."""
     try:
         Application(args).run()
     except FlyInError as exc:
