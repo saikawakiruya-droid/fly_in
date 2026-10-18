@@ -14,6 +14,7 @@ from droneflow.simulation.turn_resolver import TurnResolver
 MakeNetwork = Callable[..., Network]
 Fmt = Callable[[list[Move]], str]
 Snapshot = Callable[[SimulationState], dict[str, object]]
+Place = Callable[..., SimulationState]
 
 R = ZoneType.RESTRICTED
 X = ZoneType.BLOCKED
@@ -216,23 +217,43 @@ def test_connection_is_printed_as_declared(
     assert fmt(resolver.resolve(state, [MoveOrder(1, "r")])) == "D1-r-s"
 
 
-def test_reserved_restricted_zone_is_full(
-    make_network: MakeNetwork,
-) -> None:
-    """T13: the reservation fills the zone before the drone lands."""
+STUCK_D2_TURN_3 = "turn 3: D2 is stuck on connection 's-r': zone 'r' is full"
+
+
+def departure_then_stuck(
+    make_network: MakeNetwork, fmt: Fmt
+) -> tuple[SimulationState, TurnResolver]:
+    """Play the two legal turns of T13; D2 would land in a full r next."""
     network = make_network("s-r r-g", types={"r": R}, links={"s-r": 2})
     state, resolver = prepare(network, 2)
     resolver.resolve(state, [MoveOrder(1, "r")])
+    assert fmt(resolver.resolve(state, [MoveOrder(2, "r")])) == "D1-r D2-s-r"
+    return state, resolver
 
-    with pytest.raises(SimulationError, match="zone 'r'"):
-        resolver.resolve(state, [MoveOrder(2, "r")])
+
+def test_departure_then_stuck_on_connection(
+    make_network: MakeNetwork, fmt: Fmt
+) -> None:
+    """T13: a departure toward r does not count in r on its own turn.
+
+    D2 may take off while D1 lands, but if D1 still stands in r on turn
+    3, D2 is stuck on the connection. The resolver does not check plans.
+    """
+    state, resolver = departure_then_stuck(make_network, fmt)
+
+    with pytest.raises(SimulationError) as excinfo:
+        resolver.resolve(state, [])
+    assert str(excinfo.value) == STUCK_D2_TURN_3
 
 
 @pytest.mark.parametrize("link_capacity", [1, 2])
-def test_landing_still_uses_the_connection(
+def test_landing_frees_the_connection(
     make_network: MakeNetwork, fmt: Fmt, link_capacity: int
 ) -> None:
-    """T14: a flight occupies its connection on the landing turn too."""
+    """T14: a landing frees its connection for a departure the same turn.
+
+    Even with a connection capacity of 1, D2 takes off as D1 lands.
+    """
     network = make_network(
         "s-r r-g",
         types={"r": R},
@@ -242,12 +263,8 @@ def test_landing_still_uses_the_connection(
     state, resolver = prepare(network, 2)
     resolver.resolve(state, [MoveOrder(1, "r")])
 
-    if link_capacity == 1:
-        with pytest.raises(SimulationError, match="connection 's-r'"):
-            resolver.resolve(state, [MoveOrder(2, "r")])
-    else:
-        moves = resolver.resolve(state, [MoveOrder(2, "r")])
-        assert fmt(moves) == "D1-r D2-s-r"
+    moves = resolver.resolve(state, [MoveOrder(2, "r")])
+    assert fmt(moves) == "D1-r D2-s-r"
 
 
 def test_order_to_drone_in_flight(make_network: MakeNetwork) -> None:
@@ -374,14 +391,24 @@ def swap_over_single_link(
     return state, resolver, [MoveOrder(1, "b"), MoveOrder(2, "a")]
 
 
-def into_reserved_zone(
+def stuck_on_connection(
     make_network: MakeNetwork,
 ) -> tuple[SimulationState, TurnResolver, list[MoveOrder]]:
-    """T21d: the second turn of T13."""
+    """T21d: the third turn of T13: D2 cannot land while D1 stays in r."""
     network = make_network("s-r r-g", types={"r": R}, links={"s-r": 2})
     state, resolver = prepare(network, 2)
     resolver.resolve(state, [MoveOrder(1, "r")])
-    return state, resolver, [MoveOrder(2, "r")]
+    resolver.resolve(state, [MoveOrder(2, "r")])
+    return state, resolver, []
+
+
+def zone_overflow(
+    make_network: MakeNetwork,
+) -> tuple[SimulationState, TurnResolver, list[MoveOrder]]:
+    """T21e: two drones ordered into a zone of capacity 1."""
+    network = make_network("s-a a-g", links={"s-a": 2})
+    state, resolver = prepare(network, 2)
+    return state, resolver, [MoveOrder(1, "a"), MoveOrder(2, "a")]
 
 
 @pytest.mark.parametrize(
@@ -390,7 +417,8 @@ def into_reserved_zone(
         legal_then_unknown_drone,
         landing_then_unknown_zone,
         swap_over_single_link,
-        into_reserved_zone,
+        stuck_on_connection,
+        zone_overflow,
     ],
 )
 def test_violation_leaves_state_unchanged(
@@ -470,3 +498,121 @@ def test_resolve_returns_moves(make_network: MakeNetwork) -> None:
             assert isinstance(move, Move)
             assert not isinstance(move, MoveOrder)
             assert isinstance(move.destination, str)
+
+
+# --- landings and stuck drones (timed reservation) --------------------
+
+
+@pytest.mark.parametrize(
+    ("edges", "types", "orders", "expected"),
+    [
+        pytest.param(
+            "s-r r-g", {"r": R}, [MoveOrder(2, "g")], "D1-r D2-g",
+            id="leaves-for-end",
+        ),
+        pytest.param(
+            "s-r r-q q-g",
+            {"r": R, "q": R},
+            [MoveOrder(2, "q")],
+            "D1-r D2-r-q",
+            id="departs-to-restricted",
+        ),
+    ],
+)
+def test_landing_takes_room_freed_the_same_turn(
+    make_network: MakeNetwork,
+    place: Place,
+    fmt: Fmt,
+    edges: str,
+    types: dict[str, ZoneType],
+    orders: list[MoveOrder],
+    expected: str,
+) -> None:
+    """T25: D1 lands in the full r as D2 leaves it (final load counts)."""
+    network = make_network(edges, types=types)
+    state = place(network, 2, at={2: "r"}, flying={1: ("s", "r")})
+
+    assert fmt(TurnResolver(network).resolve(state, orders)) == expected
+
+
+def test_departure_to_restricted_not_counted_on_its_turn(
+    make_network: MakeNetwork, place: Place, fmt: Fmt, snapshot: Snapshot
+) -> None:
+    """T26: D2 may take off toward the full r; if D1 stays, D2 is stuck."""
+    network = make_network("s-r r-g", types={"r": R})
+    state = place(network, 2, at={1: "r"})
+    resolver = TurnResolver(network)
+
+    assert fmt(resolver.resolve(state, [MoveOrder(2, "r")])) == "D2-s-r"
+    assert state.occupancy("r") == 1
+    assert state.reserved("r") == 1
+
+    before = snapshot(state)
+    with pytest.raises(SimulationError) as excinfo:
+        resolver.resolve(state, [])
+    assert str(excinfo.value) == (
+        "turn 2: D2 is stuck on connection 's-r': zone 'r' is full"
+    )
+    assert snapshot(state) == before
+
+
+def test_stuck_message_names_the_smallest_drone(
+    make_network: MakeNetwork, place: Place
+) -> None:
+    """T27: with two drones stuck, the message names D2, not D3."""
+    network = make_network("s-r r-g", types={"r": R}, links={"s-r": 2})
+    state = place(network, 3, flying={3: ("s", "r"), 2: ("s", "r")})
+
+    with pytest.raises(SimulationError) as excinfo:
+        TurnResolver(network).resolve(state, [])
+    assert str(excinfo.value) == (
+        "turn 1: D2 is stuck on connection 's-r': zone 'r' is full"
+    )
+
+
+@pytest.mark.parametrize("landing", [1, 2])
+def test_landings_up_to_capacity(
+    make_network: MakeNetwork, place: Place, fmt: Fmt, landing: int
+) -> None:
+    """T28: one staying drone plus one landing fits r (2); plus two do not."""
+    network = make_network(
+        "s-r r-g", types={"r": R}, capacity={"r": 2}, links={"s-r": 2}
+    )
+    flying = {2 + i: ("s", "r") for i in range(landing)}
+    state = place(network, 3, at={1: "r"}, flying=flying)
+    resolver = TurnResolver(network)
+
+    if landing == 1:
+        assert fmt(resolver.resolve(state, [])) == "D2-r"
+    else:
+        with pytest.raises(SimulationError) as excinfo:
+            resolver.resolve(state, [])
+        assert str(excinfo.value) == (
+            "turn 1: D2 is stuck on connection 's-r': zone 'r' is full"
+        )
+
+
+def test_overflow_without_landing_keeps_its_message(
+    make_network: MakeNetwork,
+) -> None:
+    """T29: a full zone with nobody landing is not reported as stuck."""
+    network = make_network("s-a a-g", links={"s-a": 2})
+    state, resolver = prepare(network, 2)
+
+    with pytest.raises(SimulationError) as excinfo:
+        resolver.resolve(state, [MoveOrder(1, "a"), MoveOrder(2, "a")])
+    assert str(excinfo.value) == (
+        "turn 1: zone 'a' would hold more than 1 drone(s)"
+    )
+
+
+def test_simulation_continues_after_stuck_drone(
+    make_network: MakeNetwork, fmt: Fmt
+) -> None:
+    """T30: after the stuck turn of T13, D1 leaves and D2 lands."""
+    state, resolver = departure_then_stuck(make_network, fmt)
+    with pytest.raises(SimulationError):
+        resolver.resolve(state, [])
+
+    assert fmt(resolver.resolve(state, [MoveOrder(1, "g")])) == "D1-g D2-r"
+    assert state.turn_number == 3

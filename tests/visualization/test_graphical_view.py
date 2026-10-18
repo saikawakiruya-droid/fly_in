@@ -202,7 +202,7 @@ def test_draws_every_turn_and_closes(
     turns = run(load_world(text), view)
 
     assert turns == plain_run(load_world(text))
-    assert len(turns) == (7 if which == "subject" else 12)
+    assert len(turns) == (7 if which == "subject" else 8)
     assert view.is_open is False
     assert pygame.display.get_init() is False
 

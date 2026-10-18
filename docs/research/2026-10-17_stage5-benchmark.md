@@ -23,7 +23,7 @@
 | maze_nightmare | hard | 8 | 6 | **13** | 13 | 30 | 達成 |
 | capacity_hell | hard | 12 | 5 | **16** | 16 | 35 | 達成 |
 | ultimate_challenge | hard | 15 | 12 | **26** | 26 | 45 | 達成 |
-| the_impossible_dream | challenger | 25 | 19 | **43** | 43 | 参考記録 45 | 上回る |
+| the_impossible_dream | challenger | 25 | 19 | **43** | 43 | 参考記録 45 | 上回る(2026-10-18 の規則変更後は45、下記) |
 | 課題の例(VII.5 前) | — | 5 | 3 | **7** | 11 | (目標なし) | 下限どおり |
 
 全マップで `SimulationError` なく全機が goal に到着した。目標を下回ったマップはない。
@@ -55,3 +55,64 @@ tunnelB が1機ずつしか通さないので、下限は 3 + 4 = 7 ターン。
 |---|---|---|---|---|
 | 課題の例 | 11 | 7 | 7 | 7 |
 | 配布マップ10枚 | 上表のとおり | すべて同じ | すべて同じ | すべて同じ |
+
+## 追記(2026-10-18): restricted の到着ターンを接続容量に数えない規則に変えた後の再計測
+
+`docs/decisions.md` 2026-10-18「restricted の到着ターンは接続容量に数えない」(`fix/restricted_link_release`)の後、
+同じ写し10枚と課題の例を `fly_in.py --visual none` で再実行した。
+
+| マップ | 変更前 | 変更後 | 目標(VII.7) | 判定 |
+|---|---|---|---|---|
+| linear_path | 4 | 4 | 6 | 達成 |
+| simple_fork | 4 | 4 | 8 | 達成 |
+| basic_capacity | 4 | 4 | 6 | 達成 |
+| dead_end_trap | 8 | 8 | 12 | 達成 |
+| circular_loop | 15 | 15 | 15 | 達成(同数) |
+| priority_puzzle | 8 | 8 | 12 | 達成 |
+| maze_nightmare | 13 | 13 | 30 | 達成 |
+| capacity_hell | 16 | 16 | 35 | 達成 |
+| ultimate_challenge | 26 | 26 | 45 | 達成 |
+| the_impossible_dream | 43 | **45** | 参考記録 45 | 同数(上回らなくなった) |
+| 課題の例 | 7 | 7 | — | 下限どおり |
+| revie_case S07 | 5 | 5 | — | 変わらない(下記) |
+
+- circular_loop は変わらない。`exit_point` は restricted・容量1なので、接続が空いても予約の規則で2ターンに1機しか出発できない。
+  上の「circular_loop」の分析のうち「接続を2ターン使う」は理由ではなくなり、予約の規則だけで下限15が決まる。
+- S07 も同じ理由(`r` が容量1)で5ターンのまま。
+- the_impossible_dream は 43 → 45 に増えた。到着ターンに接続が空くことで、貪欲なスケジューラがより早く出発させ、
+  その後の混雑が変わったためと考えられる(原因は未調査)。`tests/simulation/test_scheduler_maps.py::test_challenger_beats_reference`(45未満)が通らなくなった。
+- ターンログはすべて、新しい規則に合わせた再生チェッカーで違反0件。
+
+## 追記(2026-10-19): 予約表と立ち退きの実装後の再計測
+
+`docs/research/2026-10-18_design-timed-reservation.md` の設計(予約表1つ・立ち退き・最後の手段・規則6')を
+`feature/timed_reservation` に実装した後、同じ写し10枚と課題の例を `SimulationEngine` で再実行した(アドホック、コミットしない)。
+
+| マップ | 2026-10-18(到着ターンの接続を空けた後) | 実装後 | 目標(VII.7) | 判定 |
+|---|---|---|---|---|
+| linear_path | 4 | 4 | 6 | 達成 |
+| simple_fork | 4 | 4 | 8 | 達成 |
+| basic_capacity | 4 | 4 | 6 | 達成 |
+| dead_end_trap | 8 | 8 | 12 | 達成 |
+| circular_loop | 15 | **10** | 15 | 達成 |
+| priority_puzzle | 8 | 8 | 12 | 達成 |
+| maze_nightmare | 13 | 13 | 30 | 達成 |
+| capacity_hell | 16 | 16 | 35 | 達成 |
+| ultimate_challenge | 26 | 26 | 45 | 達成 |
+| the_impossible_dream | 45 | **44** | 参考記録 45 | 上回る |
+| 課題の例 | 7 | 7 | — | 下限どおり |
+| revie_case S07 | 5 | **4** | — | 設計の目的どおり |
+| R02 のマップ(restricted だけの例) | 12 | **8** | — | |
+| revie_case X11(大きな格子) | 73 | **71** | — | |
+| 例K1(出口の接続が細い) / 例K2(出口のゾーンが小さい) | 6 / 7 | 6 / 7 | — | 詰まりなし |
+
+- circular_loop: `exit_point`(restricted・容量1)に着陸した機を、次の機の着陸のターンに goal へ立ち退かせる予約が作れるので、
+  毎ターン1機ずつ出発できる。上の「circular_loop」の分析の下限15は、出発時に「いる数+予約数」で数える旧規則の下での値。
+- revie_case のほか(S01〜S12、P01・P02・P04〜P06、X01・X04・X06〜X10)は変わらない。
+- 試作(scratchpad の使い捨て、`proto4.py` に「最後の手段」と規則6' を有効にしたもの)との比較:
+  上のマップすべてと、試作の追加マップ15枚(restricted が2〜3つ続く例、K1〜K3 など)、規則6' が効く例、
+  試作の生成方法で作ったランダムなマップ 9,438 枚で、**ターンログが1行も違わず一致**した。
+- すべての出力を、試作とは別に書いた再生チェッカー(各ターンの最終負荷が容量以下、接続は出発のみ数えて容量以下、
+  restricted へ出発した機は次のターンに必ず着く、隣のゾーンにしか動かない、最後に全機配達)で確かめ、違反0件。
+  「接続上で詰まった」の `SimulationError` は0件。
+- 実行時間: 配布マップ10枚・revie_case・追加マップをまとめて約2秒(X11・the_impossible_dream を含む)。

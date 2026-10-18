@@ -211,6 +211,8 @@ sequenceDiagram
   parse_error 35枚はすべて行番号つきの1行エラー、到達不能の3枚は `goal ... is unreachable` で終了。
   配布マップはすべて VII.7 の目標ターン以内(challenger は43ターン)。期待結果が古くなっていたのは S07 の1件
   (現在の規則では5ターンが最適)。新しいバグはなし。詳細は `docs/research/2026-10-18_stage8-validation.md`。
+  - 追記(2026-10-18、`fix/restricted_link_release`): restricted の到着ターンを接続容量に数えない規則に変えた後、challenger は45ターン
+    (S07 は5ターンのまま)。`docs/decisions.md` 2026-10-18 を参照。
 
 ## Stage 9 — Documentation
 
@@ -221,6 +223,12 @@ sequenceDiagram
   - `docs/decisions.md` / `docs/bugs.md` を実装の実態と突き合わせて整合させる
 - 完了条件: 章VIII(README要件)を満たすREADME.mdが `main` に存在する
 - 依存: Stage 8
+- 状態(2026-10-19、`feature/stage9_readme`): `README.md`(英語)と `README.ja.md`(日本語、同じ内容)を作成した。
+  章VIIIの必須項目(イタリックの1行目、Description、Instructions、Resources と AI の使い方、アルゴリズムと実装の方針、
+  可視化の機能と効果、入力例と出力例)を含む。入力の制約(`nb_drones` は物理的な1行目)を明記し、配布マップには触れない
+  (2026-10-18 の決定)。README は `docs/` へリンクせず、記録は開発用ブランチにあるとだけ書いた。引用したコマンド・メッセージ・
+  出力は実行して確かめた(`make` は開発機にないため Makefile の記述どおりに引用)。`main` への反映と、`docs/decisions.md` /
+  `docs/bugs.md` と実装の突き合わせは未了。
 
 ## Stage 10 — Performance & Bonus(任意)
 

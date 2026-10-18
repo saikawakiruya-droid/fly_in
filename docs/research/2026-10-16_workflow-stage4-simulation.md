@@ -10,6 +10,13 @@
     動きのないターンは出力しない(`docs/decisions.md` 2026-10-03「Stage 6 を先に実装する」)。
   - 誰をどこへ動かすか(`Scheduler.decide_moves`)は Stage 5 の責務。Stage 4 では骨組みのまま残す。
 
+> **2026-10-19 更新(予約表と立ち退きの実装)**: `docs/research/2026-10-18_design-timed-reservation.md` に合わせて
+> `TurnResolver` のゾーンの数え方を変えた。restricted へ出発した機は、出発のターンには行き先に数えず(ターンの終わりには接続の上)、
+> **着陸のターンから**数える。着陸のターンに行き先が満員なら「接続上で詰まった」として `SimulationError`
+> (例: `turn 3: D2 is stuck on connection 's-r': zone 'r' is full`)。着陸の席を確保するのはスケジューラの予約表の役目で、
+> `TurnResolver` は予約を知らない。`SimulationState.reserved` / `load` / `free_capacity` は表示用にそのまま残る。
+> 下の構造図・挙動図 (a)・状態遷移図・表 (d) は実装後の形に改めた。
+
 ## ゴール
 
 1ターンずつ世界を進め、**課題のルール(VII.2 / VII.3 / VII.5)を守らせる**エンジンを作る。
@@ -19,7 +26,8 @@
   同じターンに出ていくドローンの分は、入ってくるドローンを数える前に空く。
 - 接続容量: 同じターンに同じ接続を通るドローンの数は `max_link_capacity` 以下。
 - restricted への移動は2ターン: 1ターン目は接続に入り(`D<ID>-<接続名>`)、2ターン目に必ず到着する(`D<ID>-<ゾーン>`)。
-  接続上で待つことはできないので、**到着先の容量は出発の時点で予約する**。飛行中のドローンは2ターンとも接続を使う。
+  接続上で待つことはできないので、到着先に席がなければ「接続上で詰まった」として `SimulationError`
+  (2026-10-19 から。当初は**到着先の容量を出発の時点で予約し**、出発のターンから数えていた)。飛行中のドローンは出発するターンだけ接続を使い、到着するターンには接続を空ける(2026-10-18 に改めた。当初は2ターンとも使う規則)。
 - goal に着いたドローンは配達済みとなり、以後は追跡・出力しない。全員が配達済みになったら終了。
 - 無限ループの防止: 誰も動かないターン、またはターン数の上限超えで `SimulationError`。
 - `SimulationEngine.run` は `list[list[Move]]`(`TurnLogFormatter` の入力)を返し、可視化があれば毎ターン `render(state)` を呼ぶ。
@@ -90,6 +98,7 @@ classDiagram
     class TurnResolver {
         +network : Network
         +resolve(state, orders) Move[]
+        「着陸は最終負荷に数える / 満員なら接続上で詰まった」
     }
     class SimulationEngine {
         +world : World
@@ -99,7 +108,7 @@ classDiagram
         +run(visualizer) list~list~Move~~
     }
     class Scheduler {
-        <<Stage 5 未実装>>
+        <<Stage 5(予約表を持つ)>>
         +decide_moves(state) MoveOrder[]
     }
     class Visualizer {
@@ -146,14 +155,14 @@ sequenceDiagram
 
     Note over Eng,St: ターン1: D1 は s にいる
     Eng->>Sch: decide_moves(state)
-    Sch->>St: free_capacity("r") / link_load(s-r) を読む
+    Sch->>St: free_capacity("r") を読む(接続は台帳で数える)
     Sch-->>Eng: [MoveOrder(1, "r")]
     Eng->>Res: resolve(state, orders)
     Res->>St: 飛行中のドローン(到着が確定)を集める → なし
     Res->>Res: 指示の検査(未配達・飛行中でない・隣接・blockedでない・重複なし)
-    Res->>Res: 接続の使用数 = 到着する飛行中 + 指示 ≤ max_link_capacity
-    Res->>Res: ゾーン負荷 = 占有 + 予約 − 出ていく数 + 入る数 ≤ max_drones
-    Res->>St: enter_transit(1, s-r, "r")(s を空け、r を予約)
+    Res->>Res: 接続の使用数 = 指示(出発・通過)≤ max_link_capacity(到着する飛行中は数えない)
+    Res->>Res: ゾーン負荷 = 占有 − 出ていく数 + 入る数 + 着陸する数 ≤ max_drones<br/>(restricted へ出発する D1 は r に数えない)
+    Res->>St: enter_transit(1, s-r, "r")(s を空ける。r の reserved は表示用)
     Res-->>Eng: [Move(1, "s-r")]
     Eng->>Vis: render(state)
 
@@ -162,8 +171,9 @@ sequenceDiagram
     Sch-->>Eng: [](飛行中のドローンには指示を出さない)
     Eng->>Res: resolve(state, [])
     Res->>St: 飛行中のドローン → D1(到着は強制)
-    Res->>Res: s-r の使用数に D1 を数える(2ターン目も接続を使う)
-    Res->>St: complete_transit(1)(予約を占有に置き換える。r の負荷は変わらない)
+    Res->>Res: D1 の到着は s-r の使用数に数えない(2026-10-18。到着で接続を空ける)
+    Res->>Res: r の最終負荷 = 占有 0 + 着陸 1 ≤ 1(満員なら「接続上で詰まった」SimulationError)
+    Res->>St: complete_transit(1)(r の占有になる)
     Res-->>Eng: [Move(1, "r")]
     Eng->>Vis: render(state)
 
@@ -187,7 +197,7 @@ flowchart TD
     B -- いいえ --> C{"turn_number ≥ max_turns?"}
     C -- はい --> E1["SimulationError(上限超え)"]
     C -- いいえ --> D["orders = scheduler.decide_moves(state)"]
-    D --> F["moves = resolver.resolve(state, orders)<br/>(違反なら SimulationError)"]
+    D --> F["moves = resolver.resolve(state, orders)<br/>(違反・接続上で詰まった機があれば SimulationError)"]
     F --> G{"moves が空?"}
     G -- はい --> E2["SimulationError(誰も動かない=進まない)"]
     G -- いいえ --> H["turns に追加 / visualizer.render(state)"]
@@ -200,8 +210,8 @@ flowchart TD
 stateDiagram-v2
     [*] --> AT_ZONE : 開始時は全機 start に置く
     AT_ZONE --> AT_ZONE : normal / priority のゾーンへ移動(1ターン)<br/>または待機
-    AT_ZONE --> IN_TRANSIT : restricted のゾーンへ出発<br/>(接続に入る・到着先を予約)
-    IN_TRANSIT --> AT_ZONE : 次のターンに必ず到着
+    AT_ZONE --> IN_TRANSIT : restricted のゾーンへ出発<br/>(接続に入る。行き先にはまだ数えない)
+    IN_TRANSIT --> AT_ZONE : 次のターンに必ず到着<br/>(満員なら SimulationError: 接続上で詰まった)
     IN_TRANSIT --> DELIVERED : 到着先が goal
     AT_ZONE --> DELIVERED : goal へ移動
     DELIVERED --> [*]
@@ -215,8 +225,9 @@ stateDiagram-v2
 |---|---|
 | a(容量1)にいる D1 が b へ、同じターンに D2 が a へ | 合法(出ていく分が先に空く) |
 | a-b(容量1)を挟んで D1: a→b、D2: b→a(入れ替わり) | ゾーンは合法だが、接続 a-b を2機が使うので違反 |
-| r(restricted、容量1)へ D1 が出発した次のターンに、D2 も r へ出発 | 違反(r は D1 の予約で埋まっている) |
-| D1 が s-r を飛行中のターンに、D2 も s-r(容量1)へ出発 | 違反(D1 が2ターン目も接続を使う) |
+| r(restricted、容量1)へ D1 が出発した次のターンに、D2 も r へ出発 | 合法(2026-10-19 から。D2 は出発のターンには r に数えない)。次のターンに D1 が r を出なければ、D2 が「接続上で詰まった」で `SimulationError`(当初は「r は D1 の予約で埋まっている」違反) |
+| D1 が s-r を飛行中のターンに、D2 も s-r(容量1)へ出発 | 合法(2026-10-18 から接続は D1 の到着で空く。2026-10-19 から r にも出発のターンには数えない) |
+| r(容量1)に D1 がいて、飛行中の D2 が着陸するターンに D1 が動かない | 違反: `D2 is stuck on connection 's-r': zone 'r' is full` |
 | goal へ同じターンに何機でも | 合法(goal は無制限) |
 
 ## 作業項目
@@ -248,8 +259,9 @@ stateDiagram-v2
 
 - `docs/decisions.md` の 2026-10-03(容量は毎ターン判定)・2026-10-03 Stage 6(`Move.destination` はそのまま出力、空のターンは出力しない)と食い違っていないか。
 - 出ていくドローンの分を先に空けてから、入ってくるドローンを数えているか(最終的な負荷で判定しているか)。
-- restricted の到着先を出発時に予約しているか。予約が到着時に占有へ置き換わり、二重に数えていないか。
-- 飛行中のドローンが2ターン目も接続容量に数えられているか。
+- restricted へ出発した機を出発のターンには行き先に数えず、着陸のターンに数えているか(2026-10-19)。
+  着陸で満員になるときに「接続上で詰まった」の `SimulationError` になり、状態が変わらないか。
+- 飛行中のドローンが到着ターン(2ターン目)には接続容量に数えられていないか(2026-10-18 の規則)。
 - 違反時に状態を途中まで変えてしまっていないか(全部検査してから適用しているか)。
 - start / end の容量を数えていないか。配達済みのドローンが出力・占有に残っていないか。
 - `docs/bugs.md` に記録すべき不整合が残っていないか。

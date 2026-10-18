@@ -64,6 +64,7 @@ class SimulationEngine:
 
         Raises:
             SimulationError: If the scheduler orders an illegal move, if a
+                drone in flight cannot land (stuck on its connection), if a
                 turn passes with no drone moving (the state would never
                 change again), or if ``max_turns`` is exceeded.
         """

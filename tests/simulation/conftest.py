@@ -6,6 +6,9 @@ handed out through factory fixtures, so the test files never import this
 module directly. The subject's sample map and its expected output are
 shared the same way; they live in ``tests/conftest.py`` with ``place`` and
 ``snapshot``, since the visualization tests use them too.
+
+``evictor_for`` builds a ``ReservationTable``, a ``TurnLedger`` and an
+``Evictor`` for one turn, for the timed reservation tests.
 """
 
 from typing import Callable
@@ -16,13 +19,17 @@ from droneflow.models.drone import DroneStatus
 from droneflow.models.network import Network
 from droneflow.output.formatter import TurnLogFormatter
 from droneflow.pathfinding.pathfinder import Hop, Pathfinder
+from droneflow.simulation.evictor import Evictor, Position
+from droneflow.simulation.reservation_table import ReservationTable
 from droneflow.simulation.scheduler import Scheduler
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
+from droneflow.simulation.turn_ledger import TurnLedger
 from droneflow.visualization.base import Visualizer
 
 Script = list[list[MoveOrder]]
 Record = tuple[int, int, bool]
 Call = tuple[object, ...]
+EvictorParts = tuple[ReservationTable, TurnLedger, Evictor]
 
 
 class ScriptedScheduler(Scheduler):
@@ -172,6 +179,36 @@ def make_real_scheduler(network: Network) -> Scheduler:
     return Scheduler(network, Pathfinder(network))
 
 
+def make_evictor(
+    state: SimulationState, table: ReservationTable | None = None
+) -> EvictorParts:
+    """Return a table, a ledger and an evictor for the state's next turn.
+
+    Without ``table`` a new one is made. The table is prepared with
+    ``start_turn`` before the ledger is built over it. The positions follow
+    the same rule as ``Scheduler._positions`` (a private method, so it is
+    copied here): a drone landing this turn is in its target zone from this
+    turn on, a drone standing in a zone has been there since the turn just
+    played, and delivered drones are left out.
+    """
+    network = state.network
+    if table is None:
+        table = ReservationTable()
+    table.start_turn(state)
+    ledger = TurnLedger(state, table)
+    pathfinder = Pathfinder(network)
+    hops = {name: pathfinder.next_hops(name) for name in network.zones}
+    played = state.turn_number
+    positions: dict[int, Position] = {}
+    for drone in state.active_drones():
+        if drone.status is DroneStatus.IN_TRANSIT:
+            if drone.transit_target is not None:
+                positions[drone.drone_id] = (drone.transit_target, played + 1)
+        elif drone.current_zone is not None:
+            positions[drone.drone_id] = (drone.current_zone, played)
+    return table, ledger, Evictor(ledger, hops, positions)
+
+
 @pytest.fixture
 def scripted_scheduler() -> Callable[[Network, Script], Scheduler]:
     """Return a factory for ``ScriptedScheduler``."""
@@ -206,6 +243,12 @@ def hop() -> Callable[[Network, str, str], Hop]:
 def real_scheduler() -> Callable[[Network], Scheduler]:
     """Return a factory for the real ``Scheduler`` (Stage 5)."""
     return make_real_scheduler
+
+
+@pytest.fixture
+def evictor_for() -> Callable[..., EvictorParts]:
+    """Return the ``make_evictor`` helper (timed reservation tests)."""
+    return make_evictor
 
 
 @pytest.fixture

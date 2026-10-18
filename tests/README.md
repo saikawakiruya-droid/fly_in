@@ -110,35 +110,66 @@ python -m pytest tests/
   `FollowerScheduler`、何もしない `IdleScheduler`、往復し続ける `OscillatingScheduler`)、
   render の呼び出しを記録する `recorder`、`begin` / `render` / `close` を呼ばれた順に1つのリストに記録し、指定した
   メソッドで失敗もできる `call_log`(Stage 7)、1ターンを出力の文字列にする `fmt`、
-  Stage 5 用の `hop`(隣接する2ゾーン間の `Hop` を向きを問わず作る)・`real_scheduler`(本物の `Scheduler`)
+  Stage 5 用の `hop`(隣接する2ゾーン間の `Hop` を向きを問わず作る)・`real_scheduler`(本物の `Scheduler`)、
+  予約表と立ち退き用の `evictor_for`(`ReservationTable` に `start_turn` してから `TurnLedger` と `Evictor` を組む。
+  ドローンの位置は `Scheduler._positions` と同じ規則で作る複製。非公開メソッドを呼ばないため)
 - `tests/simulation/test_state.py` — `SimulationState`: 構築(全機が start に `AT_ZONE`)、`free_capacity`
   (start/end は `None`)、`enter_zone` の数え方、end への到着で配達済み(占有に残らない)、`enter_transit` の予約と
   接続の使用、`complete_transit` で予約が占有に置き換わること、restricted な end への到着、基本操作の前提違反
 - `tests/simulation/test_turn_resolver.py` — `TurnResolver`: 出力のドローンID順(自動の到着と指示が混ざっても)、
   ゾーン容量(上限ちょうどは合法・同じターンに出ていく分は使える・3機の循環)、start/end は無制限、接続容量
-  (両方向で共有・入れ替わり)、restricted の2ターン移動(出発時は宣言どおりの接続名、次ターンに自動到着・予約で満杯・
-  到着のターンも接続容量に数える・飛行中への指示は拒否・restricted な end)、不正な指示(存在しないドローン/ゾーン・
-  隣接していない・blocked・2つの指示・今いるゾーン)、配達済みへの指示と出力、違反後に状態が一切変わらないこと
-  (到着も適用されない)とその後も続けられること、自己ループでの移動の拒否(normal / restricted)、戻り値が `Move` であること
+  (両方向で共有・入れ替わり)、restricted の2ターン移動(出発時は宣言どおりの接続名、次ターンに自動到着・
+  着陸は接続を空けるので容量1でも同じターンに出発できる・飛行中への指示は拒否・restricted な end)、
+  予約表の規則(T25〜T30): 着陸は最終負荷に数え、同じターンに出ていく機(restricted へ出発する機も)の空きを使えること、
+  restricted への出発は出発のターンにはそのゾーンに数えないこと、着陸できない機は「接続上で詰まった」
+  (`turn N: D<id> is stuck on connection '<接続>': zone '<ゾーン>' is full` の完全一致。2機なら小さい ID、
+  容量ちょうどは合法で1つ超えると詰まり)、着陸のないゾーンの違反は従来のメッセージ、詰まりの後も続けられること、
+  不正な指示(存在しないドローン/ゾーン・隣接していない・blocked・2つの指示・今いるゾーン)、配達済みへの指示と出力、
+  違反後に状態が一切変わらないこと(到着も適用されない。接続上の詰まり・ゾーン容量の違反を含む)とその後も続けられること、
+  自己ループでの移動の拒否(normal / restricted)、戻り値が `Move` であること
 - `tests/simulation/test_engine.py` — `SimulationEngine`: 正常終了(空のターンなし・ID順)、render はターンの適用後に
   1回ずつ(visualizer は省略可)、誰も動かないターンの `SimulationError`、到着だけのターンは進行とみなすこと、
   ターン数の上限(振動・ちょうど上限で終わる境界)、既定の上限 `default_turn_limit`、resolver の例外が伝わり違反した
   ターンでは render しないこと、構築直後の状態、パーサー経由の E2E(課題のサンプルマップの出力7行、corridorA を
-  blocked にして restricted の roof1 を通る出力12行)
+  blocked にして restricted の roof1 を通る出力12行。これは貪欲なスタブ `FollowerScheduler` の結果)、
+  「接続上で詰まった」がエンジンからそのまま伝わり、詰まったターンでは render しないこと(G12)
 - `tests/simulation/test_turn_ledger.py` — `TurnLedger`: ゾーン・接続の両方の空き、ゾーン容量の境界(上限ちょうどまで)、
   記録した退出だけが同じターンの空きになること(記録前の退出は数えない=保守的)、start/end は無制限、
-  restricted の予約で満杯になること、飛行中の機が接続を使うこと(到着のターンも数える)とその使用数と記録の合算、
-  接続は両方向で共有、記録が他の接続・ゾーンに漏れないこと、台帳が状態を変えないこと
+  restricted の予約で満杯になること、着陸する機は接続を使わないこと(接続の使用数は出発だけ)、
+  接続は両方向で共有、記録が他の接続・ゾーンに漏れないこと、台帳が状態を変えないこと。
+  予約表との組み合わせ(L13〜L21): `link_free`(このターンの記録は将来のターンに数えない・予約した移動は出発のターンだけ
+  両方向で数える・着陸は数えない)、`has_seat` の `extra` の境界、`projected` が累積で将来のターンにも記録が残ること、
+  restricted への記録は着陸のターンに数えること、将来の予約された席は使わないこと(規則6、台帳は立ち退きをしない)、
+  `horizon` の下限と `arrival_turn`(restricted な end も2ターン)、`cancel` が `record` を打ち消すこと、表を渡さないと
+  着陸だけの表を作ること
+- `tests/simulation/test_reservation_table.py` — `ReservationTable`(Q01〜Q10): `entering` / `leaving` / `due`(ID 順)/
+  `last_turn` の数え方(restricted は depart_turn に出て arrive_turn に入る)、1機2行と `remove`(索引がすべて消える)、
+  `mark` / `rollback` の入れ子と `remove` の取り消し、`clear`(取り消しの記録も消える)、`start_turn`(着陸の読み込み・
+  2回呼んでも1行・済んだ予約と出発元にいない機の予約を捨てる・このターンに出る予約は残す・飛行中の機の立ち退きは残る)
+- `tests/simulation/test_evictor.py` — `Evictor.make_room`(X01〜X09): end への立ち退き、空いている normal への立ち退き、
+  normal・restricted を通る再帰(restricted の席は t+2)、長い連鎖が終わること(距離が真に減る)、失敗したら内側の接続・
+  席まで全部取り消すこと、立ち退かせる機がいない(先に出る予約がある・着いたばかり)、席がすでにある・end では何もしない、
+  最初の候補の接続が埋まったら次の候補
 - `tests/simulation/test_scheduler.py` — `Scheduler`: 判断の順序(距離が近い順 → 優先ルート → drone_id。並びを
   リストの順序ごと検査)、退出で空いたゾーンを同じターンに後ろの機が使うこと、`is_on_priority_route`(今いるゾーン・
   次の一手が priority なら True、2手先・遠回りの priority・end は False、存在しない名前の `ZoneNotFoundError`)、
-  遠回りせず待つこと、先頭の候補のゾーン/接続が満杯なら次の最短候補、飛行中・配達済みの機には指示しないこと、
+  遠回りせず待つこと、先頭の候補のゾーン/接続が満杯なら次の最短候補、飛行中の機には指示せず、その着陸で空く接続を
+  後ろの機が使うこと、配達済みの機には指示しないこと、
   restricted への指示はゾーン名、restricted な end は接続容量だけで止まること、end に届かないゾーンにいる機の
-  `SimulationError`、状態を変えず指示が `TurnResolver` に受理されること
+  `SimulationError`、状態を変えず指示が `TurnResolver` に受理されること。
+  予約と立ち退き(D18〜D26): 予約した移動はふつうの判断より先、立ち退きの予約を持つ機が先に動いたら予約を消す(規則7)、
+  restricted への出発で在室機の立ち退きを作る、立ち退きに失敗したら取り消して待つ、立ち退きは最後の手段(Q-C)、
+  規則6'(後で予約された席に入り、自分の立ち退きを予約する)、同じターンに呼び直しても同じ指示(立ち退きが二重に
+  ならない)、新しい実行は表を空にして始める、同じターンに別の状態を渡すとその状態から計画し直す
 - `tests/simulation/test_scheduler_maps.py` — 本物の `Scheduler` の E2E: 課題のサンプルマップの出力7行と完全一致、
-  restricted だけの経路の出力12行、毎ターンの不変条件(1機1指示・指示は `AT_ZONE` の機だけ・最短の一手で距離が減る・
+  restricted だけの経路の出力8行(roof1 に着陸した機を次のターンに立ち退かせ、毎ターン1機ずつ出発する)、
+  毎ターンの不変条件(1機1指示・指示は `AT_ZONE` の機だけ・最短の一手で距離が減る・
   resolver が受理・誰かが動く・既定の上限内)を課題の例と配布マップ10枚で確認、配布マップのターン数(VII.7 の目標以内、
   challenger は IX の45ターン未満)、アーカイブの中身、決定的であること、1機の最短距離を下回らないこと。
+  予約表と立ち退きの E2E(R09〜R15。出力の行を完全一致で比べ、`run_checked` でも同じ行で完走すること):
+  restricted 1つ(4行)、出口の細い restricted(K1 6行・K2 7行)、最後の手段の例(5行)、restricted が続く網
+  (6行・9行・間に normal で8行)、規則6' の網(11行)、規則7 の網(8行)、restricted の多いランダムなマップ300枚
+  (`random.Random(2026)`。詰まり・容量違反なしで完走。失敗時はマップの記述をメッセージに出す)。
   配布マップはリポジトリ直下の `maps.tar.gz`(git 管理)を `tarfile` でメモリ上で読み、先頭のコメント行・空行だけを
   取り除く(アーカイブが無ければ分かりやすいメッセージで失敗する。skip にはしない)
 
