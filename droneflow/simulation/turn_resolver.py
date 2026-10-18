@@ -36,8 +36,15 @@ class TurnResolver:
        the connection, so they free their slot for departures during the
        same turn (like drones leaving a zone);
     4. checks zone capacity on the final counts, so drones leaving a zone
-       free room for drones entering it during the same turn. A restricted
-       destination is reserved on departure and counted from then on.
+       free room for drones entering it during the same turn. A drone
+       landing in a restricted zone counts in it from this turn on; a drone
+       departing toward one does not count in it yet (at the end of the
+       turn it is on the connection). A drone that cannot land because its
+       zone is full is stuck on the connection, which the rules forbid: it
+       is reported as such.
+
+    The resolver does not know the scheduler's planned moves: a plan that
+    is not kept shows up as a full zone or a stuck drone.
 
     Nothing is changed unless the whole turn is legal.
     """
@@ -60,7 +67,8 @@ class TurnResolver:
             restricted zone. Empty if nothing moved.
 
         Raises:
-            SimulationError: If any order breaks a rule.
+            SimulationError: If any order breaks a rule, or a drone in
+                flight cannot land because its zone is full.
         """
         steps = self._arrivals(state) + self._check_orders(state, orders)
         self._check_links(state, steps)
@@ -162,23 +170,37 @@ class TurnResolver:
         self, state: SimulationState, steps: list[_Step]
     ) -> None:
         delta: dict[str, int] = {}
+        landing: dict[str, _Step] = {}
         for step in steps:
+            name = step.zone.name
             if step.is_arrival:
-                continue  # its reservation already counts in the load
-            source = step.drone.current_zone
-            if source is not None:
-                delta[source] = delta.get(source, 0) - 1
-            delta[step.zone.name] = delta.get(step.zone.name, 0) + 1
+                landing.setdefault(name, step)  # lowest drone_id first
+            else:
+                source = step.drone.current_zone
+                if source is not None:
+                    delta[source] = delta.get(source, 0) - 1
+                if step.zone.zone_type is ZoneType.RESTRICTED:
+                    continue  # on the connection until next turn
+            delta[name] = delta.get(name, 0) + 1
         for name, change in delta.items():
-            if change <= 0:
+            zone = self.network.get_zone(name)
+            if change <= 0 or zone.has_unlimited_capacity:
                 continue
-            limit = state.free_capacity(name)
-            if limit is not None and change > limit:
+            limit = zone.max_drones
+            if limit is None or state.occupancy(name) + change <= limit:
+                continue
+            turn = state.turn_number + 1
+            stuck = landing.get(name)
+            if stuck is not None:
                 raise SimulationError(
-                    f"turn {state.turn_number + 1}: zone {name!r} would "
-                    f"hold more than {self.network.get_zone(name).max_drones}"
-                    " drone(s)"
+                    f"turn {turn}: D{stuck.drone.drone_id} is stuck on "
+                    f"connection {stuck.connection.name!r}: zone {name!r} "
+                    "is full"
                 )
+            raise SimulationError(
+                f"turn {turn}: zone {name!r} would hold more than "
+                f"{limit} drone(s)"
+            )
 
     @staticmethod
     def _apply(state: SimulationState, step: _Step) -> Move:

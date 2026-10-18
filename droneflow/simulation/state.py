@@ -45,9 +45,10 @@ class MoveOrder:
 class SimulationState:
     """Where every drone is, and how full every zone is, between turns.
 
-    Zone load is counted as drones currently in the zone plus drones in
-    flight toward it (a reservation made when a restricted transit begins),
-    so a drone that cannot wait on a connection always has room on arrival.
+    ``load`` counts the drones currently in a zone plus the drones in
+    flight toward it (``reserved``), which is what the views display. The
+    rules count a drone in flight in its zone only from the turn it lands;
+    the scheduler makes sure it will have room then (see ``Scheduler``).
 
     The mutating methods (``enter_zone``, ``enter_transit``,
     ``complete_transit``) apply one move without checking any rule; the
@@ -153,8 +154,8 @@ class SimulationState:
     ) -> None:
         """Start a two-turn move: the drone leaves its zone for a connection.
 
-        The destination zone is reserved now, so the drone is guaranteed
-        room when it arrives next turn.
+        The drone counts in ``reserved(zone_name)`` until it lands on the
+        next turn.
         """
         drone = self._drone_at_zone(drone_id)
         self._leave(drone)
@@ -166,7 +167,7 @@ class SimulationState:
         self._add(self._link_load, connection.name, 1)
 
     def complete_transit(self, drone_id: int) -> None:
-        """Land a drone in flight in the zone it reserved."""
+        """Land a drone in flight in the zone it was flying to."""
         drone = self.drones[drone_id]
         target = drone.transit_target
         link = drone.in_transit_connection
