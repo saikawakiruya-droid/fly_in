@@ -114,14 +114,14 @@ class Application:
                 text.
             droneflow.errors.ParseError: If the map is invalid.
         """
-        path = self.args.map_path
+        name = self.args.map_name
         try:
-            return MapParser(path).parse()
+            return MapParser(self.args.map_path).parse()
         except OSError as exc:
             reason = exc.strerror or type(exc).__name__
-            raise MapFileError(str(path), reason) from exc
+            raise MapFileError(name, reason) from exc
         except UnicodeDecodeError as exc:
-            raise MapFileError(str(path), "not UTF-8 text") from exc
+            raise MapFileError(name, "not UTF-8 text") from exc
 
     def _make_views(self) -> list[_GuardedView]:
         """Build the views selected by --visual and --step.

@@ -2,7 +2,7 @@
 
 import argparse
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 VISUAL_MODES = ("terminal", "graphical", "both", "none")
@@ -10,6 +10,9 @@ VISUAL_MODES = ("terminal", "graphical", "both", "none")
 
 DEFAULT_DELAY = 0.5
 """Default seconds per turn in the graphical view."""
+
+MAX_DELAY = 60.0
+"""Largest accepted ``--delay`` in seconds."""
 
 
 @dataclass(frozen=True)
@@ -23,12 +26,21 @@ class Args:
         delay: Seconds each turn stays on screen in the graphical view.
         step: Advance one turn at a time (Enter in the terminal view, the
             right arrow in the graphical view).
+        map_arg: The map path exactly as typed, for messages; None means
+            ``str(map_path)``. Not compared, so Args built by hand equal
+            parsed ones.
     """
 
     map_path: Path
     visual: str = "terminal"
     delay: float = DEFAULT_DELAY
     step: bool = False
+    map_arg: str | None = field(default=None, compare=False)
+
+    @property
+    def map_name(self) -> str:
+        """Return the map path as the user typed it, for messages."""
+        return str(self.map_path) if self.map_arg is None else self.map_arg
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "map_path", type=Path, metavar="MAP", help="map file to simulate"
+        "map_path", metavar="MAP", help="map file to simulate"
     )
     parser.add_argument(
         "--visual",
@@ -57,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_DELAY,
         metavar="SECONDS",
         help=(
-            "seconds per turn in the graphical view "
+            f"seconds per turn in the graphical view, 0 to {MAX_DELAY:g} "
             f"(default: {DEFAULT_DELAY})"
         ),
     )
@@ -89,15 +101,16 @@ def parse_args(argv: list[str] | None = None) -> Args:
     """
     namespace = build_parser().parse_args(argv)
     return Args(
-        map_path=namespace.map_path,
+        map_path=Path(namespace.map_path),
         visual=namespace.visual,
         delay=namespace.delay,
         step=namespace.step,
+        map_arg=namespace.map_path,
     )
 
 
 def _delay(text: str) -> float:
-    """Convert a ``--delay`` value, accepting finite numbers >= 0 only."""
+    """Convert a ``--delay`` value, accepting 0 to MAX_DELAY seconds."""
     try:
         value = float(text)
     except ValueError:
@@ -107,5 +120,9 @@ def _delay(text: str) -> float:
     if not math.isfinite(value) or value < 0:
         raise argparse.ArgumentTypeError(
             f"must be a finite number of seconds >= 0: {text!r}"
+        )
+    if value > MAX_DELAY:
+        raise argparse.ArgumentTypeError(
+            f"must be between 0 and {MAX_DELAY:g} seconds: {text!r}"
         )
     return value
