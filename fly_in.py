@@ -16,8 +16,11 @@ DEBUG_ENV = "FLYIN_DEBUG"
 """Set to 1 (``make debug`` does) to let unexpected exceptions propagate."""
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Parse arguments, run the application, and return an exit code.
+
+    Args:
+        argv: Arguments to parse, or None to use sys.argv.
 
     Returns:
         0 on success, 1 if a FlyInError was raised anywhere in the
@@ -25,7 +28,7 @@ def main() -> int:
         an unexpected exception occurred, 130 if the user pressed Ctrl+C.
         Invalid arguments exit with 2 from argparse.
     """
-    args = parse_args()
+    args = parse_args(argv)
     try:
         return _run(args)
     except Exception as exc:
