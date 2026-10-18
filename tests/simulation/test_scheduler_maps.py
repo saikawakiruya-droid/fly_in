@@ -7,6 +7,7 @@ comment and blank lines are removed, so that ``nb_drones`` is on the
 physical first line as the parser requires (decisions 2026-10-16).
 """
 
+import random
 import tarfile
 from pathlib import Path
 from typing import Callable
@@ -14,7 +15,9 @@ from typing import Callable
 import pytest
 
 from droneflow.models.drone import DroneStatus
+from droneflow.models.network import Network
 from droneflow.models.world import World
+from droneflow.models.zone import ZoneType
 from droneflow.output.formatter import TurnLogFormatter
 from droneflow.parsing.map_parser import MapParser
 from droneflow.pathfinding.pathfinder import Pathfinder
@@ -24,6 +27,9 @@ from droneflow.simulation.state import Move, SimulationState
 from droneflow.simulation.turn_resolver import TurnResolver
 
 WriteMap = Callable[[str], Path]
+MakeNetwork = Callable[..., Network]
+
+R = ZoneType.RESTRICTED
 
 MAPS_ARCHIVE = Path(__file__).resolve().parents[2] / "maps.tar.gz"
 
@@ -265,3 +271,262 @@ def test_turns_not_below_single_drone_bound(
         assert turns == 7
     if source.endswith("01_linear_path.txt"):
         assert turns >= 3
+
+
+# --- planned moves and evictions (timed reservation) ------------------
+
+
+def output_lines(world: World) -> list[str]:
+    """Run the engine and return the printed lines; check run_checked too.
+
+    ``run_checked`` plays the same map by hand with the per-turn checks
+    of R03 and must print the same lines.
+    """
+    format_turn = TurnLogFormatter().format_turn
+    lines = [format_turn(moves) for moves in run_engine(world)]
+    assert [format_turn(moves) for moves in run_checked(world)] == lines
+    return lines
+
+
+def test_single_restricted_zone(make_network: MakeNetwork) -> None:
+    """R09: D1 is planned to leave r as D2 lands (the old rules took 5)."""
+    network = make_network("s-r r-g", types={"r": R})
+
+    assert output_lines(World(network, 2)) == [
+        "D1-s-r",
+        "D1-r D2-s-r",
+        "D1-g D2-r",
+        "D2-g",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("edges", "capacity", "links", "expected"),
+    [
+        pytest.param(
+            "s-r r-g",
+            {"r": 2},
+            {"s-r": 2},
+            [
+                "D1-s-r D2-s-r",
+                "D1-r D2-r D3-s-r",
+                "D1-g D3-r D4-s-r",
+                "D2-g D4-r",
+                "D3-g",
+                "D4-g",
+            ],
+            id="K1",
+        ),
+        pytest.param(
+            "s-r r-a a-g",
+            {"r": 2, "a": 1},
+            {"s-r": 2, "r-a": 2},
+            [
+                "D1-s-r D2-s-r",
+                "D1-r D2-r D3-s-r",
+                "D1-a D3-r D4-s-r",
+                "D1-g D2-a D4-r",
+                "D2-g D3-a",
+                "D3-g D4-a",
+                "D4-g",
+            ],
+            id="K2",
+        ),
+    ],
+)
+def test_wide_restricted_zone_with_narrow_exit(
+    make_network: MakeNetwork,
+    edges: str,
+    capacity: dict[str, int],
+    links: dict[str, int],
+    expected: list[str],
+) -> None:
+    """R10: failed evictions are undone and nobody gets stuck."""
+    network = make_network(
+        edges, types={"r": R}, capacity=capacity, links=links
+    )
+
+    assert output_lines(World(network, 4)) == expected
+
+
+def test_eviction_as_last_resort_map(make_network: MakeNetwork) -> None:
+    """R11: two restricted ways; evicting only as a last resort (5 turns)."""
+    network = make_network(
+        "s-a a-g s-b b-g",
+        types={"a": R, "b": R},
+        capacity={"a": 2, "b": 3},
+        links={"s-a": 2},
+    )
+
+    assert output_lines(World(network, 6)) == [
+        "D1-s-a D2-s-a D3-s-b",
+        "D1-a D2-a D3-b D4-s-b D5-s-a",
+        "D1-g D3-g D4-b D5-a D6-s-b",
+        "D2-g D4-g D6-b",
+        "D5-g D6-g",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("edges", "nb_drones", "expected"),
+    [
+        pytest.param(
+            "s-r1 r1-r2 r2-g",
+            2,
+            [
+                "D1-s-r1",
+                "D1-r1 D2-s-r1",
+                "D1-r1-r2 D2-r1",
+                "D1-r2 D2-r1-r2",
+                "D1-g D2-r2",
+                "D2-g",
+            ],
+            id="two",
+        ),
+        pytest.param(
+            "s-r1 r1-r2 r2-r3 r3-g",
+            3,
+            [
+                "D1-s-r1",
+                "D1-r1 D2-s-r1",
+                "D1-r1-r2 D2-r1 D3-s-r1",
+                "D1-r2 D2-r1-r2 D3-r1",
+                "D1-r2-r3 D2-r2 D3-r1-r2",
+                "D1-r3 D2-r2-r3 D3-r2",
+                "D1-g D2-r3 D3-r2-r3",
+                "D2-g D3-r3",
+                "D3-g",
+            ],
+            id="three",
+        ),
+        pytest.param(
+            "s-r1 r1-n n-r2 r2-g",
+            3,
+            [
+                "D1-s-r1",
+                "D1-r1 D2-s-r1",
+                "D1-n D2-r1 D3-s-r1",
+                "D1-n-r2 D2-n D3-r1",
+                "D1-r2 D2-n-r2 D3-n",
+                "D1-g D2-r2 D3-n-r2",
+                "D2-g D3-r2",
+                "D3-g",
+            ],
+            id="normal-between",
+        ),
+    ],
+)
+def test_restricted_zones_in_a_row(
+    make_network: MakeNetwork,
+    edges: str,
+    nb_drones: int,
+    expected: list[str],
+) -> None:
+    """R12: evictions recurse through restricted zones of capacity 1."""
+    network = make_network(edges, types={"r1": R, "r2": R, "r3": R})
+
+    assert output_lines(World(network, nb_drones)) == expected
+
+
+def test_rule_6_prime_map(make_network: MakeNetwork) -> None:
+    """R13: D3 enters z1 on turn 7 and evicts itself (11 turns, not 12)."""
+    network = make_network(
+        "z3-z1 z4-z3 z3-z2 s-z4 z2-z4 z2-z0 z1-g z0-z1",
+        types={"z3": R, "z4": R},
+        links={"z3-z1": 2, "z3-z2": 2, "s-z4": 2},
+    )
+
+    assert output_lines(World(network, 6)) == [
+        "D1-s-z4",
+        "D1-z4 D2-s-z4",
+        "D1-z4-z3 D2-z4 D3-s-z4",
+        "D1-z3 D2-z4-z3 D3-z4 D4-s-z4",
+        "D1-z1 D2-z3 D3-z2 D4-z4 D5-s-z4",
+        "D1-g D2-z1 D3-z0 D4-z4-z3 D5-z4 D6-s-z4",
+        "D2-g D3-z1 D4-z3 D5-z4-z3 D6-z4",
+        "D3-g D4-z1 D5-z3 D6-z2",
+        "D4-g D5-z1 D6-z0",
+        "D5-g D6-z1",
+        "D6-g",
+    ]
+
+
+def test_rule_7_map(make_network: MakeNetwork) -> None:
+    """R14: planned moves go first, and a drone may leave before its plan."""
+    network = make_network(
+        "z0-g s-z1 z1-z0",
+        types={"z0": R, "z1": R},
+        capacity={"z0": 2, "z1": 1},
+        links={"z0-g": 2, "s-z1": 2},
+    )
+
+    assert output_lines(World(network, 4)) == [
+        "D1-s-z1",
+        "D1-z1 D2-s-z1",
+        "D1-z1-z0 D2-z1 D3-s-z1",
+        "D1-z0 D2-z1-z0 D3-z1 D4-s-z1",
+        "D1-g D2-z0 D3-z1-z0 D4-z1",
+        "D2-g D3-z0 D4-z1-z0",
+        "D3-g D4-z0",
+        "D4-g",
+    ]
+
+
+RANDOM_SEED = 2026
+RANDOM_MAPS = 300
+
+RandomMap = tuple[
+    str, dict[str, ZoneType], dict[str, int], dict[str, int], int
+]
+
+
+def random_map(rng: random.Random) -> RandomMap:
+    """Draw a small map with many restricted hubs (R15).
+
+    Returns the edges, the zone types, the hub capacities, the link
+    capacities and the number of drones, as ``make_network`` takes them.
+    A chain through every hub keeps the end reachable.
+    """
+    n = rng.randint(2, 8)
+    hubs = [f"z{i}" for i in range(n)]
+    chain = ["s", *rng.sample(hubs, n), "g"]
+    pairs = list(zip(chain, chain[1:]))
+    nodes = ["s", *hubs, "g"]
+    for _ in range(rng.randint(0, n)):
+        zone_a, zone_b = rng.sample(nodes, 2)
+        if (zone_a, zone_b) not in pairs and (zone_b, zone_a) not in pairs:
+            pairs.append((zone_a, zone_b))
+    rng.shuffle(pairs)
+    types: dict[str, ZoneType] = {}
+    capacity: dict[str, int] = {}
+    for hub in hubs:
+        types[hub] = R if rng.random() < 0.6 else ZoneType.NORMAL
+        capacity[hub] = rng.randint(1, 3)
+    links = {f"{a}-{b}": rng.randint(1, 2) for a, b in pairs}
+    edges = " ".join(f"{a}-{b}" for a, b in pairs)
+    return edges, types, capacity, links, rng.randint(2, 10)
+
+
+def test_random_restricted_maps_never_get_stuck(
+    make_network: MakeNetwork,
+) -> None:
+    """R15: many random maps rich in restricted zones all run to the end.
+
+    ``run_checked`` fails on any stuck drone or capacity violation, on a
+    detour, on a turn without movement and past the default turn limit.
+    """
+    rng = random.Random(RANDOM_SEED)
+    for index in range(RANDOM_MAPS):
+        edges, types, capacity, links, nb_drones = random_map(rng)
+        network = make_network(
+            edges, types=types, capacity=capacity, links=links
+        )
+        restricted = sorted(name for name, t in types.items() if t is R)
+        where = (
+            f"map {index}: edges={edges!r} restricted={restricted} "
+            f"capacity={capacity} links={links} drones={nb_drones}"
+        )
+        try:
+            run_checked(World(network, nb_drones))
+        except Exception as error:
+            raise AssertionError(f"{where}: {error}") from error
