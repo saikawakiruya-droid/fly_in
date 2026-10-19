@@ -181,3 +181,12 @@
   そのターンの予約を取り消した後に `start_turn(state)` もやり直す(着陸は渡された状態から作り直す)。1回だけ呼ぶ通常の使い方の結果は変わらない
   (配布マップ・課題の例・revie_case・試作の追加マップ計339枚とランダムなマップ 9,438 枚で、修正前とターンログが一致)。
   D26 は通常のテストにする(xfail にしない)。
+
+## 2026-10-19: 作成に失敗した `.venv` が残ると、`make install` が壊れた venv を使い続ける
+
+- 発生箇所: `Makefile`(`install` ターゲットの `test -d $(VENV) || $(PYTHON_SYS) -m venv $(VENV)`)
+- 症状: WSL の Ubuntu(Python 3.14.4)で `python3.14-venv` が無いため `python3 -m venv .venv` が ensurepip で失敗した。
+  その後も `.venv/` と `.venv/bin/python` は残り、次の `make install` は `test -d` で作成済みとみなして venv を作り直さない。
+- 原因: venv の有無をディレクトリの存在だけで判定していた(ファイルの有無でも、失敗した venv に python は残るため判定できない)。
+- 対応状況: 対応済み。`$(PYTHON) -m pip --version` が通らなければ `python3 -m venv --clear .venv` で作り直すように変更
+  (WSL で、1回目の失敗後に2回目が作り直しを試みることを確認)。`python3.14-venv` 自体の導入は環境側の前提(sudo が要る)。

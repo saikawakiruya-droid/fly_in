@@ -31,8 +31,11 @@ CACHES := __pycache__ .mypy_cache .pytest_cache
 
 .PHONY: install run debug clean fclean lint lint-strict test
 
+# Recreate .venv unless its pip works: a failed earlier attempt can leave
+# a .venv directory with no usable pip behind.
 install:
-	test -d $(VENV) || $(PYTHON_SYS) -m venv $(VENV)
+	$(PYTHON) -m pip --version >/dev/null 2>&1 || \
+		$(PYTHON_SYS) -m venv --clear $(VENV)
 	$(PYTHON) -m pip install -r requirements.txt
 	@touch $(STAMP)
 
