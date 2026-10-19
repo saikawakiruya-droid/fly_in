@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "fly_in 全体アーキテクチャ(Stage 1〜7)",
+    "locale": "ja",
+    "output": "docs/archify/overview/overview.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "f46ad4b85d8c9ac5dc2b1f9ea21614b1fb6d0b21"
+    }
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "利用者", "sublabel": "fly_in.py MAP --visual", "pos": [40, 40], "size": [150, 60] },
+    { "id": "entry", "type": "backend", "label": "fly_in.py main()", "sublabel": "終了コード 0/1/2/130", "pos": [300, 40], "size": [150, 60],
+      "sources": [{ "path": "fly_in.py", "line": 19, "end_line": 62 }] },
+    { "id": "cli", "type": "frontend", "label": "cli.parse_args", "sublabel": "Args(map, visual, step)", "pos": [560, 40], "size": [150, 60],
+      "sources": [{ "path": "droneflow/cli.py", "line": 88, "end_line": 109 }] },
+    { "id": "app", "type": "backend", "label": "Application.run", "sublabel": "全ステージを配線", "pos": [300, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/app.py", "line": 82, "end_line": 107 }] },
+    { "id": "engine", "type": "backend", "label": "SimulationEngine", "sublabel": "ターンループ+Resolver", "tag": "Stage 4", "pos": [820, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/simulation/engine.py", "line": 52, "end_line": 104 }] },
+    { "id": "scheduler", "type": "backend", "label": "Scheduler", "sublabel": "毎ターン MoveOrder", "tag": "Stage 5", "pos": [1080, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/simulation/scheduler.py", "line": 79, "end_line": 116 }] },
+    { "id": "mapfile", "type": "database", "label": "マップファイル", "sublabel": "maps/*.txt", "pos": [40, 320], "size": [150, 60] },
+    { "id": "parser", "type": "backend", "label": "MapParser", "sublabel": "読む→分割→検証", "tag": "Stage 2", "pos": [300, 320], "size": [150, 60],
+      "sources": [{ "path": "droneflow/parsing/map_parser.py", "line": 24, "end_line": 40 }] },
+    { "id": "world", "type": "database", "label": "World", "sublabel": "Network + nb_drones", "tag": "Stage 1", "pos": [300, 460], "size": [150, 60],
+      "sources": [{ "path": "droneflow/models/world.py", "line": 8, "end_line": 18 }, { "path": "droneflow/models/network.py", "line": 8, "end_line": 61 }] },
+    { "id": "composite", "type": "messagebus", "label": "CompositeVisualizer", "sublabel": "全ビューへ転送", "pos": [820, 320], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/composite.py", "line": 9, "end_line": 44 }] },
+    { "id": "pathfinder", "type": "backend", "label": "Pathfinder", "sublabel": "Dijkstra 距離表", "tag": "Stage 3", "pos": [1080, 320], "size": [150, 60],
+      "sources": [{ "path": "droneflow/pathfinding/pathfinder.py", "line": 38, "end_line": 102 }, { "path": "droneflow/pathfinding/distance_map.py", "line": 40, "end_line": 62 }] },
+    { "id": "graphical", "type": "frontend", "label": "GraphicalVisualizer", "sublabel": "pygame ウィンドウ", "tag": "Stage 7", "pos": [560, 460], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/graphical_view.py", "line": 471, "end_line": 569 }] },
+    { "id": "terminal", "type": "frontend", "label": "TerminalVisualizer", "sublabel": "ANSI カラー表示", "tag": "Stage 7", "pos": [820, 460], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/terminal_view.py", "line": 63, "end_line": 128 }] },
+    { "id": "printer", "type": "backend", "label": "TurnLogPrinter", "sublabel": "D<ID>-<zone> 形式", "tag": "Stage 6", "pos": [1080, 460], "size": [150, 60],
+      "sources": [{ "path": "droneflow/output/turn_log_view.py", "line": 10, "end_line": 49 }] },
+    { "id": "summary", "type": "backend", "label": "RunSummary", "sublabel": "総ターン・平均", "tag": "Stage 6", "pos": [560, 600], "size": [150, 60],
+      "sources": [{ "path": "droneflow/output/summary.py", "line": 25, "end_line": 58 }] },
+    { "id": "stderr", "type": "external", "label": "標準エラー", "sublabel": "表示・summary・error", "pos": [820, 600], "size": [150, 60] },
+    { "id": "stdout", "type": "external", "label": "標準出力", "sublabel": "ターンログのみ", "pos": [1080, 600], "size": [150, 60] }
+  ],
+  "connections": [
+    { "id": "run-cmd", "from": "user", "to": "entry", "label": "argv", "variant": "emphasis" },
+    { "id": "parse-args", "from": "entry", "to": "cli", "label": "parse_args" },
+    { "id": "start-app", "from": "entry", "to": "app", "label": "run()", "variant": "emphasis" },
+    { "id": "app-parse", "from": "app", "to": "parser", "label": "① parse()", "variant": "emphasis" },
+    { "id": "read-map", "from": "mapfile", "to": "parser", "label": "UTF-8 行" },
+    { "id": "build-world", "from": "parser", "to": "world", "label": "World" },
+    { "id": "app-run", "from": "app", "to": "engine", "label": "② run(views)", "variant": "emphasis" },
+    { "id": "decide", "from": "engine", "to": "scheduler", "label": "decide_moves" },
+    { "id": "next-hops", "from": "scheduler", "to": "pathfinder", "label": "next_hops" },
+    { "id": "notify", "from": "engine", "to": "composite", "label": "begin / render / close", "variant": "emphasis" },
+    { "id": "to-graphical", "from": "composite", "to": "graphical", "label": "--visual graphical" },
+    { "id": "to-terminal", "from": "composite", "to": "terminal", "label": "terminal" },
+    { "id": "to-printer", "from": "composite", "to": "printer", "label": "常に" },
+    { "id": "frames", "from": "terminal", "to": "stderr", "label": "フレーム" },
+    { "id": "turn-log", "from": "printer", "to": "stdout", "label": "1ターン1行", "variant": "emphasis" },
+    { "id": "app-summary", "from": "app", "to": "summary", "label": "③ from_turns", "fromSide": "right", "toSide": "left" },
+    { "id": "summary-line", "from": "summary", "to": "stderr", "label": "summary" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "実行の流れ", "items": [
+      "main → Application.run: ① マップを World に変換 ② Pathfinder・Scheduler・Engine を組み立てて run ③ 返ってきた turns から RunSummary を標準エラーへ",
+      "Pathfinder は構築時に start→end の到達性を確認し、届かなければ UnreachableGoalError",
+      "World(Network)は Pathfinder・Scheduler・Engine・各ビューが読み取り専用で共有する"
+    ] },
+    { "dot": "emerald", "title": "毎ターン(Stage 4/5)", "items": [
+      "Scheduler が MoveOrder を決め、TurnResolver が規則を検査してから SimulationState に適用し Move を返す",
+      "ターンの全 Move を CompositeVisualizer 経由で TurnLogPrinter と選択されたビューへ渡す"
+    ] },
+    { "dot": "amber", "title": "出力の分離", "items": [
+      "標準出力にはターンログだけを書く(課題の出力形式)",
+      "端末表示・summary・警告・error は標準エラー",
+      "ビューの close 失敗は _GuardedView が保持し、warning 1行に留める"
+    ] },
+    { "dot": "rose", "title": "エラーと終了コード", "items": [
+      "FlyInError(MapFileError / ParseError / UnreachableGoalError / SimulationError / VisualizationError) → error: 行、終了 1",
+      "Ctrl+C → 130、引数不正 → argparse が 2、想定外の例外 → internal error 1行(FLYIN_DEBUG=1 なら送出)"
+    ] }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Stage 4 シミュレーション(engine / resolver / state)",
+    "locale": "ja",
+    "output": "docs/archify/stage4-simulation/stage4-simulation.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "f46ad4b85d8c9ac5dc2b1f9ea21614b1fb6d0b21"
+    }
+  },
+  "components": [
+    { "id": "app", "type": "backend", "label": "Application.run", "sublabel": "turns を受け取る", "pos": [360, 40], "size": [150, 60],
+      "sources": [{ "path": "droneflow/app.py", "line": 95, "end_line": 103 }] },
+    { "id": "viz", "type": "messagebus", "label": "Visualizer", "sublabel": "ログ+ビュー", "tag": "Stage 6/7", "pos": [40, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/base.py", "line": 8, "end_line": 31 }] },
+    { "id": "engine", "type": "backend", "label": "SimulationEngine", "sublabel": "完了までターンを回す", "pos": [360, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/simulation/engine.py", "line": 22, "end_line": 104 }] },
+    { "id": "scheduler", "type": "backend", "label": "Scheduler", "sublabel": "手を決める(決定)", "tag": "Stage 5", "pos": [680, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/simulation/scheduler.py", "line": 79, "end_line": 116 }] },
+    { "id": "error", "type": "security", "label": "SimulationError", "sublabel": "ターンは丸ごと不採用", "pos": [40, 330], "size": [150, 60],
+      "sources": [{ "path": "droneflow/errors.py", "line": 34, "end_line": 35 }] },
+    { "id": "resolver", "type": "security", "label": "TurnResolver", "sublabel": "規則を検査して適用", "pos": [360, 330], "size": [150, 60],
+      "sources": [{ "path": "droneflow/simulation/turn_resolver.py", "line": 55, "end_line": 79 }, { "path": "droneflow/simulation/turn_resolver.py", "line": 151, "end_line": 215 }] },
+    { "id": "state", "type": "database", "label": "SimulationState", "sublabel": "占有・予約・接続負荷", "pos": [680, 330], "size": [150, 60],
+      "sources": [{ "path": "droneflow/simulation/state.py", "line": 45, "end_line": 209 }] },
+    { "id": "drone", "type": "database", "label": "Drone × nb_drones", "sublabel": "全機 start で AT_ZONE", "tag": "Stage 1", "pos": [680, 480], "size": [150, 60],
+      "sources": [{ "path": "droneflow/simulation/state.py", "line": 63, "end_line": 74 }] }
+  ],
+  "connections": [
+    { "id": "run", "from": "app", "to": "engine", "label": "run(visualizer)", "variant": "emphasis" },
+    { "id": "notify", "from": "engine", "to": "viz", "label": "begin/render/close" },
+    { "id": "decide", "from": "engine", "to": "scheduler", "label": "decide_moves(state)", "variant": "emphasis" },
+    { "id": "resolve", "from": "engine", "to": "resolver", "label": "resolve(state, orders)", "variant": "emphasis" },
+    { "id": "read-state", "from": "scheduler", "to": "state", "label": "読むだけ", "variant": "dashed" },
+    { "id": "apply", "from": "resolver", "to": "state", "label": "全部合法なら適用", "variant": "emphasis" },
+    { "id": "violation", "from": "resolver", "to": "error", "label": "違反で送出", "variant": "security" },
+    { "id": "update-drone", "from": "state", "to": "drone", "label": "状態と位置を更新" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Engine の1ターン(_play_turn)", "items": [
+      "max_turns(既定 2×ゾーン数×機数)を超えたら SimulationError",
+      "orders = scheduler.decide_moves(state) → moves = resolver.resolve(state, orders)",
+      "moves が空なら進行不能として SimulationError。render は毎ターン、close は finally で必ず呼ぶ"
+    ] },
+    { "dot": "rose", "title": "TurnResolver.resolve の順序", "items": [
+      "1. 飛行中(IN_TRANSIT)のドローンを着陸させる(命令不要・受け付けない)",
+      "2. 命令を検査: 二重命令・存在しない・配達済み・飛行中・blocked・同じゾーン(待機は命令なし)・非隣接",
+      "3. 出発分だけで接続の max_link_capacity を検査(着陸分は数えない)",
+      "4. 出入りを相殺した最終人数で max_drones を検査。着陸できなければ「接続上で立ち往生」"
+    ] },
+    { "dot": "emerald", "title": "適用と出力(Move)", "items": [
+      "通常: enter_zone → Move(id, zone)。end に入ると DELIVERED",
+      "restricted へ: enter_transit → Move(id, 接続名)、次ターンに complete_transit → Move(id, zone)",
+      "MoveOrder は Scheduler が、Move は Resolver が作る(役割を分離)"
+    ] }
+  ]
+}

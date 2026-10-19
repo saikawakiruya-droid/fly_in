@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Stage 7 可視化(droneflow/visualization)",
+    "locale": "ja",
+    "output": "docs/archify/stage7-visualization/stage7-visualization.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "f46ad4b85d8c9ac5dc2b1f9ea21614b1fb6d0b21"
+    }
+  },
+  "components": [
+    { "id": "printer", "type": "backend", "label": "TurnLogPrinter", "sublabel": "常に先頭", "tag": "Stage 6", "pos": [340, 40], "size": [150, 60],
+      "sources": [{ "path": "droneflow/output/turn_log_view.py", "line": 10, "end_line": 49 }] },
+    { "id": "app", "type": "backend", "label": "Application", "sublabel": "--visual / --step で選ぶ", "pos": [640, 40], "size": [150, 60],
+      "sources": [{ "path": "droneflow/app.py", "line": 126, "end_line": 176 }] },
+    { "id": "engine", "type": "backend", "label": "SimulationEngine", "sublabel": "close は finally", "tag": "Stage 4", "pos": [40, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/simulation/engine.py", "line": 52, "end_line": 82 }] },
+    { "id": "composite", "type": "messagebus", "label": "CompositeVisualizer", "sublabel": "順に全ビューへ", "pos": [340, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/composite.py", "line": 9, "end_line": 44 }] },
+    { "id": "guard", "type": "security", "label": "_GuardedView", "sublabel": "close 失敗を保持", "pos": [640, 180], "size": [150, 60],
+      "sources": [{ "path": "droneflow/app.py", "line": 21, "end_line": 53 }] },
+    { "id": "terminal", "type": "frontend", "label": "TerminalVisualizer", "sublabel": "ANSI・step は Enter", "pos": [480, 340], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/terminal_view.py", "line": 63, "end_line": 128 }, { "path": "droneflow/visualization/terminal_view.py", "line": 287, "end_line": 294 }] },
+    { "id": "graphical", "type": "frontend", "label": "GraphicalVisualizer", "sublabel": "pygame・遅延 import", "pos": [840, 340], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/graphical_view.py", "line": 471, "end_line": 602 }, { "path": "droneflow/app.py", "line": 148, "end_line": 166 }] },
+    { "id": "stderr", "type": "external", "label": "標準エラー", "sublabel": "フレームと凡例", "pos": [480, 500], "size": [150, 60] },
+    { "id": "palette", "type": "database", "label": "palette.rgb", "sublabel": "色名 → RGB", "pos": [660, 500], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/palette.py", "line": 10, "end_line": 51 }] },
+    { "id": "window", "type": "external", "label": "pygame ウィンドウ", "sublabel": "space / → / ↑↓ / esc", "pos": [840, 500], "size": [150, 60],
+      "sources": [{ "path": "droneflow/visualization/graphical_view.py", "line": 141, "end_line": 254 }] }
+  ],
+  "connections": [
+    { "id": "notify", "from": "engine", "to": "composite", "label": "begin/render/close", "variant": "emphasis" },
+    { "id": "to-printer", "from": "composite", "to": "printer", "label": "1番目" },
+    { "id": "to-guard", "from": "composite", "to": "guard", "label": "ビューごと", "variant": "emphasis" },
+    { "id": "make-views", "from": "app", "to": "guard", "label": "_make_views()" },
+    { "id": "to-terminal", "from": "guard", "to": "terminal", "label": "terminal / both" },
+    { "id": "to-graphical", "from": "guard", "to": "graphical", "label": "graphical / both" },
+    { "id": "frames", "from": "terminal", "to": "stderr", "label": "フレーム" },
+    { "id": "term-color", "from": "terminal", "to": "palette", "label": "color=" },
+    { "id": "gfx-color", "from": "graphical", "to": "palette", "label": "color=" },
+    { "id": "draw", "from": "graphical", "to": "window", "label": "描画+入力待ち", "variant": "emphasis" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Visualizer プロトコル", "items": [
+      "begin(state) → 毎ターン render(state, moves) → close()。ビューは状態を読むだけ",
+      "Composite.close は1つが失敗しても残りを閉じる。_GuardedView は close の例外を保持し、App が warning 1行にする"
+    ] },
+    { "dot": "emerald", "title": "TerminalVisualizer", "items": [
+      "標準エラーに ANSI カラーで描画(stdout はターンログ専用)",
+      "--step: 端末なら各フレームで Enter 待ち。入力が端末でない・EOF なら待たない",
+      "--visual both のときは step をウィンドウ側に任せる"
+    ] },
+    { "dot": "violet", "title": "GraphicalVisualizer", "items": [
+      "pygame は app._graphical_view で遅延 import。無ければ VisualizationError(make install を案内)",
+      "ウィンドウが開けなければ VisualizationError。ユーザーが閉じてもシミュレーションは最後まで続く",
+      "hold_final: 完走後は esc で閉じるまで最終フレームを表示"
+    ] },
+    { "dot": "amber", "title": "palette", "items": [
+      "色名を大文字小文字無視で RGB に。表に無い名前は既定色(rainbow は意図的に除外)"
+    ] }
+  ]
+}
