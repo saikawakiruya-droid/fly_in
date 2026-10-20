@@ -36,8 +36,8 @@ class FlowGraph:
         """
         if capacity < 0:
             raise ValueError(f"capacity must not be negative: {capacity}")
-        self._arcs_out[tail]
-        self._arcs_out[head]
+        self._check_vertex(tail)
+        self._check_vertex(head)
         arc = len(self._heads)
         self._heads.extend((head, tail))
         self._residual.extend((capacity, 0))
@@ -58,7 +58,15 @@ class FlowGraph:
         Returns:
             The flow pushed: the maximum flow, or ``limit`` if that is
             smaller.
+
+        Raises:
+            ValueError: If ``source`` and ``sink`` are the same vertex.
+            IndexError: If either vertex does not exist.
         """
+        self._check_vertex(source)
+        self._check_vertex(sink)
+        if source == sink:
+            raise ValueError(f"source and sink are the same vertex: {sink}")
         flow = 0
         while flow < limit:
             path = self._augmenting_path(source, sink)
@@ -83,6 +91,10 @@ class FlowGraph:
                     seen.add(head)
                     queue.append(head)
         return seen
+
+    def _check_vertex(self, vertex: int) -> None:
+        if not 0 <= vertex < len(self._arcs_out):
+            raise IndexError(f"no such vertex: {vertex}")
 
     def _augmenting_path(self, source: int, sink: int) -> list[int] | None:
         """Return the arcs of a shortest path with room left, or None."""
