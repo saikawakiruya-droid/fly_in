@@ -102,13 +102,15 @@ class Pathfinder:
         return hops
 
     def detour_hops(self, zone_name: str) -> list[Hop]:
-        """Return every longer move that still gets closer to the end zone.
+        """Return every move off the shortest routes that can still finish.
 
-        A neighbor qualifies when its own distance is strictly smaller than
-        this zone's (so a drone never flows back), but entering it and then
-        following its shortest route costs more than this zone's distance
-        (so it is not one of ``next_hops``). The hops are ordered by that
-        total cost, then by connection declaration order.
+        A neighbor qualifies when the end zone can be reached from it and
+        entering it is not one of ``next_hops``: entering it and then
+        following its shortest route costs more than this zone's distance.
+        It may be closer to the end zone, as far, or farther; whether a
+        drone may take it is up to the caller. Self-loops are left out.
+        The hops are ordered by that total cost, then by connection
+        declaration order.
 
         Returns:
             The qualifying hops, or an empty list if this zone is the end
@@ -125,7 +127,7 @@ class Pathfinder:
         for connection in self.network.neighbors(zone_name):
             zone = self.network.get_zone(connection.other_end(zone_name))
             there = self._distances.distance(zone.name)
-            if there is None or there >= here or zone.name in seen:
+            if there is None or zone.name == zone_name or zone.name in seen:
                 continue
             # A zone with a distance is traversable, so turn_cost is safe.
             total = zone.zone_type.turn_cost + there
