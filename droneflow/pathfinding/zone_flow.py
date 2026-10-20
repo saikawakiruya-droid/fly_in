@@ -29,8 +29,9 @@ class Bottleneck:
     def limits_flow(self) -> bool:
         """Return whether a cut was found.
 
-        False means the limit was reached with room to spare: for that many
-        drones, nothing in the network is a bottleneck.
+        False means either that the limit was reached with room to spare
+        (for that many drones, nothing in the network is a bottleneck), or
+        that no drone can reach the end zone at all (``throughput`` is 0).
         """
         return bool(self.zones or self.connections)
 
@@ -39,8 +40,9 @@ class ZoneFlowGraph:
     """Builds a ``FlowGraph`` from zones and hops, then reads its cut back.
 
     Every traversable zone becomes two vertices, ``in`` and ``out``,
-    joined by an arc carrying the zone's ``max_drones`` (the limit for
-    zones without one). Each hop added becomes an arc from the ``out`` of
+    joined by an arc carrying the zone's ``max_drones``. A zone without
+    one gets one more than the limit, so it is never saturated and never
+    reported as a bottleneck. Each hop added becomes an arc from the ``out`` of
     the zone left to the ``in`` of the zone entered, carrying the
     connection's ``max_link_capacity``. The flow goes from the start
     zone's ``out`` to the end zone's ``in``, so neither of their own arcs
@@ -69,7 +71,9 @@ class ZoneFlowGraph:
             entry = self._graph.add_vertex()
             exit_ = self._graph.add_vertex()
             self._ends[zone.name] = (entry, exit_)
-            capacity = limit if zone.max_drones is None else zone.max_drones
+            capacity = (
+                limit + 1 if zone.max_drones is None else zone.max_drones
+            )
             arc = self._graph.add_arc(entry, exit_, capacity)
             self._zone_arcs[arc] = zone
 
@@ -80,7 +84,12 @@ class ZoneFlowGraph:
 
         Hops touching a BLOCKED zone and self-loops are ignored: they never
         carry a drone toward the end zone.
+
+        Raises:
+            ZoneNotFoundError: If either zone does not exist.
         """
+        self.network.get_zone(from_zone)
+        self.network.get_zone(to_zone)
         if from_zone == to_zone:
             return
         if from_zone not in self._ends or to_zone not in self._ends:
