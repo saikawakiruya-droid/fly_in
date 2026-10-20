@@ -176,14 +176,12 @@ connection: tunnelB-goal
 
 ```text
 $ python fly_in.py maps/subject_example.txt --visual none
-D1-corridorA
-D1-tunnelB D2-corridorA
-D1-goal D2-tunnelB D3-corridorA
-D2-goal D3-tunnelB D4-corridorA
-D3-goal D4-tunnelB D5-corridorA
-D4-goal D5-tunnelB
-D5-goal
-summary: 7 turns, 5 drones, 5.00 turns per drone on average, 2.14 moves per turn
+D1-corridorA D2-hub-roof1
+D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1
+D1-goal D2-roof2 D3-tunnelB D4-roof1 D5-corridorA
+D2-goal D3-goal D4-roof2 D5-tunnelB
+D4-goal D5-goal
+summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 ```
 
 The last line is written to standard error. It reports the total number of
@@ -191,8 +189,12 @@ turns and two of the secondary metrics suggested by the subject: the average
 turn at which a drone is delivered, and the average number of moves per turn.
 
 The route through `corridorA` (priority) takes 3 turns and the route through
-`roof1` (restricted) takes 4, so every drone takes the shorter one. `tunnelB`
-holds one drone, so one drone is delivered per turn from turn 3 on.
+`roof1` (restricted) takes 4. The shortest route lets one drone a turn through
+(`tunnelB` holds one drone, and the `hub-corridorA` connection carries one), so
+a drone behind the first ones arrives sooner by the longer `roof1` route than
+by queuing. D2 and D4 go through `roof1` (see
+[detours](#2-next-hops-shortest-and-detours) below), and every drone is
+delivered in 5 turns.
 
 ### A second example: restricted zones
 
@@ -257,7 +259,7 @@ stops with `error: goal '...' is unreachable from '...'` before simulating.
 Capacities are deliberately not part of the distance map: they change every
 turn and are handled by the scheduler.
 
-### 2. Shortest next hops and priority zones
+### 2. Next hops: shortest and detours
 
 For each zone, `Pathfinder.next_hops` lists every neighbor `w` such that
 `cost(w) + distance(w) == distance(here)`: the moves that keep a drone on a
@@ -266,9 +268,19 @@ how the drones are spread over parallel paths.
 
 Priority zones are handled as a **tie-break only**: among equally short next
 hops, priority zones come first; otherwise the order is the declaration order
-of the connections. A drone **never takes a longer route** to pass through a
-priority zone, or for any other reason, because the score is the total number
-of turns.
+of the connections. A drone never takes a longer route just to pass through a
+priority zone.
+
+**Detours**: only a drone that would otherwise wait (none of its shortest next
+hops is usable) tries one of `Pathfinder.detour_hops`: a neighbor `w` with
+`distance(w) < distance(here)` (the drone always gets closer to the goal, so it
+**never flows back**) whose `cost(w) + distance(w)` is longer than the shortest
+route. `DetourPolicy` allows such a detour only if that total cost is at most
+"distance on the shortest route + the drones that went out ahead". The drones
+ahead are the undelivered drones standing in (or landing in) a zone that the
+shortest hops from here lead to, counting the moves already decided this turn.
+In other words, a drone takes a longer but free route only when it is not
+slower than queuing on the shortest one.
 
 ### 3. Turn scheduling order
 
@@ -278,16 +290,21 @@ Every turn, the scheduler builds the orders in this order:
    turn, and the engine lands them.
 2. Moves planned on earlier turns that are due this turn (evictions, see
    below) are ordered first.
-3. The other drones standing in zones are decided one by one, sorted by
+3. The other drones standing in zones are decided **zone by zone**, the zones
+   sorted by
    - distance to the goal, closest first;
-   - then drones on the priority route first (the drone is in a priority zone,
-     or one of its shortest next hops is a priority zone);
-   - then drone id.
+   - then zones on the priority route first (a priority zone, or a zone with a
+     priority zone among its shortest next hops);
+   - then zones with fewer exits (shortest hops and detours) first;
+   - then declaration order.
 
 Deciding the drones closest to the goal first means that a drone leaving a
 zone has already been decided when the drone behind it asks for that zone, so
-the room it frees can be used in the same turn. A drone takes the first of its
-next hops that has room; if none has room, it waits.
+the room it frees can be used in the same turn. Deciding zones with fewer exits
+first keeps a drone that has a choice from taking another zone's only way out.
+Drones in the same zone have the same moves, so their order within the zone
+does not matter. A drone takes the first of its shortest next hops that has
+room; otherwise it tries its allowed detours; otherwise it waits.
 
 ### 4. Capacity rules
 
@@ -340,7 +357,8 @@ is usable does it try them again, this time allowing occupants to be evicted
 first listed route by evicting occupants, even when an equally short route was
 simply free, which can slow the whole run down. In our tests on 7,832 random
 maps, this rule reduced the number of maps that got slower than the scheduler
-without evictions from 6 to 1.
+without evictions from 6 to 1. Allowed detours are tried in the same two steps
+(without, then with eviction).
 
 ### 6. Safety: an independent check of every turn
 
@@ -355,20 +373,21 @@ engine also stops with an error if a turn passes with no drone moving, or if
 the run exceeds a generous turn limit (`2 x zones x drones`), so a scheduler
 bug can never produce an endless loop or an invalid log.
 
-No deadlock can occur: every move strictly lowers the mover's distance to the
-goal, so drones never wait on each other in a cycle; planned moves and
+No deadlock can occur: every move, detours included, strictly lowers the
+mover's distance to the goal, so drones never wait on each other in a cycle; planned moves and
 landings always happen, and otherwise the drone closest to the goal always has
 room ahead (the end zone is unlimited), so at least one drone moves every turn.
 
 ### 7. Trade-offs
 
-The scheduler is greedy: each drone takes the best move available this turn,
-and drones only follow shortest routes. This is simple, fast and safe, and
-works well when there are several equally short routes. Its limit is that it
-never sends a drone down a longer but empty route, even when that would
-deliver more drones in parallel. In the example map above, the restricted
-route through `roof1` is one turn longer, so it is never used; a schedule that
-also used it could finish in fewer than 7 turns.
+The scheduler is greedy: each drone takes the best move available this turn.
+This is simple, fast and safe, works well when there are several equally short
+routes, and uses longer routes when they are not slower than queuing. Its limit
+is that every decision rests on a local estimate made during the turn: drones
+are not assigned to routes in advance, so on some maps a detouring drone takes
+a seat that a later drone on the shortest route needed, and the run gets slower
+than without detours (about 1% of random maps in our tests). Drones never move
+away from the goal or sideways.
 
 ### 8. Complexity, caching and memory
 
@@ -377,11 +396,16 @@ With `V` zones, `E` connections and `D` drones:
 - **Parsing**: linear in the size of the file.
 - **Distance map**: one Dijkstra with a binary heap, `O((V + E) log V)`,
   computed **once**. The shortest next hops of every zone are also computed
-  once and **cached** by the scheduler (`O(V + E)` memory). Paths are never
+  once and **cached** by the scheduler (`O(V + E)` memory), as are the detour
+  hops and, for every zone, the zones its shortest hops lead to
+  (`O(V x (V + E))` once, `O(V^2)` memory). Paths are never
   recomputed during the simulation; only the room left in zones and
   connections is evaluated each turn.
-- **One turn**: sorting the drones standing in zones is `O(D log D)`. Each
-  drone tries at most its next hops twice (without, then with eviction).
+- **One turn**: sorting the drones standing in zones is `O(D log D)` (the
+  zone ranks are computed once). Each drone tries at most its next hops twice
+  (without, then with eviction). A drone that would wait counts the drones
+  ahead by scanning the drones' positions (`O(D)`) and tries its allowed
+  detours the same two ways.
   A seat check looks at the turns from the arrival to the last planned turn
   (`H`, a few turns ahead), so it costs `O(H^2)` table lookups. An eviction
   attempt adds a recursion whose depth is bounded by the distance to the goal,
@@ -406,9 +430,11 @@ droneflow/
   errors.py                FlyInError and its subclasses (one-line messages)
   models/                  Zone, Connection, Network (hand-built adjacency), Drone, World
   parsing/                 MapReader -> LineTokenizer -> rule table (MapFormat) -> MapValidator
-  pathfinding/             DistanceMap (Dijkstra), Pathfinder (next hops, routes)
+  pathfinding/             DistanceMap (Dijkstra), Pathfinder (shortest and detour hops, routes),
+                           FlowGraph / ZoneFlowGraph / ConnectionBottleneck / ShortestHopBottleneck
+                           (bottleneck analysis by max-flow min-cut; not used by the run)
   simulation/              SimulationEngine, Scheduler, TurnLedger, ReservationTable,
-                           Evictor, TurnResolver, SimulationState
+                           Evictor, DetourPolicy, TurnResolver, SimulationState
   output/                  turn log formatter and printer, run summary
   visualization/           Visualizer protocol, terminal view, graphical view, palette
 ```
@@ -547,8 +573,10 @@ project, under the following division of roles:
 - **Design discussion and review**: discussing designs, comparing
   alternatives, measuring them with throw-away prototypes, and reviewing code
   and test plans. The design decisions are the author's, for example the
-  per-turn scheduler order, treating priority zones only as a tie-break with
-  no detours, the reservation-table and eviction model for restricted zones,
+  per-turn scheduler order (zone by zone, fewer exits first), treating
+  priority zones only as a tie-break, the detour rule (take a longer route when
+  it costs no more than the drones ahead plus the remaining distance, never
+  flowing back), the reservation-table and eviction model for restricted zones,
   and rule 6'. Some were chosen by the author among options the AI proposed
   and measured, such as making eviction a last resort.
 - **Implementation and tests**: from the pathfinding stage onward, at the
