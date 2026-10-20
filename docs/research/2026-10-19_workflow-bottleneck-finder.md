@@ -185,12 +185,27 @@ flowchart TD
 
 ### (d) 例
 
-| マップ | A | B |
-|---|---|---|
-| 課題の例(5機) | 通過量2: tunnelB(容量1)と roof1(restricted・容量1)。hub の先の2つの経路それぞれの最も狭い所 | 通過量1: tunnelB だけ(最短経路は corridorA→tunnelB の1本) |
-| 一本道 `s-a-b-g`(a, b 容量1) | 通過量1、カットは a(start に近い方) | 同じ |
-| 接続が細い `s-a-g`(a 容量3、`s-a` の接続容量1) | 通過量1、カットは接続 `s-a` | 同じ |
-| 容量の大きい一本道(全ゾーン容量10、接続容量10、3機) | 通過量3、`limits_flow` は False | 同じ |
+実装後の実測値(配布マップ・課題の例、limit = 機数)。
+
+| マップ | 機数 | A | B |
+|---|---|---|---|
+| 課題の例 | 5 | 2: 接続 `hub-roof1`, `hub-corridorA` | 1: 接続 `hub-corridorA` |
+| linear_path | 2 | 1: 接続 `start-waypoint1` | 同じ |
+| simple_fork | 4 | 2: 接続 `start-junction` | 同じ |
+| basic_capacity | 4 | 2: ゾーン `bottleneck` | 同じ |
+| dead_end_trap | 5 | 1: 接続 `junction-correct_path` | 同じ |
+| circular_loop | 6 | 1: 接続 `loop_b-exit_point` | 同じ |
+| priority_puzzle | 5 | 2: 接続 `start-slow_path1`, `start-fast_junction` | 1: 接続 `start-fast_junction` |
+| maze_nightmare | 8 | 1: 接続 `maze_c2-bottleneck` | 1: 接続 `maze_a1-maze_a2` |
+| capacity_hell | 12 | 1: 接続 `final_bottleneck-goal` | 1: 接続 `start-gate3` |
+| ultimate_challenge | 15 | 1: ゾーン `final_gate3` | 1: 接続 `start-dist_gate1` |
+| the_impossible_dream | 25 | 1: 接続 `start-gate_hell1` | 同じ |
+
+- 接続の容量の既定値は1なので、start から出る接続そのものが start に一番近い最小カットになることが多い
+  (課題の例では、hub から出る2本の接続がそれぞれ1ターンに1機しか通さない)。
+- A の通過量が B より大きいのは課題の例と priority_puzzle。どちらも、遠回りの経路を併用すれば1ターンに2機流せる。
+- 検証: 小さなランダムなマップ400枚で、全探索で求めた最小カットの容量と `ConnectionBottleneck` の通過量が一致した
+  (カットの容量の合計 = 通過量も確認)。
 
 ## 作業項目
 
