@@ -7,6 +7,7 @@ import pytest
 from droneflow.errors import SimulationError, ZoneNotFoundError
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
+from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.scheduler import Scheduler
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
 from droneflow.simulation.turn_resolver import TurnResolver
@@ -537,3 +538,336 @@ def test_same_turn_with_another_state_replans_from_it(
 
     assert orders == real_scheduler(network).decide_moves(place(network, 2))
     assert orders == [MoveOrder(1, "r")]
+
+
+# --- detours and the zone decision order ------------------------------
+
+# M1': s-a a-g s-r r-g, r restricted: the shortest hop of s is a and its
+# detour is r. S: s-a a-g s-b b-c c-g: the detour of s is the sideways b.
+M1_PRIME = "s-a a-g s-r r-g"
+SIDEWAYS = "s-a a-g s-b b-c c-g"
+
+
+def orders_by_turn(
+    network: Network, state: SimulationState
+) -> list[list[tuple[int, str]]]:
+    """Play until every drone is delivered; return each turn's orders.
+
+    One scheduler and one resolver play every turn. The orders are kept
+    in the order ``decide_moves`` gave them, as ``(drone_id, zone)``.
+    """
+    scheduler = Scheduler(network, Pathfinder(network))
+    resolver = TurnResolver(network)
+    turns: list[list[tuple[int, str]]] = []
+    while not state.is_complete:
+        assert state.turn_number < 50, "not finished in 50 turns"
+        orders = scheduler.decide_moves(state)
+        turns.append([(order.drone_id, order.zone) for order in orders])
+        resolver.resolve(state, orders)
+    return turns
+
+
+def test_drone_that_would_wait_takes_a_detour(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D27: D1's move into a decided this turn puts one drone ahead of
+    D2, so D2 goes round by r; alone, D1 just takes a."""
+    network = make_network(M1_PRIME, types={"r": R})
+
+    assert real_scheduler(network).decide_moves(place(network, 2)) == [
+        MoveOrder(1, "a"), MoveOrder(2, "r")
+    ]
+    assert real_scheduler(network).decide_moves(place(network, 1)) == [
+        MoveOrder(1, "a")
+    ]
+
+
+def test_no_detour_while_a_shortest_hop_is_free(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D28: a has room for both, so D2 follows D1 although r is allowed."""
+    network = make_network(
+        M1_PRIME, types={"r": R}, capacity={"a": 2}, links={"s-a": 2}
+    )
+
+    assert real_scheduler(network).decide_moves(place(network, 2)) == [
+        MoveOrder(1, "a"), MoveOrder(2, "a")
+    ]
+
+
+def test_busy_detour_is_refused(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D29: a drone queuing at the detour counts against it.
+
+    (a) D3 finds D2 bound for r (3 + 1 > 2 + 1) and waits. (b) and (c)
+    differ only in where D3 is: in b it blocks D2's detour; in g (after
+    moving first) it counts on both sides, so D2 may go.
+    """
+    wide = make_network(
+        M1_PRIME, types={"r": R}, capacity={"r": 2}, links={"s-r": 2}
+    )
+    assert real_scheduler(wide).decide_moves(place(wide, 3)) == [
+        MoveOrder(1, "a"), MoveOrder(2, "r")
+    ]
+
+    network = make_network(SIDEWAYS)
+    in_b = place(network, 3, at={3: "b"})
+    assert real_scheduler(network).decide_moves(in_b) == [
+        MoveOrder(1, "a"), MoveOrder(3, "c")
+    ]
+    in_c = place(network, 3, at={3: "c"})
+    assert real_scheduler(network).decide_moves(in_c) == [
+        MoveOrder(3, "g"), MoveOrder(1, "a"), MoveOrder(2, "b")
+    ]
+
+
+def test_detour_tries_without_eviction_first(
+    make_network: MakeNetwork,
+    place: Place,
+    real_scheduler: RealScheduler,
+    fmt: Fmt,
+) -> None:
+    """D30: a detour may evict (a), but one needing no eviction comes
+    first (b).
+
+    (a) D5 plans D1's eviction from r1 and goes there (6 <= 6). (b) r1
+    is still allowed and declared first, yet D5 takes the free r2.
+    """
+    edges = "s-a a-b b-g s-r1 r1-b"
+    one = make_network(edges, types={"r1": R}, capacity={"a": 2})
+    two = make_network(
+        f"{edges} s-r2 r2-b", types={"r1": R, "r2": R}, capacity={"a": 2}
+    )
+    at = {2: "a", 3: "a"}
+    flying = {1: ("s", "r1")}
+
+    assert real_scheduler(one).decide_moves(
+        place(one, 5, at=at, flying=flying)
+    ) == [MoveOrder(2, "b"), MoveOrder(4, "a"), MoveOrder(5, "r1")]
+    assert play_out(
+        real_scheduler(one), place(one, 5, at=at, flying=flying), fmt
+    ) == [
+        "D1-r1 D2-b D4-a D5-s-r1",
+        "D1-b D2-g D5-r1",
+        "D1-g D3-b",
+        "D3-g D4-b",
+        "D4-g D5-b",
+        "D5-g",
+    ]
+
+    assert real_scheduler(two).decide_moves(
+        place(two, 5, at=at, flying=flying)
+    ) == [MoveOrder(2, "b"), MoveOrder(4, "a"), MoveOrder(5, "r2")]
+    assert play_out(
+        real_scheduler(two), place(two, 5, at=at, flying=flying), fmt
+    ) == [
+        "D1-r1 D2-b D4-a D5-s-r2",
+        "D2-g D3-b D5-r2",
+        "D3-g D4-b",
+        "D1-b D4-g",
+        "D1-g D5-b",
+        "D5-g",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("nb_drones", "orders", "lines"),
+    [
+        (
+            2,
+            [MoveOrder(2, "t")],
+            ["D1-t D2-s-t", "D1-g D2-t", "D2-g"],
+        ),
+        (
+            3,
+            [MoveOrder(2, "t"), MoveOrder(3, "r")],
+            [
+                "D1-t D2-s-t D3-s-r",
+                "D1-g D2-t D3-r",
+                "D2-g D3-b",
+                "D3-g",
+            ],
+        ),
+    ],
+    ids=["two", "three"],
+)
+def test_shortest_eviction_comes_before_a_detour(
+    make_network: MakeNetwork,
+    place: Place,
+    real_scheduler: RealScheduler,
+    fmt: Fmt,
+    nb_drones: int,
+    orders: list[MoveOrder],
+    lines: list[str],
+) -> None:
+    """D31: D2 evicts D1 from t (its shortest hop) rather than detour;
+    only D3, finding t taken, goes round by r."""
+    network = make_network("s-t t-g s-r r-b b-g", types={"t": R, "r": R})
+    flying = {1: ("s", "t")}
+
+    state = place(network, nb_drones, flying=flying)
+    assert real_scheduler(network).decide_moves(state) == orders
+    state = place(network, nb_drones, flying=flying)
+    assert play_out(real_scheduler(network), state, fmt) == lines
+
+
+def test_fewer_exits_decide_first(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D32: at the same distance, x (two exits) decides before y (three),
+    though y is declared first: D2 takes m, D1 still has n."""
+    network = make_network("s-y s-x y-m x-m y-n m-g n-g")
+    state = place(network, 2, at={1: "y", 2: "x"})
+
+    assert real_scheduler(network).decide_moves(state) == [
+        MoveOrder(2, "m"), MoveOrder(1, "n")
+    ]
+
+
+def test_exits_include_detours(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D33: x's exits are m, r (a detour) and s, three against y's two,
+    so D2 in y takes m and D1 goes round by r."""
+    network = make_network("s-x s-y x-m y-m m-g x-r r-g", types={"r": R})
+    state = place(network, 2, at={1: "x", 2: "y"})
+
+    assert real_scheduler(network).decide_moves(state) == [
+        MoveOrder(2, "m"), MoveOrder(1, "r")
+    ]
+
+
+def test_priority_route_before_fewer_exits(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D34: p (priority, three exits) decides before x (two exits).
+
+    D2 takes m, so D1 in x waits: with exits first it would have been
+    D1 to m and D2 to n.
+    """
+    network = make_network("s-p s-x p-m p-n x-m m-g n-g", types={"p": P})
+    state = place(network, 2, at={1: "x", 2: "p"})
+
+    assert real_scheduler(network).decide_moves(state) == [
+        MoveOrder(2, "m")
+    ]
+
+
+def test_declaration_order_not_drone_id(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D35: on a full tie the zone declared first (y) decides first,
+    whatever the drone_ids (see D06 for one zone)."""
+    network = make_network("s-y s-x y-m x-m m-g")
+    state = place(network, 2, at={1: "x", 2: "y"})
+
+    assert real_scheduler(network).decide_moves(state) == [
+        MoveOrder(2, "m")
+    ]
+
+
+def test_stranded_drone_is_an_error_with_detours(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D36: a drone in a zone that cannot reach g still raises."""
+    network = make_network("s-a a-g s-r r-g x-y", types={"r": R})
+    state = place(network, 2, at={1: "x"})
+
+    with pytest.raises(SimulationError) as excinfo:
+        real_scheduler(network).decide_moves(state)
+    assert str(excinfo.value) == (
+        "D1 is in 'x', which cannot reach the end zone"
+    )
+
+
+def test_detour_away_from_the_end_zone(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D37: a detour farther from g, when v's route avoids m.
+
+    (a) Three drones are ahead of D4 in m, so it goes back to v (5 + 0
+    <= 3 + 3) and on through w1, w2 and w3. (b) With one ahead it waits
+    (5 > 4).
+    """
+    network = make_network(
+        "s-m m-c1 c1-c2 c2-g m-v v-w1 w1-w2 w2-w3 w3-g",
+        types={"m": R},
+        capacity={"m": 2},
+    )
+    crowded = place(network, 4, at={1: "c1", 2: "c2", 3: "m", 4: "m"})
+
+    turns = orders_by_turn(network, crowded)
+
+    assert turns[0] == [(2, "g"), (1, "c2"), (3, "c1"), (4, "v")]
+    assert len(turns) == 5
+    assert [
+        zone for orders in turns[1:] for drone_id, zone in orders
+        if drone_id == 4
+    ] == ["w1", "w2", "w3", "g"]
+
+    alone = place(network, 2, at={1: "m", 2: "m"})
+    assert real_scheduler(network).decide_moves(alone) == [
+        MoveOrder(1, "c1")
+    ]
+
+
+def test_no_detour_back_into_a_visited_zone(
+    make_network: MakeNetwork,
+    place: Place,
+    real_scheduler: RealScheduler,
+    fmt: Fmt,
+) -> None:
+    """D38: D3 goes sideways from y to x, then never back to y.
+
+    On turn 2 going back would meet the condition (3 + 1 <= 2 + 2), but
+    D3 has been in y, so it waits.
+    """
+    network = make_network(
+        "s-x x-y x-a a-g y-b b-g",
+        capacity={"x": 2, "y": 2, "a": 2, "b": 2},
+    )
+    at = {2: "y", 3: "y"}
+
+    turns = orders_by_turn(network, place(network, 3, at=at))
+
+    assert turns[0] == [(2, "b"), (3, "x"), (1, "x")]
+    assert turns[1] == [(2, "g"), (1, "a")]
+    state = place(network, 3, at=at)
+    assert play_out(real_scheduler(network), state, fmt) == [
+        "D1-x D2-b D3-x",
+        "D1-a D2-g",
+        "D1-g D3-a",
+        "D3-g",
+    ]
+
+
+def test_new_run_forgets_the_visited_zones(
+    make_network: MakeNetwork, real_scheduler: RealScheduler, fmt: Fmt
+) -> None:
+    """D39: a second run on the same scheduler takes the same detour.
+
+    Reporting turn 1 again drops what the first run recorded.
+    """
+    network = make_network(SIDEWAYS)
+    scheduler = real_scheduler(network)
+    lines = ["D1-a D2-b", "D1-g D2-c", "D2-g"]
+
+    assert play_out(scheduler, SimulationState(network, 2), fmt) == lines
+    assert play_out(scheduler, SimulationState(network, 2), fmt) == lines
+
+
+def test_same_turn_with_another_state_forgets_its_visits(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """D40: D2 landing in r in the state given first is not remembered
+    when the same turn is planned again from another state."""
+    network = make_network(M1_PRIME, types={"r": R})
+    scheduler = real_scheduler(network)
+    first = scheduler.decide_moves(place(network, 2, flying={2: ("s", "r")}))
+    assert first == [MoveOrder(1, "a")]
+
+    orders = scheduler.decide_moves(place(network, 2))
+
+    assert orders == real_scheduler(network).decide_moves(place(network, 2))
+    assert orders == [MoveOrder(1, "a"), MoveOrder(2, "r")]
