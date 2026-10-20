@@ -395,3 +395,290 @@ def test_unreachable_map_parses_but_pathfinding_fails(
         pytest.fail(f"parser rejected a reachability problem: {error}")
     with pytest.raises(UnreachableGoalError):
         Pathfinder(network)
+
+
+# --- detour_hops ------------------------------------------------------
+
+# (member in the archive, number of detour hops over all its zones)
+PROVIDED_MAP_DETOURS = [
+    ("maps/easy/01_linear_path.txt", 2),
+    ("maps/easy/02_simple_fork.txt", 3),
+    ("maps/easy/03_basic_capacity.txt", 2),
+    ("maps/medium/01_dead_end_trap.txt", 4),
+    ("maps/medium/02_circular_loop.txt", 6),
+    ("maps/medium/03_priority_puzzle.txt", 7),
+    ("maps/hard/01_maze_nightmare.txt", 23),
+    ("maps/hard/02_capacity_hell.txt", 22),
+    ("maps/hard/03_ultimate_challenge.txt", 40),
+    ("maps/challenger/01_the_impossible_dream.txt", 82),
+]
+
+
+def map_id(member: str) -> str:
+    """Return a short test id such as ``easy/01_linear_path``."""
+    return member.removeprefix("maps/").removesuffix(".txt")
+
+
+def costed(pathfinder: Pathfinder, hops: list[Hop]) -> list[tuple[str, int]]:
+    """Return each hop's zone with its total cost to the end, in order.
+
+    The total cost is the turns to enter the zone plus its distance.
+    """
+    result: list[tuple[str, int]] = []
+    for hop in hops:
+        distance = pathfinder.distance(hop.zone.name)
+        assert distance is not None
+        result.append((hop.zone.name, hop.zone.zone_type.turn_cost + distance))
+    return result
+
+
+def link_names(hops: list[Hop]) -> list[str]:
+    """Return the names of the connections the hops take, in order."""
+    return [hop.connection.name for hop in hops]
+
+
+def square_grid(make_network: MakeNetwork, size: int) -> Network:
+    """Return an all-normal ``size`` x ``size`` grid (start top-left).
+
+    Every horizontal connection is declared before the vertical ones.
+    """
+    edges: list[str] = []
+    for row in range(size):
+        for col in range(size - 1):
+            edges.append(f"c{row}_{col}-c{row}_{col + 1}")
+    for row in range(size - 1):
+        for col in range(size):
+            edges.append(f"c{row}_{col}-c{row + 1}_{col}")
+    last = size - 1
+    return make_network(" ".join(edges), start="c0_0", end=f"c{last}_{last}")
+
+
+def test_detour_toward_the_end(make_network: MakeNetwork) -> None:
+    """H01: the restricted r is a detour of s; a is its shortest hop."""
+    pathfinder = Pathfinder(make_network("s-a a-g s-r r-g", types={"r": R}))
+
+    detours = pathfinder.detour_hops("s")
+
+    assert costed(pathfinder, detours) == [("r", 3)]
+    assert link_names(detours) == ["s-r"]
+    assert hop_names(pathfinder.next_hops("s")) == ["a"]
+
+
+def test_sideways_neighbor_is_a_detour(make_network: MakeNetwork) -> None:
+    """H02: b is as far from g as s, and still a detour of s."""
+    pathfinder = Pathfinder(make_network("s-a a-g s-b b-c c-g"))
+
+    assert costed(pathfinder, pathfinder.detour_hops("s")) == [("b", 3)]
+
+
+def test_backward_and_farther_neighbors_are_detours(
+    make_network: MakeNetwork,
+) -> None:
+    """H03: a detour may lead back to s or farther from g.
+
+    Whether a drone may take it is up to the caller (DetourPolicy).
+    """
+    back = Pathfinder(make_network("s-a a-g s-r r-g", types={"r": R}))
+    assert costed(back, back.detour_hops("a")) == [("s", 3)]
+    assert costed(back, back.detour_hops("r")) == [("s", 3)]
+
+    farther = Pathfinder(
+        make_network("s-a a-g s-r r-x x-y y-g", types={"r": R})
+    )
+    assert costed(farther, farther.detour_hops("s")) == [("r", 5)]
+
+
+def test_shortest_hops_are_not_detours(make_network: MakeNetwork) -> None:
+    """H04: next_hops and detour_hops never share a zone.
+
+    Unlike the first detour rule, an all-normal map has detours too
+    (backward ones).
+    """
+    both = Pathfinder(
+        make_network("s-u u-g s-r r-g", types={"u": R, "r": R})
+    )
+    assert hop_names(both.next_hops("s")) == ["u", "r"]
+    assert both.detour_hops("s") == []
+
+    normal = Pathfinder(make_network("s-a a-b b-g s-c c-g"))
+    assert hop_names(normal.next_hops("s")) == ["c"]
+    assert costed(normal, normal.detour_hops("s")) == [("a", 3)]
+
+    grid = square_grid(make_network, 4)
+    pathfinder = Pathfinder(grid)
+    assert pathfinder.detour_hops("c0_0") == []
+    assert hop_names(pathfinder.detour_hops("c1_1")) == ["c1_0", "c0_1"]
+    assert sum(len(pathfinder.detour_hops(name)) for name in grid.zones) == 22
+
+
+def test_blocked_and_dead_end_neighbors_are_not_detours(
+    make_network: MakeNetwork,
+) -> None:
+    """H05: blocked zones and zones that cannot reach g are left out."""
+    blocked = Pathfinder(
+        make_network("s-a a-g s-r r-g s-x x-g", types={"r": R, "x": X})
+    )
+    assert costed(blocked, blocked.detour_hops("s")) == [("r", 3)]
+    assert blocked.detour_hops("x") == []
+
+    dead_end = Pathfinder(make_network("s-a a-g s-x x-z", types={"x": X}))
+    assert dead_end.detour_hops("s") == []
+
+
+def test_self_loop_is_not_a_detour(make_network: MakeNetwork) -> None:
+    """H06: a zone is never its own detour."""
+    at_s = Pathfinder(make_network("s-a a-g s-r r-g s-s", types={"r": R}))
+    assert costed(at_s, at_s.detour_hops("s")) == [("r", 3)]
+
+    at_a = Pathfinder(make_network("s-a a-g s-r r-g a-a", types={"r": R}))
+    assert costed(at_a, at_a.detour_hops("a")) == [("s", 3)]
+
+
+def test_no_detours_from_end_or_unreachable_zones(
+    make_network: MakeNetwork,
+) -> None:
+    """H07: the end zone and a zone cut off from it have no detours."""
+    end = Pathfinder(make_network("s-a a-g s-r r-g", types={"r": R}))
+    assert end.detour_hops("g") == []
+
+    cut_off = Pathfinder(make_network("s-a a-g", isolated=("z",)))
+    assert cut_off.detour_hops("z") == []
+
+
+def test_detours_by_total_cost_then_declaration(
+    make_network: MakeNetwork,
+) -> None:
+    """H08: cheapest total cost first; ties keep declaration order.
+
+    The order holds whichever end of a connection the zone is on.
+    """
+    by_cost = Pathfinder(make_network("s-a a-g s-b b-g a-b"))
+    assert costed(by_cost, by_cost.detour_hops("a")) == [
+        ("b", 2), ("s", 3)
+    ]
+
+    tie = Pathfinder(
+        make_network("s-a a-g s-b b-c c-g s-r r-g", types={"r": R})
+    )
+    assert costed(tie, tie.detour_hops("s")) == [("b", 3), ("r", 3)]
+
+    declared = Pathfinder(
+        make_network(
+            "s-a a-g s-r2 r2-g s-r1 r1-g", types={"r1": R, "r2": R}
+        )
+    )
+    assert hop_names(declared.detour_hops("s")) == ["r2", "r1"]
+
+    reversed_ends = Pathfinder(
+        make_network(
+            "r2-s s-a a-g r2-g r1-s r1-g", types={"r1": R, "r2": R}
+        )
+    )
+    detours = reversed_ends.detour_hops("s")
+    assert hop_names(detours) == ["r2", "r1"]
+    assert link_names(detours) == ["r2-s", "r1-s"]
+
+
+def test_detour_hops_of_unknown_zone_raises(
+    make_network: MakeNetwork,
+) -> None:
+    """H09: an unknown zone name raises ZoneNotFoundError."""
+    pathfinder = Pathfinder(make_network("s-a a-g"))
+
+    with pytest.raises(ZoneNotFoundError) as excinfo:
+        pathfinder.detour_hops("nope")
+    assert excinfo.value.zone_name == "nope"
+
+
+def test_detour_away_from_the_end_zone(make_network: MakeNetwork) -> None:
+    """H10: a detour two hops from g, not next to it."""
+    pathfinder = Pathfinder(
+        make_network("s-a a-b b-g s-r r-b", types={"r": R})
+    )
+
+    assert pathfinder.distance("s") == 3
+    assert hop_names(pathfinder.next_hops("s")) == ["a"]
+    assert costed(pathfinder, pathfinder.detour_hops("s")) == [("r", 4)]
+
+
+@pytest.mark.parametrize(
+    "member",
+    [None, *(entry[0] for entry in PROVIDED_MAP_DETOURS)],
+    ids=["subject", *(map_id(entry[0]) for entry in PROVIDED_MAP_DETOURS)],
+)
+def test_detours_and_next_hops_split_the_neighbors(
+    write_map: WriteMap,
+    provided_map: Callable[[str], str],
+    member: str | None,
+) -> None:
+    """H11: on real maps, next_hops and detour_hops split the neighbors.
+
+    For every zone that can reach the end and is not it, the two lists
+    together are exactly its other neighbors that can reach the end;
+    detours cost more than the zone's distance, come cheapest first and
+    never repeat a zone. Other zones have no detours.
+    """
+    text = SUBJECT_SAMPLE_MAP if member is None else provided_map(member)
+    network = MapParser(write_map(text)).parse().network
+    pathfinder = Pathfinder(network)
+
+    for name in network.zones:
+        here = pathfinder.distance(name)
+        detours = pathfinder.detour_hops(name)
+        if here is None or here == 0:
+            assert detours == [], name
+            continue
+        neighbors: list[str] = []
+        for connection in network.neighbors(name):
+            other = connection.other_end(name)
+            reachable = pathfinder.distance(other) is not None
+            if other != name and reachable and other not in neighbors:
+                neighbors.append(other)
+        names = hop_names(pathfinder.next_hops(name)) + hop_names(detours)
+        assert sorted(names) == sorted(neighbors), name
+        totals = [total for _, total in costed(pathfinder, detours)]
+        assert all(total > here for total in totals), name
+        assert totals == sorted(totals), name
+        assert len(set(hop_names(detours))) == len(detours), name
+
+
+def test_subject_sample_map_detours(write_map: WriteMap) -> None:
+    """H12 (a): every zone's detours on the subject's example map.
+
+    The scheduler only uses hub -> roof1 here; the others lead back
+    through the drone's own zone and are never allowed.
+    """
+    network = MapParser(write_map(SUBJECT_SAMPLE_MAP)).parse().network
+    pathfinder = Pathfinder(network)
+
+    assert {
+        name: costed(pathfinder, pathfinder.detour_hops(name))
+        for name in network.zones
+    } == {
+        "hub": [("roof1", 4)],
+        "roof1": [("hub", 4)],
+        "roof2": [("roof1", 4)],
+        "corridorA": [("hub", 4)],
+        "tunnelB": [("corridorA", 3)],
+        "goal": [],
+        "obstacleX": [],
+    }
+
+
+@pytest.mark.parametrize(
+    ("member", "count"),
+    PROVIDED_MAP_DETOURS,
+    ids=[map_id(entry[0]) for entry in PROVIDED_MAP_DETOURS],
+)
+def test_provided_map_detour_counts(
+    write_map: WriteMap,
+    provided_map: Callable[[str], str],
+    member: str,
+    count: int,
+) -> None:
+    """H12 (b): how many detour hops each provided map has in all."""
+    network = MapParser(write_map(provided_map(member))).parse().network
+    pathfinder = Pathfinder(network)
+
+    total = sum(len(pathfinder.detour_hops(name)) for name in network.zones)
+    assert total == count

@@ -364,7 +364,7 @@ def test_subject_map_end_to_end(
         line for line in out.getvalue().splitlines()
         if line.startswith("=== Turn")
     ]
-    assert len(turns) == 7
+    assert len(turns) == 5
     assert len(headers) == len(turns) + 1
-    assert headers[-1] == "=== Turn 7 | moved 1 | delivered 5/5 ==="
+    assert headers[-1] == "=== Turn 5 | moved 2 | delivered 5/5 ==="
     assert capsys.readouterr().out == ""

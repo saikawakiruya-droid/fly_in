@@ -4,7 +4,9 @@
 writes a map file for end-to-end tests that go through the parser
 (``load_world`` parses it too). ``place`` and ``snapshot`` build and copy
 simulation states, and the subject's sample map with its expected output
-is shared by the simulation and the visualization tests. ``tty_stream``
+is shared by the simulation and the visualization tests: the subject's
+seven-line example (``subject_output``) and the five lines the real
+scheduler prints (``scheduler_output``). ``tty_stream``
 makes a ``StringIO`` that claims to be a terminal, for the terminal view
 (which only asks ``isatty()``) and the application tests.
 ``provided_map`` and ``maps_archive`` read the maps handed out with the
@@ -61,6 +63,16 @@ SAMPLE_OUTPUT = [
     "D3-goal D4-tunnelB D5-corridorA",
     "D4-goal D5-tunnelB",
     "D5-goal",
+]
+
+# What the real scheduler prints for the sample map: two drones go round
+# by roof1, so it takes five turns instead of the subject's seven.
+SCHEDULER_OUTPUT = [
+    "D1-corridorA D2-hub-roof1",
+    "D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1",
+    "D1-goal D2-roof2 D3-tunnelB D4-roof1 D5-corridorA",
+    "D2-goal D3-goal D4-roof2 D5-tunnelB",
+    "D4-goal D5-goal",
 ]
 
 
@@ -257,8 +269,18 @@ def subject_map() -> str:
 
 @pytest.fixture
 def subject_output() -> list[str]:
-    """Return the expected seven output lines of the sample map."""
+    """Return the subject's sample output (seven lines).
+
+    This is the example printed in the subject, not the real scheduler's
+    output (see ``scheduler_output``).
+    """
     return list(SAMPLE_OUTPUT)
+
+
+@pytest.fixture
+def scheduler_output() -> list[str]:
+    """Return the real scheduler's five output lines for the sample map."""
+    return list(SCHEDULER_OUTPUT)
 
 
 @pytest.fixture

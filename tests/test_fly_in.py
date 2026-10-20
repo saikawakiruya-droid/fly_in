@@ -34,8 +34,8 @@ WriteMap = Callable[[str], Path]
 
 ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = (
-    "summary: 7 turns, 5 drones, 5.00 turns per drone on average, "
-    "2.14 moves per turn"
+    "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
+    "3.40 moves per turn"
 )
 COMMENT_FIRST_MAP = "# c\nnb_drones: 1\n"
 UNREACHABLE_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: g 1 1\n"
@@ -64,9 +64,9 @@ def silenced(monkeypatch: pytest.MonkeyPatch) -> list[None]:
 
 
 @pytest.fixture
-def log(subject_output: list[str]) -> str:
-    """Return the expected turn log of the subject's example."""
-    return "\n".join(subject_output) + "\n"
+def log(scheduler_output: list[str]) -> str:
+    """Return the turn log the real scheduler prints for the example."""
+    return "\n".join(scheduler_output) + "\n"
 
 
 @pytest.fixture
@@ -438,12 +438,12 @@ def run_script(*argv: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_script_success(subject_output: list[str]) -> None:
+def test_script_success(scheduler_output: list[str]) -> None:
     """AE01: the default map runs in a real process and exits 0."""
     result = run_script("maps/subject_example.txt")
 
     assert result.returncode == 0
-    assert result.stdout.splitlines() == subject_output
+    assert result.stdout.splitlines() == scheduler_output
     assert result.stderr.splitlines()[-1] == SUMMARY
     assert "Traceback" not in result.stderr
     assert "pygame" not in result.stdout

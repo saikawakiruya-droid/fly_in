@@ -41,8 +41,8 @@ TtyStream = Callable[..., io.StringIO]
 
 GRAPHICAL_MODULE = "droneflow.visualization.graphical_view"
 SUMMARY = (
-    "summary: 7 turns, 5 drones, 5.00 turns per drone on average, "
-    "2.14 moves per turn"
+    "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
+    "3.40 moves per turn"
 )
 NO_PYGAME = (
     "the graphical view needs pygame (pygame-ce): run 'make install' or "
@@ -77,9 +77,9 @@ def run_failing(
 
 
 @pytest.fixture
-def log(subject_output: list[str]) -> str:
-    """Return the expected turn log of the subject's example."""
-    return "\n".join(subject_output) + "\n"
+def log(scheduler_output: list[str]) -> str:
+    """Return the turn log the real scheduler prints for the example."""
+    return "\n".join(scheduler_output) + "\n"
 
 
 @pytest.fixture
@@ -201,8 +201,8 @@ def test_log_lines_come_before_each_frame(
     run_app(Args(sample_path), out)
 
     assert view.at_begin == [0]
-    assert view.at_render == [1, 2, 3, 4, 5, 6, 7]
-    assert view.at_close == [7]
+    assert view.at_render == [1, 2, 3, 4, 5]
+    assert view.at_close == [5]
 
 
 @pytest.mark.parametrize(
@@ -405,16 +405,20 @@ def test_failed_run_keeps_the_log_so_far(
     sample_path: Path, monkeypatch: pytest.MonkeyPatch, log: str
 ) -> None:
     """AA13: on a SimulationError the lines so far stay, views close."""
-    stuck_after(monkeypatch, 2)
+    stuck_after(monkeypatch, 3)
     out, err = io.StringIO(), io.StringIO()
     view = record_terminal(monkeypatch, out)
 
-    with pytest.raises(SimulationError, match="^turn 3: no drone moved"):
+    with pytest.raises(SimulationError, match="^turn 4: no drone moved"):
         Application(Args(sample_path), out, err).run()
 
-    assert out.getvalue() == "".join(log.splitlines(keepends=True)[:2])
-    assert out.getvalue() == "D1-corridorA\nD1-tunnelB D2-corridorA\n"
-    assert view.at_close == [2]
+    assert out.getvalue() == "".join(log.splitlines(keepends=True)[:3])
+    assert out.getvalue() == (
+        "D1-corridorA D2-hub-roof1\n"
+        "D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1\n"
+        "D1-goal D2-roof2 D3-tunnelB D4-roof1 D5-corridorA\n"
+    )
+    assert view.at_close == [3]
     assert "summary:" not in err.getvalue()
 
 

@@ -5,6 +5,7 @@ from ..models.drone import Drone, DroneStatus
 from ..models.network import Network
 from ..models.zone import ZoneType
 from ..pathfinding.pathfinder import Hop, Pathfinder
+from .detour_policy import DetourPolicy
 from .evictor import Evictor, Position
 from .reservation_table import ReservationTable
 from .state import MoveOrder, SimulationState
@@ -12,7 +13,7 @@ from .turn_ledger import TurnLedger
 
 
 class Scheduler:
-    """Moves every drone one shortest step forward whenever there is room.
+    """Moves every drone one step toward the end zone whenever it can.
 
     The scheduler keeps a ``ReservationTable`` of planned moves from turn
     to turn: drones landing in restricted zones, and evictions (a drone
@@ -22,12 +23,16 @@ class Scheduler:
     1. drones in flight toward a restricted zone get no order (the engine
        lands them; their landings are in the table);
     2. the planned moves due this turn are ordered first;
-    3. the other drones standing in zones are decided closest to the end
-       zone first, so drones leaving a zone free its room before the drones
-       behind them ask for it; among drones at the same distance, those on
-       the priority route (see ``is_on_priority_route``) come first, then by
-       drone_id. A drone evicted earlier in this turn's decisions waits:
-       its move is planned for a later turn.
+    3. the other drones standing in zones are decided zone by zone, the
+       zones closest to the end zone first, so drones leaving a zone free
+       its room before the drones behind them ask for it. Among zones at
+       the same distance, those on the priority route (see
+       ``is_on_priority_route``) come first, then those with fewer exits
+       (shortest hops and detours), so a drone with a choice does not take
+       the only way out of another; then declaration order. Drones in the
+       same zone have the same moves, so their order does not matter; they
+       keep ``active_drones`` order. A drone evicted earlier in this turn's
+       decisions waits: its move is planned for a later turn.
 
     A drone takes the first hop of ``Pathfinder.next_hops`` (shortest moves
     only, priority zones first) that has room according to a ``TurnLedger``:
@@ -43,15 +48,21 @@ class Scheduler:
       the zone's occupants, the drone itself included, are evicted so that
       the zone is never over capacity on those turns.
 
-    If that fails too, the drone waits. A drone never takes a longer detour.
+    If that fails too, the drone tries the detours its ``DetourPolicy``
+    allows (moves off the shortest routes, never into a zone the drone has
+    been in, when they are expected to be no slower than queuing behind the
+    drones ahead), the same two ways: without evicting, then letting the
+    ``Evictor`` make room. Otherwise it waits.
 
     A drone with a planned eviction may still move earlier by an ordinary
     decision; its planned move is then dropped (it has left already).
 
-    Every move strictly lowers the drone's distance to the end zone, so
-    drones never wait on each other in a cycle: planned moves and landings
+    Every run ends. A shortest move (planned evictions included) strictly
+    lowers the drone's distance to the end zone, and a detour enters a zone
+    the drone has never been in, so each drone makes finitely many moves.
+    And at least one drone moves each turn: planned moves and landings
     always happen, and otherwise the drone closest to the goal always has
-    free room ahead, so at least one drone moves each turn.
+    free room on its shortest route, which it tries first.
 
     ``decide_moves`` is meant to be called once per turn, in turn order.
     Called again for the same turn, it drops the moves it planned for that
@@ -72,6 +83,8 @@ class Scheduler:
         self._hops: dict[str, list[Hop]] = {
             name: pathfinder.next_hops(name) for name in network.zones
         }
+        self._detours = DetourPolicy(pathfinder, self._hops)
+        self._zone_rank = self._rank_zones()
         self._table = ReservationTable()
         self._planned_turn: int | None = None
         self._turn_mark = 0
@@ -92,6 +105,7 @@ class Scheduler:
         self._start_turn(state)
         ledger = TurnLedger(state, self._table)
         positions = self._positions(state)
+        self._detours.remember(ledger.turn, positions)
         orders: list[MoveOrder] = []
         for move in self._table.due(ledger.turn):
             orders.append(MoveOrder(move.drone_id, move.zone))
@@ -187,14 +201,42 @@ class Scheduler:
         mark = self._table.mark()
         if holding:
             self._table.remove(drone.drone_id)
+        hop = self._first_hop(
+            drone.drone_id, here, self._hops.get(here, []),
+            ledger, evictor, positions,
+        )
+        if hop is None:
+            hop = self._first_hop(
+                drone.drone_id, here,
+                self._detours.allowed(drone.drone_id, here, positions),
+                ledger, evictor, positions,
+            )
+        if hop is not None:
+            return MoveOrder(drone.drone_id, hop.zone.name)
+        self._table.rollback(mark)
+        return None
+
+    def _first_hop(
+        self,
+        drone_id: int,
+        here: str,
+        hops: list[Hop],
+        ledger: TurnLedger,
+        evictor: Evictor,
+        positions: dict[int, Position],
+    ) -> Hop | None:
+        """Record and return the first hop with room, or None.
+
+        The hops are tried in order without evicting anyone, then again
+        letting the ``Evictor`` make room.
+        """
         for may_evict in (False, True):
-            for hop in self._hops.get(here, []):
+            for hop in hops:
                 if self._try_hop(
-                    drone.drone_id, here, hop, may_evict,
+                    drone_id, here, hop, may_evict,
                     ledger, evictor, positions,
                 ):
-                    return MoveOrder(drone.drone_id, hop.zone.name)
-        self._table.rollback(mark)
+                    return hop
         return None
 
     @staticmethod
@@ -249,15 +291,32 @@ class Scheduler:
         drones.sort(key=self._decision_key)
         return drones
 
-    def _decision_key(self, drone: Drone) -> tuple[int, bool, int]:
+    def _decision_key(self, drone: Drone) -> int:
         here = self._zone_of(drone)
-        distance = self.pathfinder.distance(here)
-        if distance is None:
+        rank = self._zone_rank.get(here)
+        if rank is None:
             raise SimulationError(
                 f"D{drone.drone_id} is in {here!r}, which cannot reach "
                 "the end zone"
             )
-        return (distance, not self.is_on_priority_route(here), drone.drone_id)
+        return rank
+
+    def _rank_zones(self) -> dict[str, int]:
+        """Number the zones that can reach the end zone in decision order.
+
+        Closest to the end zone first; at the same distance, priority
+        route first, then fewer exits, then declaration order.
+        """
+        keyed: list[tuple[tuple[int, bool, int, int], str]] = []
+        for index, name in enumerate(self.network.zones):
+            distance = self.pathfinder.distance(name)
+            if distance is None:
+                continue
+            exits = len(self._hops[name]) + len(self._detours.detours(name))
+            key = (distance, not self.is_on_priority_route(name), exits, index)
+            keyed.append((key, name))
+        keyed.sort()
+        return {name: rank for rank, (_, name) in enumerate(keyed)}
 
     @staticmethod
     def _zone_of(drone: Drone) -> str:
