@@ -1,4 +1,4 @@
-"""Pathfinder: shortest next hops and routes toward the end zone."""
+"""Pathfinder: next hops (shortest and detours) and routes to the end."""
 
 from dataclasses import dataclass
 
@@ -100,6 +100,40 @@ class Pathfinder:
                 hops.append(Hop(connection, zone))
         hops.sort(key=lambda hop: hop.zone.zone_type is not ZoneType.PRIORITY)
         return hops
+
+    def detour_hops(self, zone_name: str) -> list[Hop]:
+        """Return every longer move that still gets closer to the end zone.
+
+        A neighbor qualifies when its own distance is strictly smaller than
+        this zone's (so a drone never flows back), but entering it and then
+        following its shortest route costs more than this zone's distance
+        (so it is not one of ``next_hops``). The hops are ordered by that
+        total cost, then by connection declaration order.
+
+        Returns:
+            The qualifying hops, or an empty list if this zone is the end
+            zone or cannot reach it.
+
+        Raises:
+            ZoneNotFoundError: If no zone with this name exists.
+        """
+        here = self._distances.distance(zone_name)
+        if here is None or here == 0:
+            return []
+        costed: list[tuple[int, Hop]] = []
+        seen: set[str] = set()
+        for connection in self.network.neighbors(zone_name):
+            zone = self.network.get_zone(connection.other_end(zone_name))
+            there = self._distances.distance(zone.name)
+            if there is None or there >= here or zone.name in seen:
+                continue
+            # A zone with a distance is traversable, so turn_cost is safe.
+            total = zone.zone_type.turn_cost + there
+            if total > here:
+                seen.add(zone.name)
+                costed.append((total, Hop(connection, zone)))
+        costed.sort(key=lambda item: item[0])
+        return [hop for _, hop in costed]
 
     def best_route(self, from_zone: str | None = None) -> Route:
         """Return one shortest route to the end zone.
