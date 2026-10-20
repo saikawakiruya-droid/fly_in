@@ -272,15 +272,22 @@ of the connections. A drone never takes a longer route just to pass through a
 priority zone.
 
 **Detours**: only a drone that would otherwise wait (none of its shortest next
-hops is usable) tries one of `Pathfinder.detour_hops`: a neighbor `w` with
-`distance(w) < distance(here)` (the drone always gets closer to the goal, so it
-**never flows back**) whose `cost(w) + distance(w)` is longer than the shortest
-route. `DetourPolicy` allows such a detour only if that total cost is at most
-"distance on the shortest route + the drones that went out ahead". The drones
-ahead are the undelivered drones standing in (or landing in) a zone that the
-shortest hops from here lead to, counting the moves already decided this turn.
+hops is usable) tries one of `Pathfinder.detour_hops`: every neighbor `w` that
+can reach the goal but is not a shortest next hop (`cost(w) + distance(w)` is
+longer than the shortest route), including moves sideways or back.
+`DetourPolicy` allows one only if
+
+- **no backflow**: the drone has never been in `w` (the policy remembers every
+  zone each drone has been in);
+- **not slower than waiting**: `cost(w) + distance(w) + queue(w) <=
+  distance(here) + ahead(here)`. `ahead(here)` counts the drones in the zones
+  the shortest hops from here lead to; `queue(w)` counts the drones in `w` and
+  in the zones its shortest hops lead to. Both count landing targets and the
+  moves already decided this turn.
+
 In other words, a drone takes a longer but free route only when it is not
-slower than queuing on the shortest one.
+slower than queuing on the shortest one; counting the detour's own queue keeps
+drones from leaving one crowded route for another.
 
 ### 3. Turn scheduling order
 
@@ -373,10 +380,12 @@ engine also stops with an error if a turn passes with no drone moving, or if
 the run exceeds a generous turn limit (`2 x zones x drones`), so a scheduler
 bug can never produce an endless loop or an invalid log.
 
-No deadlock can occur: every move, detours included, strictly lowers the
-mover's distance to the goal, so drones never wait on each other in a cycle; planned moves and
-landings always happen, and otherwise the drone closest to the goal always has
-room ahead (the end zone is unlimited), so at least one drone moves every turn.
+Every run ends: a shortest move (planned evictions included) strictly lowers
+the mover's distance to the goal, and a detour only enters a zone the drone has
+never been in, so each drone makes finitely many moves. And at least one drone
+moves every turn: planned moves and landings always happen, and otherwise the
+drone closest to the goal always has room on its shortest route (the end zone
+is unlimited).
 
 ### 7. Trade-offs
 
@@ -386,8 +395,8 @@ routes, and uses longer routes when they are not slower than queuing. Its limit
 is that every decision rests on a local estimate made during the turn: drones
 are not assigned to routes in advance, so on some maps a detouring drone takes
 a seat that a later drone on the shortest route needed, and the run gets slower
-than without detours (about 1% of random maps in our tests). Drones never move
-away from the goal or sideways.
+than without detours (about 2% of 4,871 random maps in our tests, while about
+23% get faster and the total number of turns drops by about 5%).
 
 ### 8. Complexity, caching and memory
 
@@ -398,14 +407,15 @@ With `V` zones, `E` connections and `D` drones:
   computed **once**. The shortest next hops of every zone are also computed
   once and **cached** by the scheduler (`O(V + E)` memory), as are the detour
   hops and, for every zone, the zones its shortest hops lead to
-  (`O(V x (V + E))` once, `O(V^2)` memory). Paths are never
+  (`O(V x (V + E))` once, `O(V^2)` memory). The record of the zones each drone
+  has been in takes `O(D x V)` memory. Paths are never
   recomputed during the simulation; only the room left in zones and
   connections is evaluated each turn.
 - **One turn**: sorting the drones standing in zones is `O(D log D)` (the
   zone ranks are computed once). Each drone tries at most its next hops twice
-  (without, then with eviction). A drone that would wait counts the drones
-  ahead by scanning the drones' positions (`O(D)`) and tries its allowed
-  detours the same two ways.
+  (without, then with eviction). A drone that would wait counts the queues by
+  scanning the drones' positions once per detour candidate (`O(D)` each) and
+  tries its allowed detours the same two ways.
   A seat check looks at the turns from the arrival to the last planned turn
   (`H`, a few turns ahead), so it costs `O(H^2)` table lookups. An eviction
   attempt adds a recursion whose depth is bounded by the distance to the goal,
@@ -575,8 +585,7 @@ project, under the following division of roles:
   and test plans. The design decisions are the author's, for example the
   per-turn scheduler order (zone by zone, fewer exits first), treating
   priority zones only as a tie-break, the detour rule (take a longer route when
-  it costs no more than the drones ahead plus the remaining distance, never
-  flowing back), the reservation-table and eviction model for restricted zones,
+  it is not slower than waiting, never re-entering a zone), the reservation-table and eviction model for restricted zones,
   and rule 6'. Some were chosen by the author among options the AI proposed
   and measured, such as making eviction a last resort.
 - **Implementation and tests**: from the pathfinding stage onward, at the
