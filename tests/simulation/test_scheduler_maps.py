@@ -554,3 +554,128 @@ def test_random_restricted_maps_never_get_stuck(
         except Exception as error:
             raise AssertionError(f"{where}: {error}") from error
     assert detours >= 1
+
+
+# --- detours on real maps ---------------------------------------------
+
+# Turn counts of the real scheduler on the provided maps (R19). They
+# match the stage 5 benchmark record; when an improvement changes them,
+# update this table and that record together.
+PROVIDED_TURNS = {
+    "maps/easy/01_linear_path.txt": 4,
+    "maps/easy/02_simple_fork.txt": 4,
+    "maps/easy/03_basic_capacity.txt": 4,
+    "maps/medium/01_dead_end_trap.txt": 8,
+    "maps/medium/02_circular_loop.txt": 10,
+    "maps/medium/03_priority_puzzle.txt": 6,
+    "maps/hard/01_maze_nightmare.txt": 13,
+    "maps/hard/02_capacity_hell.txt": 16,
+    "maps/hard/03_ultimate_challenge.txt": 26,
+    "maps/challenger/01_the_impossible_dream.txt": 44,
+}
+# Detours taken in a whole run (R20); maps missing here take none.
+DETOURS_TAKEN = {
+    SUBJECT: 2,
+    "maps/medium/03_priority_puzzle.txt": 2,
+    "maps/hard/01_maze_nightmare.txt": 3,
+}
+
+
+def orders_by_turn(world: World) -> list[list[tuple[int, str]]]:
+    """Play the world to the end; return each turn's orders.
+
+    One scheduler and one resolver play every turn. The orders are kept
+    in the order ``decide_moves`` gave them, as ``(drone_id, zone)``.
+    """
+    network = world.network
+    scheduler = Scheduler(network, Pathfinder(network))
+    resolver = TurnResolver(network)
+    state = SimulationState(network, world.nb_drones)
+    turns: list[list[tuple[int, str]]] = []
+    while not state.is_complete:
+        assert state.turn_number < default_turn_limit(world)
+        orders = scheduler.decide_moves(state)
+        turns.append([(order.drone_id, order.zone) for order in orders])
+        resolver.resolve(state, orders)
+    return turns
+
+
+def test_subject_sample_map_orders(load_world: Load) -> None:
+    """R16: the orders of every turn on the subject's example.
+
+    Turn 1: D2 goes round by roof1 (4 + 0 <= 3 + 1; hub-roof1 is then
+    used, so D3 to D5 wait). Turn 2: D4 follows into roof1 (4 + 1 <= 3 +
+    2, counting D2 landing there) by planning D2's eviction, which comes
+    first on turn 3.
+    """
+    assert orders_by_turn(load_world(SUBJECT)) == [
+        [(1, "corridorA"), (2, "roof1")],
+        [(1, "tunnelB"), (3, "corridorA"), (4, "roof1")],
+        [(2, "roof2"), (1, "goal"), (3, "tunnelB"), (5, "corridorA")],
+        [(2, "goal"), (3, "goal"), (5, "tunnelB"), (4, "roof2")],
+        [(4, "goal"), (5, "goal")],
+    ]
+
+
+def test_priority_puzzle_output(load_world: Load) -> None:
+    """R17: restricted detours, and fast_path (priority route) deciding
+    before slow_path2 at the same distance: six turns instead of eight."""
+    world = load_world("maps/medium/03_priority_puzzle.txt")
+
+    assert output_lines(world) == [
+        "D1-fast_junction D2-start-slow_path1",
+        "D1-fast_path D2-slow_path1 D3-fast_junction D4-start-slow_path1",
+        "D1-merge_point D2-slow_path2 D3-fast_path D4-slow_path1 "
+        "D5-fast_junction",
+        "D1-goal D2-merge_point D3-merge_point D4-slow_path2 D5-fast_path",
+        "D2-goal D3-goal D4-merge_point D5-merge_point",
+        "D4-goal D5-goal",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("nb_drones", "expected"),
+    [
+        (2, ["D1-a D2-s-r", "D1-g D2-r", "D2-g"]),
+        (3, ["D1-a D2-s-r", "D1-g D2-r D3-a", "D2-g D3-g"]),
+        (
+            4,
+            ["D1-a D2-s-r", "D1-g D2-r D3-a", "D2-g D3-g D4-a", "D4-g"],
+        ),
+    ],
+    ids=["two", "three", "four"],
+)
+def test_small_detour_map(
+    make_network: MakeNetwork, nb_drones: int, expected: list[str]
+) -> None:
+    """R18: s-a a-g s-r r-g with r restricted; only D2 goes round by r
+    (with four drones D4 finds r's queue too long)."""
+    network = make_network("s-a a-g s-r r-g", types={"r": R})
+
+    assert output_lines(World(network, nb_drones)) == expected
+
+
+@pytest.mark.parametrize(
+    "member",
+    [entry[0] for entry in PROVIDED_MAPS],
+    ids=[map_id(entry[0]) for entry in PROVIDED_MAPS],
+)
+def test_provided_map_turn_counts(load_world: Load, member: str) -> None:
+    """R19: the turn count of every provided map, pinned."""
+    assert len(run_engine(load_world(member))) == PROVIDED_TURNS[member]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [SUBJECT, *(entry[0] for entry in PROVIDED_MAPS)],
+    ids=[SUBJECT, *(map_id(entry[0]) for entry in PROVIDED_MAPS)],
+)
+def test_detours_taken_on_real_maps(load_world: Load, source: str) -> None:
+    """R20: how many detours a whole run takes on each real map.
+
+    This catches a change in the detour rules even when the turn counts
+    of R19 stay the same.
+    """
+    expected = DETOURS_TAKEN.get(source, 0)
+
+    assert run_checked(load_world(source)).detours == expected
