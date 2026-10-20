@@ -94,7 +94,10 @@ python -m pytest tests/
   `snapshot`(状態の値をコピーする)、課題のサンプルマップと期待出力(`subject_map` / `subject_output`、
   corridorA を blocked にした `restricted_only_map`)。後の4つは Stage 7 で `tests/simulation/conftest.py` から移した
   (simulation と visualization のテストで共有)。`tty_stream`(`isatty()` が True の `StringIO`。端末の代わり)は CLI の
-  フェーズで `tests/visualization/conftest.py` から移した(visualization と Application のテストで共有)
+  フェーズで `tests/visualization/conftest.py` から移した(visualization と Application のテストで共有)。
+  `provided_map`(配布マップ `maps.tar.gz` の1枚を展開せずに読み、先頭のコメント行・空行だけを取り除いた文字列)と
+  `maps_archive`(アーカイブを開く。無ければ分かりやすいメッセージで失敗する)は、詰まる場所の発見のテストフェーズで
+  `tests/simulation/test_scheduler_maps.py` から移した(Scheduler と詰まる場所の発見の E2E で共有)
 
 - `tests/pathfinding/conftest.py` — `grid_network`(20×20 の格子。`make_network` で組む)
 - `tests/pathfinding/test_distance_map.py` — `DistanceMap`: ゾーンタイプ別の進入コスト(restricted=2・priority=1、
@@ -105,6 +108,22 @@ python -m pytest tests/
   それ以外は接続の宣言順、安定ソート)・遠回りの priority を選ばないこと・blocked の除外・空リストを返す場所、
   `best_route` の `total_cost` と `from_zone` 指定・例外の種類、経路の整合性チェック、
   パーサー経由の E2E(課題のサンプルマップ、到達不能マップはパース成功・経路探索で失敗)
+- `tests/pathfinding/test_flow_graph.py` — `FlowGraph`(FG01〜FG13。整数の頂点だけで組む): 頂点・辺の番号(偶数が元の辺、
+  `arc ^ 1` が逆辺)、`add_arc` の例外契約(負の容量の `ValueError` が先、存在しない・負の頂点の `IndexError`、失敗しても
+  辺が残らない)、直列・並列の辺と経路、容量0・逆向きの辺、逆辺による打ち消し(最短の増加路を先に取ると2本目は逆辺が要る)と
+  その途中経過、フローが呼び出しをまたいでグラフに残ること、`limit` での打ち切り(0以下は何も流さない)、`max_flow` の
+  例外契約(存在しない頂点の `IndexError` が「始点 = 終点」の `ValueError` より先・グラフは変わらない)
+- `tests/pathfinding/test_zone_flow.py` — `Bottleneck` / `ZoneFlowGraph`(ZF01〜ZF19): `Bottleneck` が frozen・
+  `limits_flow` の真理値表、`limit < 1` の `ValueError`、接続・ゾーンのカット、同じ容量なら start に一番近いカット、
+  start/end の容量は効かずカットにも出ない、容量の制限が無い hub はカットにならない、limit に届いて余裕がある/ちょうど飽和、
+  blocked・自己ループの一手を捨てる、存在しないゾーン名の `ZoneNotFoundError`(辺が残らない)、一手は片方向、
+  同じ接続は1回だけ報告、結果は宣言順(接続・ゾーン)、一機も流せない・start/end が blocked のときの空の結果
+- `tests/pathfinding/test_bottleneck.py` — `ConnectionBottleneck`(A)/ `ShortestHopBottleneck`(B)(BN01〜BN12、
+  E01〜E02): A は接続を両方向に使う、B は最短でない接続を使わない、restricted は容量だけで扱う、blocked・自己ループを
+  数えない、`limit < 1` の `ValueError`、同じ finder を何度でも使える、遠回りが無ければ A = B、start から遠い唯一の
+  最小カット、到達不能でも A は例外にしない(B は `Pathfinder` で失敗)、`Network` に書き込まない、
+  乱数のネットワーク40枚(`random.Random(0〜39)`)で全探索の最小カットと一致すること(最大フロー最小カット定理)、
+  パーサー経由の E2E(課題のサンプルマップ、配布マップ10枚で `nb_drones` 機のときの A・B の詰まる場所)
 
 - `tests/simulation/conftest.py` — スタブのスケジューラ(台本どおりの `ScriptedScheduler`、最短経路を貪欲にたどる
   `FollowerScheduler`、何もしない `IdleScheduler`、往復し続ける `OscillatingScheduler`)、
@@ -170,7 +189,7 @@ python -m pytest tests/
   restricted 1つ(4行)、出口の細い restricted(K1 6行・K2 7行)、最後の手段の例(5行)、restricted が続く網
   (6行・9行・間に normal で8行)、規則6' の網(11行)、規則7 の網(8行)、restricted の多いランダムなマップ300枚
   (`random.Random(2026)`。詰まり・容量違反なしで完走。失敗時はマップの記述をメッセージに出す)。
-  配布マップはリポジトリ直下の `maps.tar.gz`(git 管理)を `tarfile` でメモリ上で読み、先頭のコメント行・空行だけを
+  配布マップはリポジトリ直下の `maps.tar.gz`(git 管理)を共有の `provided_map` が `tarfile` でメモリ上で読み、先頭のコメント行・空行だけを
   取り除く(アーカイブが無ければ分かりやすいメッセージで失敗する。skip にはしない)
 
 - `tests/simulation/test_engine_hooks.py` — `SimulationEngine.run` が可視化を呼ぶ契約(Stage 7): `begin` は1ターン目の前に
