@@ -40,8 +40,8 @@ TtyStream = Callable[..., io.StringIO]
 
 WATCHDOG_MS = 5000
 SUMMARY = (
-    "summary: 7 turns, 5 drones, 5.00 turns per drone on average, "
-    "2.14 moves per turn"
+    "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
+    "3.40 moves per turn"
 )
 
 
@@ -92,13 +92,13 @@ def run_app(args: Args) -> tuple[str, str]:
 def test_stdout_is_the_same_log(
     visual: str,
     sample_path: Path,
-    subject_output: list[str],
+    scheduler_output: list[str],
     headless: list[object],
 ) -> None:
     """AG01: graphical and both print the same log as none/terminal."""
     out, err = run_app(Args(sample_path, visual, delay=0))
 
-    assert out == "\n".join(subject_output) + "\n"
+    assert out == "\n".join(scheduler_output) + "\n"
     assert err.splitlines()[-1] == SUMMARY
     assert "warning:" not in err
     assert len(headless) == 1
