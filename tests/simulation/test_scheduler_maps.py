@@ -2,9 +2,10 @@
 
 The subject's sample map comes from the shared fixtures. The ten maps
 handed out with the subject are read from ``maps.tar.gz`` at the
-repository root (tracked by git) without extracting it: only the leading
-comment and blank lines are removed, so that ``nb_drones`` is on the
-physical first line as the parser requires (decisions 2026-10-16).
+repository root (tracked by git) without extracting it, by the shared
+``provided_map`` and ``maps_archive`` fixtures: only the leading comment
+and blank lines are removed, so that ``nb_drones`` is on the physical
+first line as the parser requires (decisions 2026-10-16).
 """
 
 import random
@@ -31,8 +32,6 @@ MakeNetwork = Callable[..., Network]
 
 R = ZoneType.RESTRICTED
 
-MAPS_ARCHIVE = Path(__file__).resolve().parents[2] / "maps.tar.gz"
-
 # (member in the archive, nb_drones, turn limit, where the limit comes from)
 PROVIDED_MAPS = [
     ("maps/easy/01_linear_path.txt", 2, 6, "VII.7"),
@@ -56,31 +55,6 @@ RESTRICTED_ONLY = "restricted_only"
 def map_id(member: str) -> str:
     """Return a short test id such as ``easy/01_linear_path``."""
     return member.removeprefix("maps/").removesuffix(".txt")
-
-
-def open_archive() -> tarfile.TarFile:
-    """Open the provided maps, failing loudly if the archive is missing."""
-    if not MAPS_ARCHIVE.is_file():
-        pytest.fail(
-            "maps.tar.gz is required at the repository root, next to "
-            "tests/ (the provided maps are read from it)"
-        )
-    return tarfile.open(MAPS_ARCHIVE, "r:gz")
-
-
-def read_provided_map(member: str) -> str:
-    """Return a provided map without its leading comments and blank lines.
-
-    Comments further down are kept; the parser handles them.
-    """
-    with open_archive() as archive:
-        stream = archive.extractfile(member)
-        assert stream is not None, f"{member} is not a file"
-        text = stream.read().decode("utf-8")
-    lines = text.splitlines(keepends=True)
-    while lines and lines[0].strip()[:1] in ("", "#"):
-        lines.pop(0)
-    return "".join(lines)
 
 
 def run_engine(world: World) -> list[list[Move]]:
@@ -133,13 +107,16 @@ def run_checked(world: World) -> list[list[Move]]:
 
 @pytest.fixture
 def load_world(
-    write_map: WriteMap, subject_map: str, restricted_only_map: str
+    write_map: WriteMap,
+    subject_map: str,
+    restricted_only_map: str,
+    provided_map: Callable[[str], str],
 ) -> Callable[[str], World]:
     """Return a loader parsing a map given by key or archive member."""
     texts = {SUBJECT: subject_map, RESTRICTED_ONLY: restricted_only_map}
 
     def load(source: str) -> World:
-        text = texts[source] if source in texts else read_provided_map(source)
+        text = texts[source] if source in texts else provided_map(source)
         return MapParser(write_map(text)).parse()
 
     return load
@@ -224,16 +201,19 @@ def test_challenger_beats_reference(load_world: Load) -> None:
     assert len(run_engine(world)) < 45
 
 
-def test_provided_maps_archive() -> None:
+def test_provided_maps_archive(
+    maps_archive: Callable[[], tarfile.TarFile],
+    provided_map: Callable[[str], str],
+) -> None:
     """R06: the archive holds exactly the ten maps with these drone counts."""
-    with open_archive() as archive:
+    with maps_archive() as archive:
         members = sorted(
             info.name for info in archive.getmembers()
             if info.isfile() and info.name.endswith(".txt")
         )
     assert members == sorted(entry[0] for entry in PROVIDED_MAPS)
     for member, nb_drones, _, _ in PROVIDED_MAPS:
-        first = read_provided_map(member).splitlines()[0]
+        first = provided_map(member).splitlines()[0]
         assert first.split() == ["nb_drones:", str(nb_drones)], member
 
 

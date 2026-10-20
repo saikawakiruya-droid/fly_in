@@ -7,9 +7,13 @@ simulation states, and the subject's sample map with its expected output
 is shared by the simulation and the visualization tests. ``tty_stream``
 makes a ``StringIO`` that claims to be a terminal, for the terminal view
 (which only asks ``isatty()``) and the application tests.
+``provided_map`` and ``maps_archive`` read the maps handed out with the
+subject from ``maps.tar.gz`` at the repository root without extracting
+it, for the end-to-end tests of the scheduler and the bottleneck finders.
 """
 
 import io
+import tarfile
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -23,6 +27,8 @@ from droneflow.parsing.map_parser import MapParser
 from droneflow.simulation.state import SimulationState
 
 Snapshot = dict[str, object]
+
+MAPS_ARCHIVE = Path(__file__).resolve().parents[1] / "maps.tar.gz"
 
 SUBJECT_SAMPLE_MAP = """\
 nb_drones: 5
@@ -269,3 +275,46 @@ def tty_stream() -> Callable[..., TtyStringIO]:
         return TtyStringIO(text)
 
     return make
+
+
+def open_archive() -> tarfile.TarFile:
+    """Open the provided maps, failing loudly if the archive is missing."""
+    if not MAPS_ARCHIVE.is_file():
+        pytest.fail(
+            "maps.tar.gz is required at the repository root, next to "
+            "tests/ (the provided maps are read from it)"
+        )
+    return tarfile.open(MAPS_ARCHIVE, "r:gz")
+
+
+def read_provided_map(member: str) -> str:
+    """Return a provided map without its leading comments and blank lines.
+
+    Only those are removed, so that ``nb_drones`` is on the physical first
+    line as the parser requires (decisions 2026-10-16); comments further
+    down are kept, the parser handles them.
+    """
+    with open_archive() as archive:
+        stream = archive.extractfile(member)
+        assert stream is not None, f"{member} is not a file"
+        text = stream.read().decode("utf-8")
+    lines = text.splitlines(keepends=True)
+    while lines and lines[0].strip()[:1] in ("", "#"):
+        lines.pop(0)
+    return "".join(lines)
+
+
+@pytest.fixture
+def maps_archive() -> Callable[[], tarfile.TarFile]:
+    """Return a function opening ``maps.tar.gz`` (fails if it is missing)."""
+    return open_archive
+
+
+@pytest.fixture
+def provided_map() -> Callable[[str], str]:
+    """Return a function reading one provided map by archive member.
+
+    The member is a path such as ``maps/easy/01_linear_path.txt``; the
+    text comes back with its leading comments and blank lines removed.
+    """
+    return read_provided_map
