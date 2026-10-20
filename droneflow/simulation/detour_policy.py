@@ -25,7 +25,9 @@ class DetourPolicy:
     drones in flight).
 
     The policy remembers every zone each drone has been in, from the
-    positions the scheduler reports at the start of each turn.
+    positions the scheduler reports at the start of each turn. It keeps
+    them turn by turn, so planning a turn again (or an earlier turn, for a
+    new simulation) first drops what was reported for that turn and later.
     """
 
     def __init__(
@@ -44,6 +46,7 @@ class DetourPolicy:
         self._below: dict[str, set[str]] = {
             name: self._zones_below(name, hops) for name in hops
         }
+        self._reported: dict[int, dict[int, str]] = {}
         self._visited: dict[int, set[str]] = {}
 
     def detours(self, zone_name: str) -> list[Hop]:
@@ -55,14 +58,27 @@ class DetourPolicy:
         self.pathfinder.network.get_zone(zone_name)
         return [hop for _, hop in self._detours.get(zone_name, [])]
 
-    def remember(self, positions: Mapping[int, Position]) -> None:
-        """Record the zone every drone is in (or landing in) as visited."""
-        for drone_id, (zone_name, _) in positions.items():
-            self._visited.setdefault(drone_id, set()).add(zone_name)
+    def remember(self, turn: int, positions: Mapping[int, Position]) -> None:
+        """Record where every drone is (or is landing) when ``turn`` starts.
 
-    def forget(self) -> None:
-        """Drop every visited zone, for a new simulation."""
-        self._visited.clear()
+        What was recorded for ``turn`` or a later turn is dropped first, so
+        only the positions given for the turns before it count as visited.
+        """
+        if any(earlier >= turn for earlier in self._reported):
+            self._reported = {
+                earlier: zones for earlier, zones in self._reported.items()
+                if earlier < turn
+            }
+            self._visited = {}
+            for zones in self._reported.values():
+                self._visit(zones)
+        zones = {drone_id: zone for drone_id, (zone, _) in positions.items()}
+        self._reported[turn] = zones
+        self._visit(zones)
+
+    def _visit(self, zones: Mapping[int, str]) -> None:
+        for drone_id, zone_name in zones.items():
+            self._visited.setdefault(drone_id, set()).add(zone_name)
 
     def allowed(
         self,

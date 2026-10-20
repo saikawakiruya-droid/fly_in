@@ -105,7 +105,7 @@ class Scheduler:
         self._start_turn(state)
         ledger = TurnLedger(state, self._table)
         positions = self._positions(state)
-        self._detours.remember(positions)
+        self._detours.remember(ledger.turn, positions)
         orders: list[MoveOrder] = []
         for move in self._table.due(ledger.turn):
             orders.append(MoveOrder(move.drone_id, move.zone))
@@ -157,7 +157,6 @@ class Scheduler:
             self._table.rollback(self._turn_mark)
         elif self._planned_turn is not None and turn < self._planned_turn:
             self._table.clear()
-            self._detours.forget()
         self._table.start_turn(state)
         self._turn_mark = self._table.mark()
         self._planned_turn = turn
