@@ -190,3 +190,17 @@
 - 原因: venv の有無をディレクトリの存在だけで判定していた(ファイルの有無でも、失敗した venv に python は残るため判定できない)。
 - 対応状況: 対応済み。`$(PYTHON) -m pip --version` が通らなければ `python3 -m venv --clear .venv` で作り直すように変更
   (WSL で、1回目の失敗後に2回目が作り直しを試みることを確認)。`python3.14-venv` 自体の導入は環境側の前提(sudo が要る)。
+
+## 2026-10-20: 詰まる場所の発見(`FlowGraph` / `ZoneFlowGraph`)の境界の扱い
+
+テスト設計(`docs/research/2026-10-19_test-design-bottleneck-finder.md`「気づいた点」)で見つかり、テストを書く前に直した。
+
+- 発生箇所と症状:
+  1. `droneflow/pathfinding/flow_graph.py` `add_arc`: 負の頂点番号を受け付け、Python の負のインデックスとして末尾の頂点に辺を足していた。
+  2. 同 `max_flow`: 始点 = 終点のとき `ValueError: min() iterable argument is empty` という分かりにくいエラーになった。
+  3. `droneflow/pathfinding/zone_flow.py` `ZoneFlowGraph.__init__`: 容量の制限が無いゾーン(`max_drones=None`)の辺の容量を limit にしていたため、
+     流量がちょうど limit のとき飽和し、「詰まる場所」として報告されることがあった(パーサー経由の hub は None にならないので、実際のマップでは起きない)。
+  4. 同 `add_hop`: 存在しないゾーン名を BLOCKED と同じく黙って無視していた(`Network` の他の部分は `ZoneNotFoundError`)。
+  5. 同 `Bottleneck.limits_flow`: 流量0(到達不能)でも False になるが、docstring は「limit に届いて余裕がある」場合だけを書いていた。
+- 対応状況: 対応済み(b4dce19, 13a36e2、ブランチ `feature/bottleneck_finder`)。1 は `IndexError`、2 は明示的な `ValueError`、3 は容量を limit + 1 にして飽和しないように、
+  4 は `ZoneNotFoundError`、5 は docstring に到達不能の場合を追記。配布マップ・課題の例の結果は変わらず、全探索との比較(400枚)も一致。
