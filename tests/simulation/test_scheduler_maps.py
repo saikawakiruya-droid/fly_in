@@ -11,7 +11,7 @@ first line as the parser requires (decisions 2026-10-16).
 import random
 import tarfile
 from pathlib import Path
-from typing import Callable
+from typing import Callable, NamedTuple
 
 import pytest
 
@@ -68,12 +68,24 @@ def run_engine(world: World) -> list[list[Move]]:
     return turns
 
 
-def run_checked(world: World) -> list[list[Move]]:
+class CheckedRun(NamedTuple):
+    """What ``run_checked`` returns: the turns and the detours taken."""
+
+    turns: list[list[Move]]
+    detours: int
+
+
+def run_checked(world: World) -> CheckedRun:
     """Play the turn loop by hand, checking the scheduler every turn.
 
     Each turn: one order per drone, only for drones standing in zones,
-    each a shortest next hop that lowers the distance, all accepted by the
-    resolver, at least one move, and all within the default turn limit.
+    each a shortest hop that lowers the distance, or a detour into a zone
+    the drone has never been in, all accepted by the resolver, at least
+    one move, and all within the default turn limit. The zones each drone
+    has been in are tracked here (the start, every order's target and the
+    landing target of a drone in flight). At the end no drone has taken
+    more detours than the network has zones minus one, the bound that
+    makes detours finite.
     """
     network = world.network
     pathfinder = Pathfinder(network)
@@ -81,28 +93,47 @@ def run_checked(world: World) -> list[list[Move]]:
     resolver = TurnResolver(network)
     state = SimulationState(network, world.nb_drones)
     limit = default_turn_limit(world)
+    start = network.start_zone.name
+    visited = {drone_id: {start} for drone_id in state.drones}
+    detours = {drone_id: 0 for drone_id in state.drones}
     turns: list[list[Move]] = []
     while not state.is_complete:
         assert state.turn_number < limit, f"not finished in {limit} turns"
+        for drone in state.active_drones():
+            if drone.transit_target is not None:
+                visited[drone.drone_id].add(drone.transit_target)
         orders = scheduler.decide_moves(state)
         ids = [order.drone_id for order in orders]
         assert len(ids) == len(set(ids)), f"two orders for one drone: {ids}"
         for order in orders:
-            drone = state.drones[order.drone_id]
+            drone_id = order.drone_id
+            drone = state.drones[drone_id]
             assert drone.status is DroneStatus.AT_ZONE
             here = drone.current_zone
             assert here is not None
             shortest = [hop.zone.name for hop in pathfinder.next_hops(here)]
-            assert order.zone in shortest, f"D{order.drone_id} detours"
-            after = pathfinder.distance(order.zone)
-            before = pathfinder.distance(here)
-            assert after is not None and before is not None
-            assert after < before
+            if order.zone in shortest:
+                after = pathfinder.distance(order.zone)
+                before = pathfinder.distance(here)
+                assert after is not None and before is not None
+                assert after < before
+            else:
+                longer = [h.zone.name for h in pathfinder.detour_hops(here)]
+                assert order.zone in longer, (
+                    f"D{drone_id} takes neither a shortest hop nor a detour"
+                )
+                assert order.zone not in visited[drone_id], (
+                    f"D{drone_id} enters {order.zone} again by a detour"
+                )
+                detours[drone_id] += 1
+            visited[drone_id].add(order.zone)
         moves = resolver.resolve(state, orders)
         assert moves, f"turn {state.turn_number}: no drone moved"
         turns.append(moves)
     assert state.delivered_count == world.nb_drones
-    return turns
+    bound = len(network.zones) - 1
+    assert all(count <= bound for count in detours.values()), detours
+    return CheckedRun(turns, sum(detours.values()))
 
 
 @pytest.fixture
@@ -130,13 +161,17 @@ Load = Callable[[str], World]
 
 def test_subject_sample_map_output(
     load_world: Load,
-    subject_output: list[str],
+    scheduler_output: list[str],
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """R01: the real scheduler prints the subject's seven lines exactly."""
+    """R01: the real scheduler prints these five lines.
+
+    Two drones go round by roof1, so the run is shorter than the seven
+    lines of the subject's example.
+    """
     TurnLogFormatter().emit(run_engine(load_world(SUBJECT)))
 
-    assert capsys.readouterr().out.splitlines() == subject_output
+    assert capsys.readouterr().out.splitlines() == scheduler_output
 
 
 def test_restricted_only_map_output(
@@ -170,8 +205,12 @@ def test_restricted_only_map_output(
     ids=[SUBJECT, RESTRICTED_ONLY, *(map_id(e[0]) for e in PROVIDED_MAPS)],
 )
 def test_every_turn_is_sound(load_world: Load, source: str) -> None:
-    """R03: legal, shortest, progressing orders every turn until done."""
-    assert run_checked(load_world(source))
+    """R03: legal, progressing orders every turn until done.
+
+    Every order is a shortest hop that lowers the distance, or a detour
+    into a zone the drone has never been in.
+    """
+    assert run_checked(load_world(source)).turns
 
 
 # --- turn counts ------------------------------------------------------
@@ -248,7 +287,7 @@ def test_turns_not_below_single_drone_bound(
 
     assert turns >= bound
     if source == SUBJECT:
-        assert turns == 7
+        assert turns == 5
     if source.endswith("01_linear_path.txt"):
         assert turns >= 3
 
@@ -264,7 +303,8 @@ def output_lines(world: World) -> list[str]:
     """
     format_turn = TurnLogFormatter().format_turn
     lines = [format_turn(moves) for moves in run_engine(world)]
-    assert [format_turn(moves) for moves in run_checked(world)] == lines
+    checked = run_checked(world).turns
+    assert [format_turn(moves) for moves in checked] == lines
     return lines
 
 
@@ -493,9 +533,12 @@ def test_random_restricted_maps_never_get_stuck(
     """R15: many random maps rich in restricted zones all run to the end.
 
     ``run_checked`` fails on any stuck drone or capacity violation, on a
-    detour, on a turn without movement and past the default turn limit.
+    move that is neither a shortest hop nor a detour into a new zone, on
+    a turn without movement and past the default turn limit. Some of the
+    maps must take detours, so that the detour path is exercised too.
     """
     rng = random.Random(RANDOM_SEED)
+    detours = 0
     for index in range(RANDOM_MAPS):
         edges, types, capacity, links, nb_drones = random_map(rng)
         network = make_network(
@@ -507,6 +550,7 @@ def test_random_restricted_maps_never_get_stuck(
             f"capacity={capacity} links={links} drones={nb_drones}"
         )
         try:
-            run_checked(World(network, nb_drones))
+            detours += run_checked(World(network, nb_drones)).detours
         except Exception as error:
             raise AssertionError(f"{where}: {error}") from error
+    assert detours >= 1
