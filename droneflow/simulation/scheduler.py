@@ -13,7 +13,7 @@ from .turn_ledger import TurnLedger
 
 
 class Scheduler:
-    """Moves every drone one shortest step forward whenever there is room.
+    """Moves every drone one step toward the end zone whenever it can.
 
     The scheduler keeps a ``ReservationTable`` of planned moves from turn
     to turn: drones landing in restricted zones, and evictions (a drone
@@ -49,18 +49,20 @@ class Scheduler:
       the zone is never over capacity on those turns.
 
     If that fails too, the drone tries the detours its ``DetourPolicy``
-    allows (longer routes that still lower its distance, when they cost no
-    more than waiting behind the drones ahead), the same two ways: without
-    evicting, then letting the ``Evictor`` make room. Otherwise it waits.
+    allows (moves off the shortest routes, never into a zone the drone has
+    been in, when they are expected to be no slower than queuing behind the
+    drones ahead), the same two ways: without evicting, then letting the
+    ``Evictor`` make room. Otherwise it waits.
 
     A drone with a planned eviction may still move earlier by an ordinary
     decision; its planned move is then dropped (it has left already).
 
-    Every move, detours included, strictly lowers the drone's distance to
-    the end zone, so drones never wait on each other in a cycle: planned
-    moves and landings always happen, and otherwise the drone closest to
-    the goal always has free room ahead, so at least one drone moves each
-    turn.
+    Every run ends. A shortest move (planned evictions included) strictly
+    lowers the drone's distance to the end zone, and a detour enters a zone
+    the drone has never been in, so each drone makes finitely many moves.
+    And at least one drone moves each turn: planned moves and landings
+    always happen, and otherwise the drone closest to the goal always has
+    free room on its shortest route, which it tries first.
 
     ``decide_moves`` is meant to be called once per turn, in turn order.
     Called again for the same turn, it drops the moves it planned for that
@@ -103,6 +105,7 @@ class Scheduler:
         self._start_turn(state)
         ledger = TurnLedger(state, self._table)
         positions = self._positions(state)
+        self._detours.remember(positions)
         orders: list[MoveOrder] = []
         for move in self._table.due(ledger.turn):
             orders.append(MoveOrder(move.drone_id, move.zone))
@@ -154,6 +157,7 @@ class Scheduler:
             self._table.rollback(self._turn_mark)
         elif self._planned_turn is not None and turn < self._planned_turn:
             self._table.clear()
+            self._detours.forget()
         self._table.start_turn(state)
         self._turn_mark = self._table.mark()
         self._planned_turn = turn
@@ -204,7 +208,8 @@ class Scheduler:
         )
         if hop is None:
             hop = self._first_hop(
-                drone.drone_id, here, self._detours.allowed(here, positions),
+                drone.drone_id, here,
+                self._detours.allowed(drone.drone_id, here, positions),
                 ledger, evictor, positions,
             )
         if hop is not None:
