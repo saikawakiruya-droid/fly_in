@@ -81,10 +81,13 @@ def test_tie_broken_by_priority_next_hop(
     ]
 
 
-def test_full_tie_broken_by_drone_id(
+def test_same_zone_keeps_active_drone_order(
     make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
 ) -> None:
-    """D06: same distance and priority: the smallest drone_id goes."""
+    """D06: drones in the same zone keep active_drones order.
+
+    The drone_id itself is not part of the decision order (see D35).
+    """
     network = make_network("s-a a-g")
 
     assert real_scheduler(network).decide_moves(place(network, 3)) == [
@@ -138,14 +141,23 @@ def test_is_on_priority_route_unknown_zone(
 # --- choosing a hop ---------------------------------------------------
 
 
-def test_waits_instead_of_detour(
-    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+def test_takes_a_sideways_detour(
+    make_network: MakeNetwork,
+    place: Place,
+    real_scheduler: RealScheduler,
+    fmt: Fmt,
 ) -> None:
-    """D09: D2 waits rather than take the free but longer way via b."""
+    """D09: b is as far from g as s; D2 goes sideways there, as it costs
+    no more than queuing behind D1."""
     network = make_network("s-a a-g s-b b-c c-g")
 
     assert real_scheduler(network).decide_moves(place(network, 2)) == [
-        MoveOrder(1, "a")
+        MoveOrder(1, "a"), MoveOrder(2, "b")
+    ]
+    assert play_out(real_scheduler(network), place(network, 2), fmt) == [
+        "D1-a D2-b",
+        "D1-g D2-c",
+        "D2-g",
     ]
 
 
