@@ -408,7 +408,7 @@ With `V` zones, `E` connections and `D` drones:
   once and **cached** by the scheduler (`O(V + E)` memory), as are the detour
   hops and, for every zone, the zones its shortest hops lead to
   (`O(V x (V + E))` once, `O(V^2)` memory). The record of the zones each drone
-  has been in takes `O(D x V)` memory. Paths are never
+  has been in keeps the positions of every turn (`O(T x D)` memory, `T` turns). Paths are never
   recomputed during the simulation; only the room left in zones and
   connections is evaluated each turn.
 - **One turn**: sorting the drones standing in zones is `O(D log D)` (the

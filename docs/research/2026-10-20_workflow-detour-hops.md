@@ -13,7 +13,7 @@
 | ファイル | 内容 | 状態 |
 |---|---|---|
 | `droneflow/pathfinding/pathfinder.py` | `Pathfinder.detour_hops(zone_name)`: ゴールに届くが最短ではない隣のゾーンへの一手(横・後ろも含む、自己ループは除く)を、総コストの小さい順(同点は接続の宣言順)に返す | 追加 |
-| `droneflow/simulation/detour_policy.py` | `DetourPolicy`: 各ゾーンの遠回り(総コストつき)と「最短の一手で辿れる先のゾーンの集合」をキャッシュし、各ドローンのいたゾーンを記録する(`remember` / `forget`)。`allowed(drone_id, zone, positions)` で今許される遠回りを返す | 新規 |
+| `droneflow/simulation/detour_policy.py` | `DetourPolicy`: 各ゾーンの遠回り(総コストつき)と「最短の一手で辿れる先のゾーンの集合」をキャッシュし、各ドローンのいたゾーンをターンごとに記録する(`remember(turn, positions)`)。`allowed(drone_id, zone, positions)` で今許される遠回りを返す | 新規 |
 | `droneflow/simulation/scheduler.py` | `DetourPolicy` を持ち(委譲)、最短の一手が使えないときに許された遠回りを試す(`_first_hop` に共通化)。判断の順序をゾーンの順位(`_rank_zones`)で決める | 変更 |
 | `README.md` / `README.ja.md` | 課題の例の出力(7 → 5ターン)、次の一手と判断の順序、トレードオフ、計算量、コードの構成 | 変更 |
 
@@ -32,8 +32,7 @@ classDiagram
         -below : dict~str, set~str~~
         -visited : dict~int, set~str~~
         +detours(zone_name) Hop[]
-        +remember(positions)
-        +forget()
+        +remember(turn, positions)
         +allowed(drone_id, zone_name, positions) Hop[]
     }
     class Scheduler {
@@ -78,7 +77,8 @@ flowchart TD
 
 最短の一手(立ち退きを含む)は距離を真に減らし、遠回りはその機がいたことのないゾーンにしか入らない(逆流しない)ので、
 各ドローンの移動回数は有限で、実行は必ず終わる。最短の一手を先に試すので、ゴールに最も近い機は必ず動ける(毎ターン少なくとも1機動く)。
-`Scheduler.decide_moves` は毎ターンの初めの位置を `remember` し、前のターンに戻る(新しいシミュレーション)ときは `forget` する。
+`Scheduler.decide_moves` は毎ターンの初めの位置を `remember(turn, positions)` で記録する。記録はターンごとに持ち、同じターンを計画し直すときや
+前のターンに戻る(新しいシミュレーション)ときは、そのターン以降の記録を捨ててから記録し直す(`docs/bugs.md` 2026-10-20)。
 
 ### (b) 判断の順序(`Scheduler._rank_zones`、構築時に1回)
 

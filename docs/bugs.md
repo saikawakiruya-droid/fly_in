@@ -204,3 +204,15 @@
   5. 同 `Bottleneck.limits_flow`: 流量0(到達不能)でも False になるが、docstring は「limit に届いて余裕がある」場合だけを書いていた。
 - 対応状況: 対応済み(b4dce19, 13a36e2、ブランチ `feature/bottleneck_finder`)。1 は `IndexError`、2 は明示的な `ValueError`、3 は容量を limit + 1 にして飽和しないように、
   4 は `ZoneNotFoundError`、5 は docstring に到達不能の場合を追記。配布マップ・課題の例の結果は変わらず、全探索との比較(400枚)も一致。
+
+## 2026-10-20: 同じターンを別の状態で計画し直すと、遠回りの「いたゾーン」の記録が残る
+
+- 発生箇所: `droneflow/simulation/detour_policy.py` `DetourPolicy.remember`、`droneflow/simulation/scheduler.py` `decide_moves`(`feature/detour_hops`、50beb18 の時点)
+- 症状: `remember` は記録を足すだけで、消すのは前のターンに戻ったとき(`forget`)だけだった。`decide_moves` を同じターン番号で別の状態に対して
+  呼び直すと、1回目の状態で記録した位置が「いたゾーン」として残り、新しいスケジューラと違う指示になる。例: `s-a a-g s-r r-g`(r は restricted)で、
+  D2 が r へ飛行中の状態を渡した後、全機が s にいる状態で呼び直すと `[D1→a]` だけになる(新しいスケジューラでは `[D1→a, D2→r]`)。
+  `decide_moves` の docstring(同じターンの呼び直しは、渡された状態から計画し直す)と食い違う。2026-10-19 の予約表の不具合(D26)と同じ種類。
+- 影響: アプリとエンジンは毎ターン1回だけ呼ぶので、通常の実行では起きない。テスト設計(`docs/research/2026-10-20_test-design-detour-hops.md` D40)で発見。
+- 対応状況: 対応済み(cccd0c8、ブランチ `feature/detour_hops`)。記録をターンごとの位置の控えとして持ち、`remember(turn, positions)` は
+  そのターン以降の控えを捨ててから記録する(`forget` は廃止)。同じターンの呼び直しで新しいスケジューラと同じ指示になることを確認。
+  配布マップ・revie_case・ランダムなマップの合計ターン数は変わらない。
