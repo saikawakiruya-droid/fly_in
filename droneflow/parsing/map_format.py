@@ -168,10 +168,11 @@ class ZoneBuilder:
     """Builds a Zone with a fixed role from converted field values."""
 
     def __init__(self, role: ZoneRole) -> None:
+        """Build zones with this role."""
         self._role = role
 
     def __call__(self, values: Mapping[str, Any]) -> Zone:
-        # start_hub / end_hub ignore max_drones: their capacity is unlimited.
+        """Build the Zone; start_hub / end_hub ignore ``max_drones``."""
         is_hub = self._role is ZoneRole.HUB
         return Zone(
             name=values["name"],
@@ -199,6 +200,7 @@ class MapFormat:
     """The complete set of line kinds a map file may contain."""
 
     def __init__(self, header: LineSpec, body: Sequence[LineSpec]) -> None:
+        """Keep the first line's spec and the specs of the other lines."""
         self.header = header
         self._body = {spec.keyword: spec for spec in body}
 

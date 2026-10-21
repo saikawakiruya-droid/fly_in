@@ -20,6 +20,7 @@ class MapValidator:
     """
 
     def __init__(self, rules: Sequence[Rule]) -> None:
+        """Start an empty network checked by ``rules``."""
         self._rules = list(rules)
         self._network = Network()
         self._nb_drones: int | None = None

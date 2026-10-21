@@ -24,6 +24,7 @@ class ZoneRule(ABC):
     """A rule about zones; entries of any other kind are ignored."""
 
     def check(self, entry: Entry, network: Network) -> None:
+        """Check ``entry`` if it is a Zone."""
         if isinstance(entry, Zone):
             self.check_zone(entry, network)
 
@@ -36,6 +37,7 @@ class ConnectionRule(ABC):
     """A rule about connections; entries of any other kind are ignored."""
 
     def check(self, entry: Entry, network: Network) -> None:
+        """Check ``entry`` if it is a Connection."""
         if isinstance(entry, Connection):
             self.check_connection(entry, network)
 
@@ -50,6 +52,7 @@ class UniqueZoneName(ZoneRule):
     """A zone name may be declared only once."""
 
     def check_zone(self, zone: Zone, network: Network) -> None:
+        """Reject a zone whose name is already declared."""
         if zone.name in network.zones:
             raise ValueError(f"duplicate zone name: {zone.name}")
 
@@ -58,6 +61,7 @@ class SingleStartAndEnd(ZoneRule):
     """At most one start_hub and one end_hub may be declared."""
 
     def check_zone(self, zone: Zone, network: Network) -> None:
+        """Reject a second start_hub or end_hub."""
         if zone.role is ZoneRole.HUB:
             return
         if any(other.role is zone.role for other in network.zones.values()):
@@ -70,6 +74,7 @@ class KnownEndpoints(ConnectionRule):
     def check_connection(
         self, connection: Connection, network: Network
     ) -> None:
+        """Reject a connection to a zone not declared yet."""
         for name in (connection.zone_a, connection.zone_b):
             if name not in network.zones:
                 raise ValueError(f"unknown zone: {name}")
@@ -81,6 +86,7 @@ class UniqueConnection(ConnectionRule):
     def check_connection(
         self, connection: Connection, network: Network
     ) -> None:
+        """Reject a connection between two already-connected zones."""
         if network.connection_between(
             connection.zone_a, connection.zone_b
         ) is not None:

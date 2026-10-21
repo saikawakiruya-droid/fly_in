@@ -526,7 +526,12 @@ class GraphicalVisualizer:
         self._show(state, [])
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Draw the turn, with each move's path highlighted, then wait."""
+        """Draw the turn, with each move's path highlighted, then wait.
+
+        Raises:
+            VisualizationError: If the window has to be opened here (no
+                ``begin`` before) and cannot be.
+        """
         self._show(state, moves)
 
     def close(self) -> None:

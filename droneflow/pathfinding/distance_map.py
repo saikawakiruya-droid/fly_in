@@ -20,6 +20,7 @@ class DistanceMap:
     """
 
     def __init__(self, network: Network) -> None:
+        """Run the search once over ``network``."""
         self.network = network
         self._distances = self._compute()
 

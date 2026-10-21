@@ -50,6 +50,7 @@ class TurnResolver:
     """
 
     def __init__(self, network: Network) -> None:
+        """Check moves against ``network``."""
         self.network = network
 
     def resolve(

@@ -31,6 +31,7 @@ class LineTokenizer:
     """Checks a line's syntax against the MapFormat and splits it up."""
 
     def __init__(self, map_format: MapFormat) -> None:
+        """Check lines against ``map_format``."""
         self._format = map_format
 
     def tokenize_header(self, src: SourceLine) -> RawLine:

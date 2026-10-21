@@ -60,6 +60,13 @@ class Evictor:
         return False
 
     def _keep_seats(self, zone: Zone, first_turn: int, extra: int) -> bool:
+        """Evict until ``extra`` more drones fit on every turn from first_turn.
+
+        This ends: the planned moves reach only a few turns ahead (the
+        horizon), and each eviction moves a drone into a zone strictly
+        closer to the end zone, so the recursion goes at most as deep as
+        the distance to the end zone, which always has room.
+        """
         turn = first_turn
         while turn <= max(first_turn, self.ledger.horizon()):
             while not self.ledger.has_seat(zone, turn, extra):

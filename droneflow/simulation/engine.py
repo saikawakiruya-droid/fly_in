@@ -21,9 +21,10 @@ def default_turn_limit(world: World) -> int:
     """Return a turn count no sensible schedule should ever exceed.
 
     Sending the drones one at a time is always possible, and one drone
-    needs at most two turns per zone on a simple path. So
-    ``2 * zones * nb_drones`` turns is generous for any real scheduler and
-    only catches one that loops forever.
+    needs at most two turns per zone it enters. A drone enters each zone
+    at most once by a detour, and between detours its distance only goes
+    down, so ``2 * zones * nb_drones`` turns is generous for any real
+    scheduler and only catches one that loops forever.
     """
     return 2 * max(len(world.network.zones), 1) * world.nb_drones
 

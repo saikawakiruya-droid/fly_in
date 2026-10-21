@@ -56,6 +56,7 @@ class _Chunk:
     """A piece of text with and without its color codes."""
 
     def __init__(self, plain: str, shown: str) -> None:
+        """Keep the text as measured (plain) and as printed (shown)."""
         self.plain = plain
         self.shown = shown
 
