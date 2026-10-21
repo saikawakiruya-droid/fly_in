@@ -1,11 +1,20 @@
 """SimulationEngine: runs the turn loop until every drone is delivered."""
 
+from typing import Protocol
+
 from ..errors import SimulationError
 from ..models.world import World
-from ..visualization.base import Visualizer
-from .scheduler import Scheduler
-from .state import Move, SimulationState
+from .observer import TurnObserver
+from .state import Move, MoveOrder, SimulationState
 from .turn_resolver import TurnResolver
+
+
+class MoveDecider(Protocol):
+    """Anything that decides each turn's moves (the ``Scheduler``)."""
+
+    def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
+        """Return the orders for the turn after ``state``."""
+        ...
 
 
 def default_turn_limit(world: World) -> int:
@@ -23,14 +32,15 @@ class SimulationEngine:
     """Drives the turn-by-turn simulation from start to full delivery.
 
     Composes the state, the rules (``TurnResolver``) and the decisions
-    (``Scheduler``): each turn the scheduler orders moves, the resolver
-    checks and applies them, and the resulting moves are recorded.
+    (any ``MoveDecider``, normally the ``Scheduler``): each turn the
+    decider orders moves, the resolver checks and applies them, and the
+    resulting moves are recorded.
     """
 
     def __init__(
         self,
         world: World,
-        scheduler: Scheduler,
+        scheduler: MoveDecider,
         max_turns: int | None = None,
     ) -> None:
         """Set up all drones in the start zone.
@@ -49,11 +59,13 @@ class SimulationEngine:
             default_turn_limit(world) if max_turns is None else max_turns
         )
 
-    def run(self, visualizer: Visualizer | None = None) -> list[list[Move]]:
+    def run(
+        self, visualizer: TurnObserver | None = None
+    ) -> list[list[Move]]:
         """Run the simulation to completion.
 
         Args:
-            visualizer: Optional view: ``begin`` is called before the
+            visualizer: Optional observer: ``begin`` is called before the
                 first turn, ``render(state, moves)`` after every applied
                 turn, and ``close`` once at the end, even on error
                 (including an error raised by ``begin``).

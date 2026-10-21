@@ -1,20 +1,22 @@
 """Application: orchestrates parsing, pathfinding, simulation, and output."""
 
 import sys
+from collections.abc import Callable
 from typing import TextIO
 
 from .cli import Args
 from .errors import MapFileError, VisualizationError
+from .models.network import Network
 from .models.world import World
 from .output.summary import RunSummary
 from .output.turn_log_view import TurnLogPrinter
 from .parsing.map_parser import MapParser
 from .pathfinding.pathfinder import Pathfinder
-from .simulation.engine import SimulationEngine
+from .simulation.engine import MoveDecider, SimulationEngine
+from .simulation.observer import ObserverGroup
 from .simulation.scheduler import Scheduler
 from .simulation.state import Move, SimulationState
 from .visualization.base import Visualizer
-from .visualization.composite import CompositeVisualizer
 from .visualization.terminal_view import TerminalVisualizer
 
 
@@ -66,18 +68,24 @@ class Application:
         args: Args,
         out: TextIO | None = None,
         err: TextIO | None = None,
+        make_scheduler: Callable[[Network, Pathfinder], MoveDecider] = (
+            Scheduler
+        ),
     ) -> None:
-        """Keep the arguments and the output streams.
+        """Keep the arguments, the output streams and the scheduler maker.
 
         Args:
             args: The parsed command-line arguments.
             out: Where the turn log goes; defaults to ``sys.stdout``.
             err: Where the terminal view, warnings and the summary go;
                 defaults to ``sys.stderr``.
+            make_scheduler: Builds what decides each turn's moves from the
+                network and its pathfinder; defaults to ``Scheduler``.
         """
         self.args = args
         self.out: TextIO = sys.stdout if out is None else out
         self.err: TextIO = sys.stderr if err is None else err
+        self.make_scheduler = make_scheduler
 
     def run(self) -> None:
         """Parse the map, simulate it, and print the turn log.
@@ -93,12 +101,12 @@ class Application:
         world = self._load_world()
         pathfinder = Pathfinder(world.network)
         engine = SimulationEngine(
-            world, Scheduler(world.network, pathfinder)
+            world, self.make_scheduler(world.network, pathfinder)
         )
         views = self._make_views()
         printer = TurnLogPrinter(self.out)
         try:
-            turns = engine.run(CompositeVisualizer([printer, *views]))
+            turns = engine.run(ObserverGroup([printer, *views]))
         finally:
             self._warn_close_failures(views)
         self.err.write(

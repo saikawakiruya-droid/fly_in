@@ -11,7 +11,7 @@ class TurnLogPrinter:
     """Prints each turn in the subject's output format as soon as it ends.
 
     It has the same ``begin`` / ``render`` / ``close`` shape as a
-    ``Visualizer``, so the engine drives it like any other view; the
+    ``TurnObserver``, so the engine drives it like any view; the
     formatting itself is delegated to a ``TurnLogFormatter``. Only the
     turn lines are written, so the stream holds exactly the required
     output. Empty turns are skipped (the engine never renders one).
