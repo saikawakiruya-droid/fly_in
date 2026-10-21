@@ -61,7 +61,18 @@ $ python fly_in.py map_with_a_comment_first.txt
 error: line 1: the first line must be 'nb_drones: <n>'
 ```
 
-Comments and blank lines are accepted anywhere after the first line.
+Comments and blank lines are accepted anywhere after the first line. A
+comment must take a whole line: `hub: a 1 0 # note` is a parse error.
+
+The maps distributed with the subject (`maps.tar.gz`) start with comment
+lines, so they are rejected as they are. To run one, drop the lines before
+`nb_drones:` first, for example:
+
+```text
+$ tar xzf maps.tar.gz
+$ sed '/^nb_drones:/,$!d' maps/easy/01_linear_path.txt > linear_path.txt
+$ python fly_in.py linear_path.txt
+```
 
 ### Output format
 
@@ -90,7 +101,7 @@ drone id order:
 
 | Command | What it does |
 |---|---|
-| `make install` | Create `.venv` if it does not exist and install `requirements.txt` into it |
+| `make install` | Create `.venv` (again, if it is missing or broken) and install `requirements.txt` into it |
 | `make run` | Run the default map (`maps/subject_example.txt`) |
 | `make run MAP=path/to/map.txt ARGS="--visual both"` | Run another map, with extra options |
 | `make debug` | The same as `run`, under `pdb` (see below) |
@@ -269,7 +280,9 @@ how the drones are spread over parallel paths.
 Priority zones are handled as a **tie-break only**: among equally short next
 hops, priority zones come first; otherwise the order is the declaration order
 of the connections. A drone never takes a longer route just to pass through a
-priority zone.
+priority zone: giving priority zones a lower cost in the distance map would make
+routes through them look shorter than they are, and the score is the total
+number of turns. Detours (below) do not look at priority either.
 
 **Detours**: only a drone that would otherwise wait (none of its shortest next
 hops is usable) tries one of `Pathfinder.detour_hops`: every neighbor `w` that
@@ -280,14 +293,18 @@ longer than the shortest route), including moves sideways or back.
 - **no backflow**: the drone has never been in `w` (the policy remembers every
   zone each drone has been in);
 - **not slower than waiting**: `cost(w) + distance(w) + queue(w) <=
-  distance(here) + ahead(here)`. `ahead(here)` counts the drones in the zones
-  the shortest hops from here lead to; `queue(w)` counts the drones in `w` and
-  in the zones its shortest hops lead to. Both count landing targets and the
-  moves already decided this turn.
+  distance(here) + ahead(here)`. `ahead(here)` counts the drones in all the
+  zones reachable from here by following shortest hops (directly or further
+  down); `queue(w)` counts the drones in `w` and in all the zones reachable
+  from `w` the same way. Both count landing targets and the moves already
+  decided this turn.
 
 In other words, a drone takes a longer but free route only when it is not
 slower than queuing on the shortest one; counting the detour's own queue keeps
-drones from leaving one crowded route for another.
+drones from leaving one crowded route for another. Counting one turn per drone
+ahead is an estimate that assumes one drone gets through per turn; on wider
+routes it is pessimistic. Dividing by the route's throughput was tried and made
+no difference on the distributed maps.
 
 ### 3. Turn scheduling order
 
@@ -309,9 +326,14 @@ Deciding the drones closest to the goal first means that a drone leaving a
 zone has already been decided when the drone behind it asks for that zone, so
 the room it frees can be used in the same turn. Deciding zones with fewer exits
 first keeps a drone that has a choice from taking another zone's only way out.
-Drones in the same zone have the same moves, so their order within the zone
-does not matter. A drone takes the first of its shortest next hops that has
-room; otherwise it tries its allowed detours; otherwise it waits.
+Drones in the same zone have the same shortest next hops; their detours may
+differ, because each drone has been in different zones. Within a zone they are
+decided in drone id order. A drone takes the first of its shortest next hops
+that has room; otherwise it tries its allowed detours; otherwise it waits.
+
+A drone may already hold a planned eviction, made on an earlier turn or by an
+earlier decision in the same turn (see below). It is decided like the others:
+if it can move now, the plan is dropped; if not, the plan is kept.
 
 ### 4. Capacity rules
 
@@ -351,9 +373,9 @@ its next option or waits. Planned evictions are ordinary moves: they are
 played first on their turn, and a drone with a planned eviction may still move
 earlier through an ordinary decision, in which case the plan is dropped.
 
-The same mechanism covers one more case ("rule 6'"): an ordinary move into a
-normal or priority zone that has room now, but whose seat is already promised
-to a drone planned to enter later. The drone may enter only if an eviction
+The same mechanism covers one more case, a **seat promised to a later drone**:
+an ordinary move into a normal or priority zone that has room now, but whose
+seat is already promised to a drone planned to enter later. The drone may enter only if an eviction
 (possibly of the entering drone itself) can be planned so that the zone is
 never over capacity on those later turns.
 
@@ -407,29 +429,31 @@ With `V` zones, `E` connections and `D` drones:
   computed **once**. The shortest next hops of every zone are also computed
   once and **cached** by the scheduler (`O(V + E)` memory), as are the detour
   hops and, for every zone, the zones its shortest hops lead to
-  (`O(V x (V + E))` once, `O(V^2)` memory). The record of the zones each drone
-  has been in keeps the positions of every turn (`O(T x D)` memory, `T` turns). Paths are never
-  recomputed during the simulation; only the room left in zones and
-  connections is evaluated each turn.
+  (`O(V x (V + E))` once, `O(V^2)` memory). Paths are never recomputed during
+  the simulation; only the room left in zones and connections is evaluated
+  each turn.
 - **One turn**: sorting the drones standing in zones is `O(D log D)` (the
   zone ranks are computed once). Each drone tries at most its next hops twice
-  (without, then with eviction). A drone that would wait counts the queues by
-  scanning the drones' positions once per detour candidate (`O(D)` each) and
-  tries its allowed detours the same two ways.
-  A seat check looks at the turns from the arrival to the last planned turn
-  (`H`, a few turns ahead), so it costs `O(H^2)` table lookups. An eviction
-  attempt adds a recursion whose depth is bounded by the distance to the goal,
-  and finding an occupant to evict scans the drones' positions (`O(D)`).
-  Failed eviction attempts are not memoized.
+  (without, then with eviction). The `PositionBoard` keeps how many drones
+  each zone will hold, so a drone that would wait counts a queue in `O(V)`
+  (the zones below), once per detour candidate, and tries its allowed detours
+  the same two ways. A seat check looks at the turns from the arrival to the
+  last planned turn (`H`, a few turns ahead), so it costs `O(H^2)` table
+  lookups. An eviction attempt adds a recursion whose depth is bounded by the
+  distance to the goal; finding an occupant to evict looks only at the drones
+  in that zone. Failed eviction attempts are not memoized.
 - **Whole run**: the number of turns grows roughly like `D` divided by the
   throughput of the map (how many drones can reach the goal per turn), so for a
-  given map the total time grows roughly like `D^2 log D` in the worst case.
+  given map the total time grows roughly like `D^2` (times `log D` for the
+  sorting, and `V` for counting queues when drones wait).
 - **Memory**: `O(V + E)` for the map, the distances and the cached hops,
-  `O(D)` for the drones and the reservation table, and the turn log of the
-  run (one entry per move).
+  `O(V^2)` for the zones below every zone, `O(D)` for the drones and the
+  reservation table, `O(T x D)` for the zones each drone has been in (the
+  positions of every turn `T` are kept so that a turn can be planned again
+  from another state), and the turn log of the run (one entry per move).
 
 Measured on a 3-lane map with 32 zones (`--visual none`, Python 3.14, a
-laptop): 100 drones in 0.2 s, 1,000 drones in 1.0 s, 3,000 drones in 7.5 s.
+laptop): 100 drones in 0.14 s, 1,000 drones in 1.5 s, 3,000 drones in 13 s.
 
 ### Code structure
 
@@ -440,21 +464,32 @@ droneflow/
   errors.py                FlyInError and its subclasses (one-line messages)
   models/                  Zone, Connection, Network (hand-built adjacency), Drone, World
   parsing/                 MapReader -> LineTokenizer -> rule table (MapFormat) -> MapValidator
-  pathfinding/             DistanceMap (Dijkstra), Pathfinder (shortest and detour hops, routes),
-                           FlowGraph / ZoneFlowGraph / ConnectionBottleneck / ShortestHopBottleneck
-                           (bottleneck analysis by max-flow min-cut; not used by the run)
-  simulation/              SimulationEngine, Scheduler, TurnLedger, ReservationTable,
-                           Evictor, DetourPolicy, TurnResolver, SimulationState
+  pathfinding/             DistanceMap (Dijkstra), Pathfinder (shortest and detour hops)
+  simulation/              SimulationEngine, TurnObserver; Scheduler with ZoneRanking,
+                           HopTaker, DetourPolicy, Evictor, TurnLedger, ReservationTable,
+                           PositionBoard; TurnResolver, SimulationState
   output/                  turn log formatter and printer, run summary
-  visualization/           Visualizer protocol, terminal view, graphical view, palette
+  visualization/           terminal view, graphical view, palette
 ```
 
 Objects are combined by composition and delegation rather than inheritance
 (for example the parser delegates to a reader, a tokenizer and a validator,
-and the engine composes a scheduler and a resolver). Every view, and the turn
-log printer, implements the same three-method `Visualizer` protocol
-(`begin`, `render`, `close`), so the engine does not know which views are
-attached.
+the engine composes a scheduler and a resolver, and the scheduler delegates to
+a ranking, a hop taker and a detour policy). The engine depends only on two
+protocols: anything with `decide_moves` (the scheduler), and any
+`TurnObserver` (`begin`, `render`, `close`). Every view and the turn log
+printer are observers, so the engine does not know which are attached.
+
+Inheritance is used only for "is a" relations: the exception hierarchy
+(`FlyInError` and its subclasses) and the abstract base classes of the parser's
+cross-line rules (`ZoneRule`, `ConnectionRule`), whose subclasses each check
+one constraint. Enums and protocols are used for the rest.
+
+To show something new each turn (for example connection usage), write a class
+with `begin`, `render` and `close` and add it in `Application._make_views`.
+Each `Move` carries the connection a departing drone used (`Move.connection`,
+`None` for a landing), and `SimulationState` gives zone occupancy and capacity
+(`Zone.capacity`).
 
 ## Visual representation
 
@@ -476,7 +511,9 @@ in flight: D4 s-b -> b, D5 s-a -> a
   delivered drones, then the moves of the turn.
 - A table of every zone: its role or type (`S` start, `E` end, `.` normal,
   `P` priority, `R` restricted, `X` blocked) and its load against its capacity
-  (`-` no limit, `+N` drones arriving on the next turn, `*` full). The table
+  (`-` no limit, `+N` drones arriving on the next turn, `*` full). A count
+  like `2/2+1*` is not over capacity: a drone leaving the zone in the same turn
+  frees the seat the arriving drone takes (see the second example). The table
   is laid out in columns to fit the terminal width, so large maps stay compact.
 - Where each drone is (`drones:`), and the drones in flight toward a
   restricted zone, with their connection and destination (`in flight:`).
@@ -585,15 +622,17 @@ project, under the following division of roles:
   and test plans. The design decisions are the author's, for example the
   per-turn scheduler order (zone by zone, fewer exits first), treating
   priority zones only as a tie-break, the detour rule (take a longer route when
-  it is not slower than waiting, never re-entering a zone), the reservation-table and eviction model for restricted zones,
-  and rule 6'. Some were chosen by the author among options the AI proposed
+  it is not slower than waiting, never re-entering a zone), the
+  reservation-table and eviction model for restricted zones, and the seat
+  promised to a later drone. Some were chosen by the author among options the AI proposed
   and measured, such as making eviction a last resort.
 - **Implementation and tests**: from the pathfinding stage onward, at the
   author's explicit request, the AI wrote implementation code and unit tests
   in phases (pathfinding, simulation engine, scheduler, visualization, command
-  line, reservation table and eviction), each following a design agreed with
-  the author, with the tests designed in a separate phase before being written.
-  The author reviewed the results.
+  line, reservation table and eviction, detours, and a refactoring after a
+  ten-perspective review), each following a design agreed with the author,
+  with the tests designed in a separate phase before being written. The
+  author reviewed the results.
 - **Documentation**: drafting this README.
 
 The record of the decisions (with the alternatives considered), the research
