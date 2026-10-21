@@ -4,11 +4,9 @@ from collections.abc import Mapping
 
 from ..models.zone import Zone, ZoneType
 from ..pathfinding.pathfinder import Hop
+from .positions import PositionBoard
 from .reservation_table import Reservation
 from .turn_ledger import TurnLedger
-
-Position = tuple[str, int]
-"""Where a drone will be, and the turn from whose end it is surely there."""
 
 
 class Evictor:
@@ -31,16 +29,15 @@ class Evictor:
         self,
         ledger: TurnLedger,
         hops: Mapping[str, list[Hop]],
-        positions: Mapping[int, Position],
+        positions: PositionBoard,
     ) -> None:
         """Plan evictions over this turn's ledger.
 
         Args:
             ledger: This turn's counts; its table receives the evictions.
             hops: The shortest next hops of every zone.
-            positions: For every drone still on the map, the zone it will
-                be in after this turn's moves and the turn from whose end it
-                is surely there. Kept up to date by the scheduler.
+            positions: Where every drone still on the map will be after
+                this turn's moves. Kept up to date by the scheduler.
         """
         self.ledger = ledger
         self.table = ledger.table
@@ -100,16 +97,13 @@ class Evictor:
         one drone is enough: all of them would take the same hops.
         """
         now = self.ledger.turn
-        best: int | None = None
-        for drone_id, (where, since) in self.positions.items():
-            if where != zone_name or since > turn - 1:
-                continue
-            if best is not None and drone_id > best:
+        for drone_id in self.positions.drones_in(zone_name):
+            if self.positions.where(drone_id).since_turn > turn - 1:
                 continue
             if any(
                 move.depart_turn > now
                 for move in self.table.planned(drone_id)
             ):
                 continue
-            best = drone_id
-        return best
+            return drone_id
+        return None

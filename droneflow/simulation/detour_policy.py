@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 
 from ..pathfinding.pathfinder import Hop, Pathfinder
-from .evictor import Position
+from .positions import PositionBoard
 
 
 class DetourPolicy:
@@ -46,6 +46,9 @@ class DetourPolicy:
         self._below: dict[str, set[str]] = {
             name: self._zones_below(name, hops) for name in hops
         }
+        self._queue_zones: dict[str, set[str]] = {
+            name: below | {name} for name, below in self._below.items()
+        }
         self._reported: dict[int, dict[int, str]] = {}
         self._visited: dict[int, set[str]] = {}
 
@@ -58,7 +61,7 @@ class DetourPolicy:
         self.pathfinder.network.get_zone(zone_name)
         return [hop for _, hop in self._detours.get(zone_name, [])]
 
-    def remember(self, turn: int, positions: Mapping[int, Position]) -> None:
+    def remember(self, turn: int, positions: PositionBoard) -> None:
         """Record where every drone is (or is landing) when ``turn`` starts.
 
         What was recorded for ``turn`` or a later turn is dropped first, so
@@ -72,7 +75,7 @@ class DetourPolicy:
             self._visited = {}
             for zones in self._reported.values():
                 self._visit(zones)
-        zones = {drone_id: zone for drone_id, (zone, _) in positions.items()}
+        zones = positions.zones()
         self._reported[turn] = zones
         self._visit(zones)
 
@@ -84,7 +87,7 @@ class DetourPolicy:
         self,
         drone_id: int,
         zone_name: str,
-        positions: Mapping[int, Position],
+        positions: PositionBoard,
     ) -> list[Hop]:
         """Return the detours this drone may take now, cheapest first.
 
@@ -104,21 +107,19 @@ class DetourPolicy:
         here = self.pathfinder.distance(zone_name)
         if here is None:
             return []
-        budget = here + self._count(self._below[zone_name], positions)
         visited = self._visited.get(drone_id, set())
-        allowed: list[Hop] = []
-        for total, hop in self._detours[zone_name]:
-            target = hop.zone.name
-            if target in visited:
-                continue
-            queue = self._count(self._below[target] | {target}, positions)
-            if total + queue <= budget:
-                allowed.append(hop)
-        return allowed
-
-    @staticmethod
-    def _count(zones: set[str], positions: Mapping[int, Position]) -> int:
-        return sum(1 for zone, _ in positions.values() if zone in zones)
+        candidates = [
+            (total, hop) for total, hop in self._detours[zone_name]
+            if hop.zone.name not in visited
+        ]
+        if not candidates:
+            return []
+        budget = here + positions.count_in(self._below[zone_name])
+        return [
+            hop for total, hop in candidates
+            if total + positions.count_in(self._queue_zones[hop.zone.name])
+            <= budget
+        ]
 
     @staticmethod
     def _costed(pathfinder: Pathfinder, name: str) -> list[tuple[int, Hop]]:

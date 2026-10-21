@@ -6,7 +6,8 @@ from ..models.network import Network
 from ..models.zone import ZoneType
 from ..pathfinding.pathfinder import Hop, Pathfinder
 from .detour_policy import DetourPolicy
-from .evictor import Evictor, Position
+from .evictor import Evictor
+from .positions import PositionBoard
 from .reservation_table import ReservationTable
 from .state import MoveOrder, SimulationState
 from .turn_ledger import TurnLedger
@@ -104,15 +105,15 @@ class Scheduler:
         """
         self._start_turn(state)
         ledger = TurnLedger(state, self._table)
-        positions = self._positions(state)
+        positions = PositionBoard.from_state(state)
         self._detours.remember(ledger.turn, positions)
         orders: list[MoveOrder] = []
         for move in self._table.due(ledger.turn):
             orders.append(MoveOrder(move.drone_id, move.zone))
-            positions[move.drone_id] = (move.zone, move.arrive_turn)
+            positions.place(move.drone_id, move.zone, move.arrive_turn)
         ordered = {order.drone_id for order in orders}
         holding = {
-            drone_id for drone_id in positions
+            drone_id for drone_id in positions.drone_ids()
             if self._leaves_later(drone_id, ledger.turn)
         }
         evictor = Evictor(ledger, self._hops, positions)
@@ -161,24 +162,6 @@ class Scheduler:
         self._turn_mark = self._table.mark()
         self._planned_turn = turn
 
-    def _positions(self, state: SimulationState) -> dict[int, Position]:
-        """Return where each drone on the map is, and since when, for sure.
-
-        Drones standing in a zone have been there since the end of the
-        turn just played; drones in flight are there from this turn on.
-        """
-        played = state.turn_number
-        positions: dict[int, Position] = {}
-        for drone in state.active_drones():
-            if drone.status is DroneStatus.IN_TRANSIT:
-                if drone.transit_target is not None:
-                    positions[drone.drone_id] = (
-                        drone.transit_target, played + 1
-                    )
-            elif drone.current_zone is not None:
-                positions[drone.drone_id] = (drone.current_zone, played)
-        return positions
-
     def _leaves_later(self, drone_id: int, turn: int) -> bool:
         return any(
             move.depart_turn > turn for move in self._table.planned(drone_id)
@@ -189,7 +172,7 @@ class Scheduler:
         drone: Drone,
         ledger: TurnLedger,
         evictor: Evictor,
-        positions: dict[int, Position],
+        positions: PositionBoard,
         holding: bool,
     ) -> MoveOrder | None:
         """Pick the drone's move this turn, or None if it waits.
@@ -223,7 +206,7 @@ class Scheduler:
         hops: list[Hop],
         ledger: TurnLedger,
         evictor: Evictor,
-        positions: dict[int, Position],
+        positions: PositionBoard,
     ) -> Hop | None:
         """Record and return the first hop with room, or None.
 
@@ -247,7 +230,7 @@ class Scheduler:
         may_evict: bool,
         ledger: TurnLedger,
         evictor: Evictor,
-        positions: dict[int, Position],
+        positions: PositionBoard,
     ) -> bool:
         """Record the move along ``hop`` if it can be made; return whether.
 
@@ -259,7 +242,7 @@ class Scheduler:
         arrive = ledger.arrival_turn(zone)
         if ledger.has_seats(zone, arrive):
             ledger.record(here, hop)
-            positions[drone_id] = (zone.name, arrive)
+            positions.place(drone_id, zone.name, arrive)
             return True
         if not may_evict:
             return False
@@ -267,17 +250,18 @@ class Scheduler:
             if not evictor.make_room(zone, arrive, 1):
                 return False
             ledger.record(here, hop)
-            positions[drone_id] = (zone.name, arrive)
+            positions.place(drone_id, zone.name, arrive)
             return True
         # Room now, but a seat kept for later is taken: enter, then evict.
         if not ledger.has_seat(zone, arrive, 1):
             return False
+        before = positions.where(drone_id)
         ledger.record(here, hop)
-        positions[drone_id] = (zone.name, arrive)
+        positions.place(drone_id, zone.name, arrive)
         if evictor.make_room(zone, arrive + 1, 0):
             return True
         ledger.cancel(here, hop)
-        positions[drone_id] = (here, ledger.turn - 1)
+        positions.place(drone_id, before.zone, before.since_turn)
         return False
 
     def _decision_order(
