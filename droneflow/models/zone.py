@@ -40,7 +40,7 @@ class ZoneRole(Enum):
     END = "end_hub"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Zone:
     """A single zone (node) in the drone network.
 

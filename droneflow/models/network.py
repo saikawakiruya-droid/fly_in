@@ -1,5 +1,8 @@
 """Network: the hand-built graph of zones and connections (no graph libs)."""
 
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
+
 from ..errors import SimulationError, ZoneNotFoundError
 from .connection import Connection
 from .zone import Zone, ZoneRole
@@ -9,9 +12,20 @@ class Network:
     """Holds all zones and connections and exposes adjacency lookups."""
 
     def __init__(self) -> None:
-        self.zones: dict[str, Zone] = {}
-        self.connections: list[Connection] = []
+        """Start with no zones and no connections."""
+        self._zones: dict[str, Zone] = {}
+        self._connections: list[Connection] = []
         self._adjacency: dict[str, list[Connection]] = {}
+
+    @property
+    def zones(self) -> Mapping[str, Zone]:
+        """Return every zone by name, in declaration order (read-only)."""
+        return MappingProxyType(self._zones)
+
+    @property
+    def connections(self) -> Sequence[Connection]:
+        """Return every connection in declaration order (read-only)."""
+        return tuple(self._connections)
 
     def add_zone(self, zone: Zone) -> None:
         """Register a new zone in the network.
@@ -19,7 +33,7 @@ class Network:
         Does not check for duplicate names; the caller (the parser) is
         responsible for enforcing that constraint.
         """
-        self.zones[zone.name] = zone
+        self._zones[zone.name] = zone
 
     def add_connection(self, connection: Connection) -> None:
         """Register a new connection and update adjacency for both ends.
@@ -27,7 +41,7 @@ class Network:
         Does not check for duplicate connections; the caller (the parser)
         is responsible for enforcing that constraint.
         """
-        self.connections.append(connection)
+        self._connections.append(connection)
         self._adjacency.setdefault(connection.zone_a, []).append(connection)
         self._adjacency.setdefault(connection.zone_b, []).append(connection)
 
@@ -38,13 +52,13 @@ class Network:
             ZoneNotFoundError: If no zone with this name is registered.
         """
         try:
-            return self.zones[name]
+            return self._zones[name]
         except KeyError:
             raise ZoneNotFoundError(name) from None
 
-    def neighbors(self, name: str) -> list[Connection]:
-        """Return all connections incident to the given zone."""
-        return self._adjacency.get(name, [])
+    def neighbors(self, name: str) -> Sequence[Connection]:
+        """Return all connections incident to the given zone (read-only)."""
+        return tuple(self._adjacency.get(name, ()))
 
     def connection_between(
         self, zone_a: str, zone_b: str
@@ -96,7 +110,7 @@ class Network:
         return self._unique_role_zone(ZoneRole.END)
 
     def _unique_role_zone(self, role: ZoneRole) -> Zone:
-        matches = [zone for zone in self.zones.values() if zone.role is role]
+        matches = [zone for zone in self._zones.values() if zone.role is role]
         if len(matches) != 1:
             raise SimulationError(
                 f"expected exactly one zone with role {role!r}, "
