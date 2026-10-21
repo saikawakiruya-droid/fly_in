@@ -9,20 +9,25 @@ from ..models.network import Network
 from ..models.zone import ZoneRole
 
 
-@dataclass
+@dataclass(frozen=True)
 class Move:
     """One drone's action during a single turn, as printed in the output.
 
-    Moves are produced by the simulation engine, never by the scheduler.
+    Moves are produced by the ``TurnResolver`` (driven by the engine),
+    never by the scheduler.
 
     Attributes:
         drone_id: Which drone moved.
         destination: Target zone name, or the connection name if the drone
             just entered a restricted-zone transit.
+        connection: Name of the connection the drone departed along, or
+            None for a landing (the drone left its connection then). Only
+            departures count toward a connection's capacity.
     """
 
     drone_id: int
     destination: str
+    connection: str | None = None
 
 
 @dataclass(frozen=True)
@@ -30,8 +35,8 @@ class MoveOrder:
     """A scheduler's instruction: move one drone into an adjacent zone.
 
     The scheduler always names the zone to enter, even a restricted one;
-    the engine turns that into the connection-name output and completes
-    the arrival on the next turn by itself.
+    the ``TurnResolver`` turns that into the connection-name output and
+    lands the drone on the next turn by itself.
 
     Attributes:
         drone_id: Which drone to move.

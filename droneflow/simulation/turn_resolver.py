@@ -208,8 +208,9 @@ class TurnResolver:
         if step.is_arrival:
             state.complete_transit(drone_id)
             return Move(drone_id, step.zone.name)
+        link = step.connection.name
         if step.zone.zone_type is ZoneType.RESTRICTED:
             state.enter_transit(drone_id, step.connection, step.zone.name)
-            return Move(drone_id, step.connection.name)
+            return Move(drone_id, link, link)
         state.enter_zone(drone_id, step.zone.name)
-        return Move(drone_id, step.zone.name)
+        return Move(drone_id, step.zone.name, link)
