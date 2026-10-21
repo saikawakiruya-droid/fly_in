@@ -31,9 +31,11 @@ class Scheduler:
        ``is_on_priority_route``) come first, then those with fewer exits
        (shortest hops and detours), so a drone with a choice does not take
        the only way out of another; then declaration order. Drones in the
-       same zone have the same moves, so their order does not matter; they
-       keep ``active_drones`` order. A drone evicted earlier in this turn's
-       decisions waits: its move is planned for a later turn.
+       same zone have the same shortest hops (their detours may differ, as
+       each drone has been in different zones) and keep ``active_drones``
+       order. A drone that has a planned eviction, from an earlier turn or
+       from an earlier decision this turn, is decided like the others: its
+       planned move is dropped if it can move now, and kept otherwise.
 
     A drone takes the first hop of ``Pathfinder.next_hops`` (shortest moves
     only, priority zones first) that has room according to a ``TurnLedger``:
@@ -112,20 +114,10 @@ class Scheduler:
             orders.append(MoveOrder(move.drone_id, move.zone))
             positions.place(move.drone_id, move.zone, move.arrive_turn)
         ordered = {order.drone_id for order in orders}
-        holding = {
-            drone_id for drone_id in positions.drone_ids()
-            if self._leaves_later(drone_id, ledger.turn)
-        }
         evictor = Evictor(ledger, self._hops, positions)
         for drone in self._decision_order(state, ordered):
-            drone_id = drone.drone_id
-            if drone_id not in holding and self._leaves_later(
-                drone_id, ledger.turn
-            ):
-                continue  # evicted during this turn's decisions
-            order = self._decide(
-                drone, ledger, evictor, positions, drone_id in holding
-            )
+            holding = self._leaves_later(drone.drone_id, ledger.turn)
+            order = self._decide(drone, ledger, evictor, positions, holding)
             if order is not None:
                 orders.append(order)
         return orders
@@ -177,8 +169,9 @@ class Scheduler:
     ) -> MoveOrder | None:
         """Pick the drone's move this turn, or None if it waits.
 
-        A drone holding a planned eviction first gives it up; it gets it
-        back if it cannot move now.
+        A drone holding a planned eviction (from an earlier turn, or from
+        an earlier decision this turn) first gives it up; it gets it back
+        if it cannot move now.
         """
         here = self._zone_of(drone)
         mark = self._table.mark()
