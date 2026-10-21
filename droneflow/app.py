@@ -13,10 +13,9 @@ from .output.turn_log_view import TurnLogPrinter
 from .parsing.map_parser import MapParser
 from .pathfinding.pathfinder import Pathfinder
 from .simulation.engine import MoveDecider, SimulationEngine
-from .simulation.observer import ObserverGroup
+from .simulation.observer import ObserverGroup, TurnObserver
 from .simulation.scheduler import Scheduler
 from .simulation.state import Move, SimulationState
-from .visualization.base import Visualizer
 from .visualization.terminal_view import TerminalVisualizer
 
 
@@ -33,7 +32,7 @@ class _GuardedView:
         error: The exception raised by the view's ``close``, if any.
     """
 
-    def __init__(self, name: str, view: Visualizer) -> None:
+    def __init__(self, name: str, view: TurnObserver) -> None:
         """Wrap ``view``, called ``name`` in warnings."""
         self.name = name
         self.view = view
@@ -80,7 +79,8 @@ class Application:
             err: Where the terminal view, warnings and the summary go;
                 defaults to ``sys.stderr``.
             make_scheduler: Builds what decides each turn's moves from the
-                network and its pathfinder; defaults to ``Scheduler``.
+                network and its pathfinder; defaults to ``Scheduler``. Tests
+                pass another decider here instead of patching the module.
         """
         self.args = args
         self.out: TextIO = sys.stdout if out is None else out
@@ -153,7 +153,7 @@ class Application:
             views.append(_GuardedView("graphical", self._graphical_view()))
         return views
 
-    def _graphical_view(self) -> Visualizer:
+    def _graphical_view(self) -> TurnObserver:
         """Import pygame lazily and build the graphical view.
 
         Raises:

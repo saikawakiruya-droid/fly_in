@@ -30,7 +30,7 @@ class Evictor:
         ledger: TurnLedger,
         table: ReservationTable,
         hops: Mapping[str, list[Hop]],
-        positions: PositionBoard,
+        board: PositionBoard,
     ) -> None:
         """Plan evictions over this turn's ledger.
 
@@ -38,13 +38,13 @@ class Evictor:
             ledger: This turn's counts.
             table: The table the ledger counts; it receives the evictions.
             hops: The shortest next hops of every zone.
-            positions: Where every drone still on the map will be after
+            board: Where every drone still on the map will be after
                 this turn's moves. Kept up to date by the scheduler.
         """
         self.ledger = ledger
         self.table = table
         self.hops = hops
-        self.positions = positions
+        self.board = board
 
     def make_room(self, zone: Zone, first_turn: int, extra: int) -> bool:
         """Evict occupants until ``extra`` more drones fit in the zone.
@@ -104,8 +104,8 @@ class Evictor:
         one drone is enough: all of them would take the same hops.
         """
         now = self.ledger.turn
-        for drone_id in self.positions.drones_in(zone_name):
-            if self.positions.where(drone_id).since_turn > turn - 1:
+        for drone_id in self.board.drones_in(zone_name):
+            if self.board.where(drone_id).since_turn > turn - 1:
                 continue
             if self.table.leaves_after(drone_id, now):
                 continue

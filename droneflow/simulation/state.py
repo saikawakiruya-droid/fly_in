@@ -20,14 +20,16 @@ class Move:
         drone_id: Which drone moved.
         destination: Target zone name, or the connection name if the drone
             just entered a restricted-zone transit.
-        connection: Name of the connection the drone departed along, or
-            None for a landing (the drone left its connection then). Only
-            departures count toward a connection's capacity.
+        connection_name: Name of the connection the drone departed along,
+            or None for a landing (the drone left its connection then). Only
+            departures count toward a connection's capacity. Kept for views
+            (for example a capacity report); the turn log and the rule
+            checks do not use it.
     """
 
     drone_id: int
     destination: str
-    connection: str | None = None
+    connection_name: str | None = None
 
     @property
     def text(self) -> str:

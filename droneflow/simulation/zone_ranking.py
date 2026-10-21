@@ -24,7 +24,7 @@ class ZoneRanking:
         network: Network,
         pathfinder: Pathfinder,
         hops: Mapping[str, list[Hop]],
-        detours: DetourPolicy,
+        detour_policy: DetourPolicy,
     ) -> None:
         """Rank every zone that can reach the end zone.
 
@@ -32,7 +32,7 @@ class ZoneRanking:
             network: The map being simulated.
             pathfinder: Answers distances.
             hops: The shortest next hops of every zone.
-            detours: Answers each zone's detour hops.
+            detour_policy: Answers each zone's detour hops.
         """
         self.network = network
         self._hops = hops
@@ -41,7 +41,7 @@ class ZoneRanking:
             distance = pathfinder.distance(name)
             if distance is None:
                 continue
-            exits = len(hops[name]) + len(detours.detours(name))
+            exits = len(hops[name]) + len(detour_policy.detours(name))
             key = (distance, not self.is_on_priority_route(name), exits, index)
             keyed.append((key, name))
         keyed.sort()

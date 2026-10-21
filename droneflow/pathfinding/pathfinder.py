@@ -98,9 +98,11 @@ class Pathfinder:
             ZoneNotFoundError: If no zone with this name exists.
         """
         here = self._distance_map.distance(zone_name)
+        if here is None:
+            return []
         costed = [
             (total, hop) for total, hop in self._costed_moves(zone_name)
-            if here is not None and total > here
+            if total > here
         ]
         costed.sort(key=lambda item: item[0])
         return [hop for _, hop in costed]

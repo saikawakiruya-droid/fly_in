@@ -40,19 +40,19 @@ class SimulationEngine:
     def __init__(
         self,
         world: World,
-        scheduler: MoveDecider,
+        decider: MoveDecider,
         max_turns: int | None = None,
     ) -> None:
         """Set up all drones in the start zone.
 
         Args:
             world: The parsed map and drone count.
-            scheduler: Decides each turn's moves.
+            decider: Decides each turn's moves (normally a ``Scheduler``).
             max_turns: Safety limit on the number of turns; defaults to
                 ``default_turn_limit(world)``.
         """
         self.world = world
-        self.decider = scheduler
+        self.decider = decider
         self.state = SimulationState(world.network, world.nb_drones)
         self.resolver = TurnResolver(world.network)
         self.max_turns = (

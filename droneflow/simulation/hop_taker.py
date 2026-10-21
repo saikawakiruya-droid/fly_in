@@ -19,12 +19,12 @@ class HopTaker:
     """
 
     def __init__(
-        self, ledger: TurnLedger, evictor: Evictor, positions: PositionBoard
+        self, ledger: TurnLedger, evictor: Evictor, board: PositionBoard
     ) -> None:
-        """Work on this turn's ledger, evictor and positions."""
+        """Work on this turn's ledger, evictor and board."""
         self.ledger = ledger
         self.evictor = evictor
-        self.positions = positions
+        self.board = board
 
     def take_first(
         self, drone_id: int, here: str, hops: list[Hop]
@@ -79,14 +79,14 @@ class HopTaker:
         """
         if not self.ledger.has_seat(hop.zone, arrive, 1):
             return False
-        before = self.positions.where(drone_id)
+        before = self.board.where(drone_id)
         self._record(drone_id, here, hop, arrive)
         if self.evictor.make_room(hop.zone, arrive + 1, 0):
             return True
         self.ledger.cancel(here, hop)
-        self.positions.place(drone_id, before.zone, before.since_turn)
+        self.board.place(drone_id, before.zone, before.since_turn)
         return False
 
     def _record(self, drone_id: int, here: str, hop: Hop, arrive: int) -> None:
         self.ledger.record(here, hop)
-        self.positions.place(drone_id, hop.zone.name, arrive)
+        self.board.place(drone_id, hop.zone.name, arrive)

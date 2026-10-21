@@ -70,7 +70,7 @@ class PositionBoard:
         """
         return self._where[drone_id]
 
-    def zones(self) -> dict[int, str]:
+    def zone_by_drone(self) -> dict[int, str]:
         """Return the zone of every drone on the board."""
         return {drone_id: pos.zone for drone_id, pos in self._where.items()}
 

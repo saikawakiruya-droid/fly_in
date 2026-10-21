@@ -22,8 +22,8 @@ class Scheduler:
     standing in a zone, scheduled to move on at a given turn to make room
     for a drone that will enter that zone). Each turn:
 
-    1. drones in flight toward a restricted zone get no order (the engine
-       lands them; their landings are in the table);
+    1. drones in flight toward a restricted zone get no order (the
+       ``TurnResolver`` lands them; their landings are in the table);
     2. the planned moves due this turn are ordered first;
     3. the other drones standing in zones are decided zone by zone, in
        the order of the ``ZoneRanking`` (closest to the end zone first;
@@ -103,33 +103,23 @@ class Scheduler:
         """
         self._start_turn(state)
         ledger = TurnLedger(state, self._table)
-        positions = PositionBoard.from_state(state)
-        self._detour_policy.remember(ledger.turn, positions)
+        board = PositionBoard.from_state(state)
+        self._detour_policy.remember(ledger.turn, board)
         orders: list[MoveOrder] = []
         for move in self._table.due(ledger.turn):
             orders.append(MoveOrder(move.drone_id, move.zone))
-            positions.place(move.drone_id, move.zone, move.arrive_turn)
+            board.place(move.drone_id, move.zone, move.arrive_turn)
         ordered = {order.drone_id for order in orders}
         taker = HopTaker(
             ledger,
-            Evictor(ledger, self._table, self._hops, positions),
-            positions,
+            Evictor(ledger, self._table, self._hops, board),
+            board,
         )
         for drone in self._decision_order(state, ordered):
-            order = self._decide(drone, ledger.turn, taker, positions)
+            order = self._decide(drone, ledger.turn, taker, board)
             if order is not None:
                 orders.append(order)
         return orders
-
-    def is_on_priority_route(self, zone_name: str) -> bool:
-        """Return whether a drone in this zone is on the priority route.
-
-        See ``ZoneRanking.is_on_priority_route``.
-
-        Raises:
-            ZoneNotFoundError: If no zone with this name exists.
-        """
-        return self._ranking.is_on_priority_route(zone_name)
 
     def _start_turn(self, state: SimulationState) -> None:
         """Prepare the table for the state's next turn.
@@ -152,7 +142,7 @@ class Scheduler:
         drone: Drone,
         turn: int,
         taker: HopTaker,
-        positions: PositionBoard,
+        board: PositionBoard,
     ) -> MoveOrder | None:
         """Pick the drone's move this turn, or None if it waits.
 
@@ -167,7 +157,7 @@ class Scheduler:
             self._table.remove(drone_id)
         hop = taker.take_first(drone_id, here, self._hops.get(here, []))
         if hop is None:
-            detours = self._detour_policy.allowed(drone_id, here, positions)
+            detours = self._detour_policy.allowed(drone_id, here, board)
             hop = taker.take_first(drone_id, here, detours)
         if hop is not None:
             return MoveOrder(drone_id, hop.zone.name)

@@ -61,7 +61,7 @@ class DetourPolicy:
         self.pathfinder.distance(zone_name)  # unknown names raise
         return [hop for _, hop in self._costed_detours.get(zone_name, [])]
 
-    def remember(self, turn: int, positions: PositionBoard) -> None:
+    def remember(self, turn: int, board: PositionBoard) -> None:
         """Record where every drone is (or is landing) when ``turn`` starts.
 
         What was recorded for ``turn`` or a later turn is dropped first, so
@@ -75,7 +75,7 @@ class DetourPolicy:
             self._visited = {}
             for zones in self._reported.values():
                 self._visit(zones)
-        zones = positions.zones()
+        zones = board.zone_by_drone()
         self._reported[turn] = zones
         self._visit(zones)
 
@@ -87,15 +87,15 @@ class DetourPolicy:
         self,
         drone_id: int,
         zone_name: str,
-        positions: PositionBoard,
+        board: PositionBoard,
     ) -> list[Hop]:
         """Return the detours this drone may take now, cheapest first.
 
         Args:
             drone_id: The drone deciding.
             zone_name: Where the drone stands.
-            positions: Where every drone on the map will be after the moves
-                decided so far this turn (the scheduler's positions).
+            board: Where every drone on the map will be after the moves
+                decided so far this turn (the scheduler's board).
 
         Returns:
             The allowed detours; empty if the zone cannot reach the end
@@ -104,8 +104,8 @@ class DetourPolicy:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self.pathfinder.distance(zone_name)
-        if here is None:
+        distance = self.pathfinder.distance(zone_name)
+        if distance is None:
             return []
         visited = self._visited.get(drone_id, set())
         candidates = [
@@ -114,10 +114,10 @@ class DetourPolicy:
         ]
         if not candidates:
             return []
-        budget = here + positions.count_in(self._below[zone_name])
+        budget = distance + board.count_in(self._below[zone_name])
         return [
             hop for total, hop in candidates
-            if total + positions.count_in(self._queue_zones[hop.zone.name])
+            if total + board.count_in(self._queue_zones[hop.zone.name])
             <= budget
         ]
 

@@ -14,7 +14,7 @@ class Network:
     def __init__(self) -> None:
         """Start with no zones and no connections."""
         self._zones: dict[str, Zone] = {}
-        self._connections: list[Connection] = []
+        self._connections: tuple[Connection, ...] = ()
         self._adjacency: dict[str, tuple[Connection, ...]] = {}
 
     @property
@@ -25,7 +25,7 @@ class Network:
     @property
     def connections(self) -> Sequence[Connection]:
         """Return every connection in declaration order (read-only)."""
-        return tuple(self._connections)
+        return self._connections
 
     def add_zone(self, zone: Zone) -> None:
         """Register a new zone in the network.
@@ -41,7 +41,7 @@ class Network:
         Does not check for duplicate connections; the caller (the parser)
         is responsible for enforcing that constraint.
         """
-        self._connections.append(connection)
+        self._connections += (connection,)
         for zone_name in (connection.zone_a, connection.zone_b):
             linked = self._adjacency.get(zone_name, ())
             self._adjacency[zone_name] = linked + (connection,)
