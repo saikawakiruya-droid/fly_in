@@ -1,6 +1,6 @@
 """PositionBoard: where every drone will be, as a turn's moves are decided."""
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from typing import NamedTuple
 
 from ..models.drone import DroneStatus
@@ -69,10 +69,6 @@ class PositionBoard:
             KeyError: If the drone is not on the board.
         """
         return self._where[drone_id]
-
-    def drone_ids(self) -> Iterator[int]:
-        """Return the drones on the board."""
-        return iter(self._where)
 
     def zones(self) -> dict[int, str]:
         """Return the zone of every drone on the board."""

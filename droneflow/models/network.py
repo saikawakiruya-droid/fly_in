@@ -15,7 +15,7 @@ class Network:
         """Start with no zones and no connections."""
         self._zones: dict[str, Zone] = {}
         self._connections: list[Connection] = []
-        self._adjacency: dict[str, list[Connection]] = {}
+        self._adjacency: dict[str, tuple[Connection, ...]] = {}
 
     @property
     def zones(self) -> Mapping[str, Zone]:
@@ -42,8 +42,9 @@ class Network:
         is responsible for enforcing that constraint.
         """
         self._connections.append(connection)
-        self._adjacency.setdefault(connection.zone_a, []).append(connection)
-        self._adjacency.setdefault(connection.zone_b, []).append(connection)
+        for zone_name in (connection.zone_a, connection.zone_b):
+            linked = self._adjacency.get(zone_name, ())
+            self._adjacency[zone_name] = linked + (connection,)
 
     def get_zone(self, name: str) -> Zone:
         """Look up a zone by name.
@@ -58,7 +59,7 @@ class Network:
 
     def neighbors(self, name: str) -> Sequence[Connection]:
         """Return all connections incident to the given zone (read-only)."""
-        return tuple(self._adjacency.get(name, ()))
+        return self._adjacency.get(name, ())
 
     def connection_between(
         self, zone_a: str, zone_b: str

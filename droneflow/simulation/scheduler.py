@@ -55,9 +55,6 @@ class Scheduler:
     drones ahead), the same two ways: without evicting, then letting the
     ``Evictor`` make room. Otherwise it waits.
 
-    A drone with a planned eviction may still move earlier by an ordinary
-    decision; its planned move is then dropped (it has left already).
-
     Every run ends. A shortest move (planned evictions included) strictly
     lowers the drone's distance to the end zone, and a detour enters a zone
     the drone has never been in, so each drone makes finitely many moves.
@@ -114,7 +111,9 @@ class Scheduler:
             positions.place(move.drone_id, move.zone, move.arrive_turn)
         ordered = {order.drone_id for order in orders}
         taker = HopTaker(
-            ledger, Evictor(ledger, self._hops, positions), positions
+            ledger,
+            Evictor(ledger, self._table, self._hops, positions),
+            positions,
         )
         for drone in self._decision_order(state, ordered):
             order = self._decide(drone, ledger.turn, taker, positions)

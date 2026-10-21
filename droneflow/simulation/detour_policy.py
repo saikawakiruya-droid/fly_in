@@ -58,7 +58,7 @@ class DetourPolicy:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        self.pathfinder.network.get_zone(zone_name)
+        self.pathfinder.distance(zone_name)  # unknown names raise
         return [hop for _, hop in self._costed_detours.get(zone_name, [])]
 
     def remember(self, turn: int, positions: PositionBoard) -> None:

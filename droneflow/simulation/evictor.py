@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from ..models.zone import Zone
 from ..pathfinding.pathfinder import Hop
 from .positions import PositionBoard
-from .reservation_table import Reservation
+from .reservation_table import Reservation, ReservationTable
 from .turn_ledger import TurnLedger
 
 
@@ -28,19 +28,21 @@ class Evictor:
     def __init__(
         self,
         ledger: TurnLedger,
+        table: ReservationTable,
         hops: Mapping[str, list[Hop]],
         positions: PositionBoard,
     ) -> None:
         """Plan evictions over this turn's ledger.
 
         Args:
-            ledger: This turn's counts; its table receives the evictions.
+            ledger: This turn's counts.
+            table: The table the ledger counts; it receives the evictions.
             hops: The shortest next hops of every zone.
             positions: Where every drone still on the map will be after
                 this turn's moves. Kept up to date by the scheduler.
         """
         self.ledger = ledger
-        self.table = ledger.table
+        self.table = table
         self.hops = hops
         self.positions = positions
 
