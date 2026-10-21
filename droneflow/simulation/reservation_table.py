@@ -88,10 +88,11 @@ class ReservationTable:
             self._log.append((False, reservation))
         return removed
 
-    def planned(self, drone_id: int) -> list[Reservation]:
-        """Return the drone's planned moves, earliest first."""
-        return sorted(
-            self._by_drone.get(drone_id, []), key=lambda r: r.depart_turn
+    def leaves_after(self, drone_id: int, turn: int) -> bool:
+        """Return whether the drone has a move planned after that turn."""
+        return any(
+            move.depart_turn > turn
+            for move in self._by_drone.get(drone_id, [])
         )
 
     def entering(self, zone: str, turn: int) -> int:
@@ -195,15 +196,10 @@ def landings(state: SimulationState) -> list[Reservation]:
             raise SimulationError(
                 f"drone D{drone.drone_id} is in flight without a route"
             )
-        source = _other_end(state, link, target)
+        source = state.network.connection_named(target, link).other_end(
+            target
+        )
         result.append(
             Reservation(drone.drone_id, source, target, turn - 1, turn)
         )
     return result
-
-
-def _other_end(state: SimulationState, link: str, zone: str) -> str:
-    for connection in state.network.neighbors(zone):
-        if connection.name == link:
-            return connection.other_end(zone)
-    raise SimulationError(f"unknown connection {link!r}")

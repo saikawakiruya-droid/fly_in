@@ -87,15 +87,9 @@ class TurnResolver:
                     f"drone D{drone.drone_id} is in flight without a route"
                 )
             zone = self.network.get_zone(drone.transit_target)
-            connection = self._find_connection(link, zone.name)
+            connection = self.network.connection_named(zone.name, link)
             steps.append(_Step(drone, connection, zone, is_arrival=True))
         return steps
-
-    def _find_connection(self, name: str, zone_name: str) -> Connection:
-        for connection in self.network.neighbors(zone_name):
-            if connection.name == name:
-                return connection
-        raise SimulationError(f"unknown connection {name!r}")
 
     def _check_orders(
         self, state: SimulationState, orders: list[MoveOrder]

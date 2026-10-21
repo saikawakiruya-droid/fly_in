@@ -98,10 +98,7 @@ class Evictor:
         for drone_id in self.positions.drones_in(zone_name):
             if self.positions.where(drone_id).since_turn > turn - 1:
                 continue
-            if any(
-                move.depart_turn > now
-                for move in self.table.planned(drone_id)
-            ):
+            if self.table.leaves_after(drone_id, now):
                 continue
             return drone_id
         return None

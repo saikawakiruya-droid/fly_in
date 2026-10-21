@@ -116,7 +116,7 @@ class Scheduler:
         ordered = {order.drone_id for order in orders}
         evictor = Evictor(ledger, self._hops, positions)
         for drone in self._decision_order(state, ordered):
-            holding = self._leaves_later(drone.drone_id, ledger.turn)
+            holding = self._table.leaves_after(drone.drone_id, ledger.turn)
             order = self._decide(drone, ledger, evictor, positions, holding)
             if order is not None:
                 orders.append(order)
@@ -153,11 +153,6 @@ class Scheduler:
         self._table.start_turn(state)
         self._turn_mark = self._table.mark()
         self._planned_turn = turn
-
-    def _leaves_later(self, drone_id: int, turn: int) -> bool:
-        return any(
-            move.depart_turn > turn for move in self._table.planned(drone_id)
-        )
 
     def _decide(
         self,

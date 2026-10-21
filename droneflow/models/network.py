@@ -60,6 +60,19 @@ class Network:
                 return connection
         return None
 
+    def connection_named(self, zone_name: str, name: str) -> Connection:
+        """Return the connection called ``name`` that touches the zone.
+
+        Raises:
+            SimulationError: If the zone has no connection of that name
+                (a drone in flight refers to a connection the network
+                does not have).
+        """
+        for connection in self.neighbors(zone_name):
+            if connection.name == name:
+                return connection
+        raise SimulationError(f"unknown connection {name!r}")
+
     @property
     def start_zone(self) -> Zone:
         """Return the unique start_hub zone.
