@@ -201,13 +201,12 @@ class TerminalVisualizer:
             return f"{state.delivered_count}/-"
         inside = state.occupancy(zone.name)
         arriving = state.reserved(zone.name)
+        capacity = zone.capacity
         text = str(inside)
-        text += "/-" if zone.max_drones is None else f"/{zone.max_drones}"
+        text += "/-" if capacity is None else f"/{capacity}"
         if arriving:
             text += f"+{arriving}"
-        if zone.max_drones is not None and (
-            state.load(zone.name) >= zone.max_drones
-        ):
+        if capacity is not None and state.load(zone.name) >= capacity:
             text += "*"
         return text
 

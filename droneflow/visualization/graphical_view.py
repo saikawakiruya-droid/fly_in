@@ -322,18 +322,18 @@ class _Window:
             return
         if zone.role is ZoneRole.END:
             label = f"{state.delivered_count} in"
-        elif zone.max_drones is None:
+        elif zone.capacity is None:
             label = str(state.occupancy(zone.name))
         else:
             load = state.load(zone.name)
-            fraction = min(load / zone.max_drones, 1.0)
+            fraction = min(load / zone.capacity, 1.0)
             bar = pygame.Rect(center[0] - radius, top, radius * 2, 6)
             pygame.draw.rect(self.screen, _BAR_EMPTY, bar)
             if fraction > 0:
                 filled = bar.copy()
                 filled.width = max(1, round(bar.width * fraction))
                 pygame.draw.rect(self.screen, _load_color(fraction), filled)
-            label = f"{load}/{zone.max_drones}"
+            label = f"{load}/{zone.capacity}"
         self._text(label, (center[0], top + 26), _TEXT_DIM, True)
 
     def _draw_drones(self, state: SimulationState, moved: set[int]) -> None:
@@ -410,10 +410,10 @@ class _Window:
         here = [d.drone_id for d in state.drones_at(name)]
         if zone.role is ZoneRole.END:
             count = f"delivered: {state.delivered_count}"
-        elif zone.max_drones is None:
+        elif zone.capacity is None:
             count = f"drones: {len(here)} (no limit)"
         else:
-            count = f"drones: {state.occupancy(name)}/{zone.max_drones}"
+            count = f"drones: {state.occupancy(name)}/{zone.capacity}"
             if state.reserved(name):
                 count += f" (+{state.reserved(name)} arriving)"
         ids = " ".join(f"D{i}" for i in here[:10])

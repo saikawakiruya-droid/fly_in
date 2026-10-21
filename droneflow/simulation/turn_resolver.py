@@ -183,11 +183,10 @@ class TurnResolver:
                     continue  # on the connection until next turn
             delta[name] = delta.get(name, 0) + 1
         for name, change in delta.items():
-            zone = self.network.get_zone(name)
-            if change <= 0 or zone.has_unlimited_capacity:
+            limit = self.network.get_zone(name).capacity
+            if change <= 0 or limit is None:
                 continue
-            limit = zone.max_drones
-            if limit is None or state.occupancy(name) + change <= limit:
+            if state.occupancy(name) + change <= limit:
                 continue
             turn = state.turn_number + 1
             stuck = landing.get(name)

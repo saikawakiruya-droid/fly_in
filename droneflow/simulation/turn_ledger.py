@@ -1,7 +1,7 @@
 """TurnLedger: room left in zones and connections, this turn and later."""
 
 from ..models.connection import Connection
-from ..models.zone import Zone, ZoneType
+from ..models.zone import Zone
 from ..pathfinding.pathfinder import Hop
 from .reservation_table import ReservationTable
 from .state import SimulationState
@@ -70,9 +70,7 @@ class TurnLedger:
 
     def arrival_turn(self, zone: Zone) -> int:
         """Return the turn a drone ordered into the zone now would enter it."""
-        if zone.zone_type is ZoneType.RESTRICTED:
-            return self.turn + 1
-        return self.turn
+        return zone.arrival_turn(self.turn)
 
     def link_free(self, connection: Connection, turn: int) -> bool:
         """Return whether one more drone can depart across it on that turn."""
@@ -97,9 +95,10 @@ class TurnLedger:
 
     def has_seat(self, zone: Zone, turn: int, extra: int) -> bool:
         """Return whether ``extra`` more drones fit in the zone that turn."""
-        if zone.has_unlimited_capacity or zone.max_drones is None:
+        capacity = zone.capacity
+        if capacity is None:
             return True
-        return self.projected(zone.name, turn) + extra <= zone.max_drones
+        return self.projected(zone.name, turn) + extra <= capacity
 
     def projected(self, zone_name: str, turn: int) -> int:
         """Return the zone's projected load at the end of that turn."""

@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping
 
-from ..models.zone import Zone, ZoneType
+from ..models.zone import Zone
 from ..pathfinding.pathfinder import Hop
 from .positions import PositionBoard
 from .reservation_table import Reservation
@@ -76,9 +76,7 @@ class Evictor:
         for hop in self.hops.get(zone.name, []):
             if not self.ledger.link_free(hop.connection, turn):
                 continue
-            arrive = turn
-            if hop.zone.zone_type is ZoneType.RESTRICTED:
-                arrive = turn + 1
+            arrive = hop.zone.arrival_turn(turn)
             mark = self.table.mark()
             if not self._keep_seats(hop.zone, arrive, 1):
                 self.table.rollback(mark)
