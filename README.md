@@ -311,7 +311,7 @@ no difference on the distributed maps.
 Every turn, the scheduler builds the orders in this order:
 
 1. Drones in flight toward a restricted zone get no order: they must land this
-   turn, and the engine lands them.
+   turn, and the `TurnResolver` lands them.
 2. Moves planned on earlier turns that are due this turn (evictions, see
    below) are ordered first.
 3. The other drones standing in zones are decided **zone by zone**, the zones
@@ -375,9 +375,9 @@ earlier through an ordinary decision, in which case the plan is dropped.
 
 The same mechanism covers one more case, a **seat promised to a later drone**:
 an ordinary move into a normal or priority zone that has room now, but whose
-seat is already promised to a drone planned to enter later. The drone may enter only if an eviction
-(possibly of the entering drone itself) can be planned so that the zone is
-never over capacity on those later turns.
+seat is already promised to a drone planned to enter later. The drone may
+enter only if an eviction (possibly of the entering drone itself) can be
+planned so that the zone is never over capacity on those later turns.
 
 **Eviction is a last resort.** When a drone chooses where to move, it first
 looks at every shortest next hop without evicting anyone. Only if none of them
@@ -452,8 +452,10 @@ With `V` zones, `E` connections and `D` drones:
   positions of every turn `T` are kept so that a turn can be planned again
   from another state), and the turn log of the run (one entry per move).
 
-Measured on a 3-lane map with 32 zones (`--visual none`, Python 3.14, a
-laptop): 100 drones in 0.14 s, 1,000 drones in 1.5 s, 3,000 drones in 13 s.
+Measured on a 3-lane map with 32 zones, every capacity 1 (`--visual none`,
+Python 3.14, a laptop, one run each): 100 drones in 0.14 s, 1,000 drones in
+1.5 s, 3,000 drones in 13 s. On the same map, the version just before detours
+took 1.6 s and 33 s for 1,000 and 3,000 drones.
 
 ### Code structure
 
@@ -472,6 +474,18 @@ droneflow/
   visualization/           terminal view, graphical view, palette
 ```
 
+How the scheduler's parts work together for one drone:
+
+```text
+Scheduler: zones in ZoneRanking order, drones of a zone in id order
+  -> HopTaker.take_first(shortest hops)      seat? TurnLedger (counts, planned
+       no room: again, letting the Evictor     moves in the ReservationTable)
+       plan occupants to move on
+  -> DetourPolicy.allowed(...)               queues counted on the PositionBoard
+  -> HopTaker.take_first(allowed detours)
+  -> otherwise the drone waits
+```
+
 Objects are combined by composition and delegation rather than inheritance
 (for example the parser delegates to a reader, a tokenizer and a validator,
 the engine composes a scheduler and a resolver, and the scheduler delegates to
@@ -483,7 +497,7 @@ printer are observers, so the engine does not know which are attached.
 Inheritance is used only for "is a" relations: the exception hierarchy
 (`FlyInError` and its subclasses) and the abstract base classes of the parser's
 cross-line rules (`ZoneRule`, `ConnectionRule`), whose subclasses each check
-one constraint. Enums and protocols are used for the rest.
+one constraint. Enums, a NamedTuple and protocols are used for the rest.
 
 To show something new each turn (for example connection usage), write a class
 with `begin`, `render` and `close` and add it in `Application._make_views`.
@@ -624,8 +638,8 @@ project, under the following division of roles:
   priority zones only as a tie-break, the detour rule (take a longer route when
   it is not slower than waiting, never re-entering a zone), the
   reservation-table and eviction model for restricted zones, and the seat
-  promised to a later drone. Some were chosen by the author among options the AI proposed
-  and measured, such as making eviction a last resort.
+  promised to a later drone. Some were chosen by the author among options
+  the AI proposed and measured, such as making eviction a last resort.
 - **Implementation and tests**: from the pathfinding stage onward, at the
   author's explicit request, the AI wrote implementation code and unit tests
   in phases (pathfinding, simulation engine, scheduler, visualization, command
