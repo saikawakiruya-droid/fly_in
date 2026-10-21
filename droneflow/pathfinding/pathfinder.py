@@ -38,9 +38,9 @@ class Pathfinder:
                 start zone.
         """
         self.network = network
-        self._distances = DistanceMap(network)
+        self._distance_map = DistanceMap(network)
         start = network.start_zone
-        if self._distances.distance(start.name) is None:
+        if self._distance_map.distance(start.name) is None:
             raise UnreachableGoalError(start.name, network.end_zone.name)
 
     def distance(self, zone_name: str) -> int | None:
@@ -53,7 +53,7 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        return self._distances.distance(zone_name)
+        return self._distance_map.distance(zone_name)
 
     def next_hops(self, zone_name: str) -> list[Hop]:
         """Return every move that keeps a drone on a shortest route.
@@ -71,7 +71,7 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self._distances.distance(zone_name)
+        here = self._distance_map.distance(zone_name)
         hops = [
             hop for total, hop in self._costed_moves(zone_name)
             if total == here
@@ -97,7 +97,7 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self._distances.distance(zone_name)
+        here = self._distance_map.distance(zone_name)
         costed = [
             (total, hop) for total, hop in self._costed_moves(zone_name)
             if here is not None and total > here
@@ -116,7 +116,7 @@ class Pathfinder:
                 zone (never the case for ``next_hops`` and
                 ``detour_hops``).
         """
-        there = self._distances.distance(hop.zone.name)
+        there = self._distance_map.distance(hop.zone.name)
         if there is None:
             raise ValueError(f"{hop.zone.name!r} cannot reach the end zone")
         return hop.zone.zone_type.turn_cost + there
@@ -131,7 +131,7 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self._distances.distance(zone_name)
+        here = self._distance_map.distance(zone_name)
         if here is None or here == 0:
             return []
         moves: list[tuple[int, Hop]] = []
@@ -140,7 +140,7 @@ class Pathfinder:
             zone = self.network.get_zone(connection.other_end(zone_name))
             if zone.name == zone_name or zone.name in seen:
                 continue
-            if self._distances.distance(zone.name) is None:
+            if self._distance_map.distance(zone.name) is None:
                 continue
             seen.add(zone.name)
             hop = Hop(connection, zone)

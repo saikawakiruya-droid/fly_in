@@ -56,18 +56,6 @@ class TurnLedger:
         self._zone_change: dict[tuple[str, int], int] = {}
         self._link_use: dict[str, int] = {}
 
-    def has_room(self, hop: Hop) -> bool:
-        """Return whether one more drone can take this hop this turn.
-
-        The connection must have room this turn, and the zone entered must
-        have a seat on the turn the drone enters it and on every later turn
-        with a planned move (so the move takes no seat kept for a drone that
-        is planned to enter later). Nobody is evicted to make room.
-        """
-        return self.link_free(hop.connection, self.turn) and self.has_seats(
-            hop.zone, self.arrival_turn(hop.zone)
-        )
-
     def arrival_turn(self, zone: Zone) -> int:
         """Return the turn a drone ordered into the zone now would enter it."""
         return zone.arrival_turn(self.turn)

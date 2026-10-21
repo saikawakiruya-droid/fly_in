@@ -40,7 +40,7 @@ class DetourPolicy:
             hops: The shortest next hops of every zone.
         """
         self.pathfinder = pathfinder
-        self._detours: dict[str, list[tuple[int, Hop]]] = {
+        self._costed_detours: dict[str, list[tuple[int, Hop]]] = {
             name: self._costed(pathfinder, name) for name in hops
         }
         self._below: dict[str, set[str]] = {
@@ -59,7 +59,7 @@ class DetourPolicy:
             ZoneNotFoundError: If no zone with this name exists.
         """
         self.pathfinder.network.get_zone(zone_name)
-        return [hop for _, hop in self._detours.get(zone_name, [])]
+        return [hop for _, hop in self._costed_detours.get(zone_name, [])]
 
     def remember(self, turn: int, positions: PositionBoard) -> None:
         """Record where every drone is (or is landing) when ``turn`` starts.
@@ -109,7 +109,7 @@ class DetourPolicy:
             return []
         visited = self._visited.get(drone_id, set())
         candidates = [
-            (total, hop) for total, hop in self._detours[zone_name]
+            (total, hop) for total, hop in self._costed_detours[zone_name]
             if hop.zone.name not in visited
         ]
         if not candidates:
