@@ -17,22 +17,14 @@ class TurnLogPrinter:
     output. Empty turns are skipped (the engine never renders one).
     """
 
-    def __init__(
-        self,
-        stream: TextIO | None = None,
-        formatter: TurnLogFormatter | None = None,
-    ) -> None:
-        """Choose where to write and how to format.
+    def __init__(self, stream: TextIO | None = None) -> None:
+        """Choose where to write.
 
         Args:
             stream: Where turn lines go; defaults to ``sys.stdout``.
-            formatter: Formats one turn; defaults to a new
-                ``TurnLogFormatter``.
         """
         self.stream: TextIO = sys.stdout if stream is None else stream
-        self.formatter = (
-            TurnLogFormatter() if formatter is None else formatter
-        )
+        self.formatter = TurnLogFormatter()
 
     def begin(self, state: SimulationState) -> None:
         """Write nothing: turn 0 has no moves."""

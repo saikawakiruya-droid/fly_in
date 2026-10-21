@@ -85,24 +85,6 @@ class SimulationState:
         """Return occupancy plus reservations: the room already taken."""
         return self.occupancy(zone_name) + self.reserved(zone_name)
 
-    def free_capacity(self, zone_name: str) -> int | None:
-        """Return how many more drones may enter the zone, before departures.
-
-        Drones leaving the zone this turn free more room; the scheduler has
-        to account for those itself.
-
-        Returns:
-            The remaining room, or None for the start and end zones, which
-            have no limit.
-
-        Raises:
-            ZoneNotFoundError: If no zone with this name exists.
-        """
-        zone = self.network.get_zone(zone_name)
-        if zone.has_unlimited_capacity or zone.max_drones is None:
-            return None
-        return zone.max_drones - self.load(zone_name)
-
     def link_load(self, connection: Connection) -> int:
         """Return how many drones are in flight on the connection.
 
@@ -162,7 +144,6 @@ class SimulationState:
         drone.status = DroneStatus.IN_TRANSIT
         drone.in_transit_connection = connection.name
         drone.transit_target = zone_name
-        drone.turns_remaining = 1
         self._add(self._reserved, zone_name, 1)
         self._add(self._link_load, connection.name, 1)
 
@@ -178,7 +159,6 @@ class SimulationState:
             self._add(self._link_load, link, -1)
         drone.in_transit_connection = None
         drone.transit_target = None
-        drone.turns_remaining = 0
         self._arrive(drone, target)
 
     def _drone_at_zone(self, drone_id: int) -> Drone:

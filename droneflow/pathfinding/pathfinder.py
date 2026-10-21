@@ -1,4 +1,4 @@
-"""Pathfinder: next hops (shortest and detours) and routes to the end."""
+"""Pathfinder: next hops toward the end zone, shortest and detours."""
 
 from dataclasses import dataclass
 
@@ -7,19 +7,6 @@ from ..models.connection import Connection
 from ..models.network import Network
 from ..models.zone import Zone, ZoneType
 from .distance_map import DistanceMap
-
-
-@dataclass
-class Route:
-    """A concrete route through the network.
-
-    Attributes:
-        zones: Ordered zone names from the first zone to the end, inclusive.
-        total_cost: Sum of movement costs along the path, in turns.
-    """
-
-    zones: list[str]
-    total_cost: int
 
 
 @dataclass(frozen=True)
@@ -136,29 +123,3 @@ class Pathfinder:
                 costed.append((total, Hop(connection, zone)))
         costed.sort(key=lambda item: item[0])
         return [hop for _, hop in costed]
-
-    def best_route(self, from_zone: str | None = None) -> Route:
-        """Return one shortest route to the end zone.
-
-        Follows the first hop of ``next_hops`` at every step, so priority
-        zones are taken whenever they tie with the alternatives.
-
-        Args:
-            from_zone: Where the route begins; the start zone if omitted.
-
-        Raises:
-            ZoneNotFoundError: If ``from_zone`` does not exist.
-            UnreachableGoalError: If the end zone cannot be reached from
-                ``from_zone``.
-        """
-        name = self.network.start_zone.name if from_zone is None else from_zone
-        total = self._distances.distance(name)
-        if total is None:
-            raise UnreachableGoalError(name, self.network.end_zone.name)
-        zones = [name]
-        hops = self.next_hops(name)
-        while hops:
-            name = hops[0].zone.name
-            zones.append(name)
-            hops = self.next_hops(name)
-        return Route(zones, total)
