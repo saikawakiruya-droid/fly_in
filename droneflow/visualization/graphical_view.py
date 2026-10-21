@@ -394,9 +394,7 @@ class _Window:
             controls = f"{note}   {controls}"
         surface = self.font.render(controls, True, _TEXT_DIM)
         self.screen.blit(surface, (width - surface.get_width() - 10, 11))
-        move_text = " ".join(
-            f"D{m.drone_id}-{m.destination}" for m in moves
-        )
+        move_text = " ".join(move.text for move in moves)
         self.screen.blit(
             self.font.render(move_text or "-", True, _TEXT_DIM),
             (10, height - _FOOTER_HEIGHT + 6),

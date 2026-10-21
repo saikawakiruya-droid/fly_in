@@ -8,4 +8,4 @@ class TurnLogFormatter:
 
     def format_turn(self, moves: list[Move]) -> str:
         """Format a single turn's moves as one space-separated line."""
-        return " ".join(f"D{m.drone_id}-{m.destination}" for m in moves)
+        return " ".join(move.text for move in moves)

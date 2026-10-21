@@ -81,10 +81,9 @@ class UniqueConnection(ConnectionRule):
     def check_connection(
         self, connection: Connection, network: Network
     ) -> None:
-        if any(
-            existing.other_end(connection.zone_a) == connection.zone_b
-            for existing in network.neighbors(connection.zone_a)
-        ):
+        if network.connection_between(
+            connection.zone_a, connection.zone_b
+        ) is not None:
             raise ValueError(
                 f"duplicate connection: "
                 f"{connection.zone_a}-{connection.zone_b}"

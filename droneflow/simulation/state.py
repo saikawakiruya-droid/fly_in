@@ -29,6 +29,11 @@ class Move:
     destination: str
     connection: str | None = None
 
+    @property
+    def text(self) -> str:
+        """Return the move as printed: ``D<id>-<destination>``."""
+        return f"D{self.drone_id}-{self.destination}"
+
 
 @dataclass(frozen=True)
 class MoveOrder:
