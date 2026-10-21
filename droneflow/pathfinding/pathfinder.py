@@ -72,19 +72,10 @@ class Pathfinder:
             ZoneNotFoundError: If no zone with this name exists.
         """
         here = self._distances.distance(zone_name)
-        if here is None or here == 0:
-            return []
-        hops: list[Hop] = []
-        seen: set[str] = set()
-        for connection in self.network.neighbors(zone_name):
-            zone = self.network.get_zone(connection.other_end(zone_name))
-            there = self._distances.distance(zone.name)
-            if there is None or zone.name in seen:
-                continue
-            # A zone with a distance is traversable, so turn_cost is safe.
-            if zone.zone_type.turn_cost + there == here:
-                seen.add(zone.name)
-                hops.append(Hop(connection, zone))
+        hops = [
+            hop for total, hop in self._costed_moves(zone_name)
+            if total == here
+        ]
         hops.sort(key=lambda hop: hop.zone.zone_type is not ZoneType.PRIORITY)
         return hops
 
@@ -107,19 +98,51 @@ class Pathfinder:
             ZoneNotFoundError: If no zone with this name exists.
         """
         here = self._distances.distance(zone_name)
+        costed = [
+            (total, hop) for total, hop in self._costed_moves(zone_name)
+            if here is not None and total > here
+        ]
+        costed.sort(key=lambda item: item[0])
+        return [hop for _, hop in costed]
+
+    def route_cost(self, hop: Hop) -> int:
+        """Return the turns to the end zone when going through ``hop``.
+
+        That is the turns to enter the hop's zone plus that zone's own
+        distance.
+
+        Raises:
+            ValueError: If the end zone cannot be reached from the hop's
+                zone (never the case for ``next_hops`` and
+                ``detour_hops``).
+        """
+        there = self._distances.distance(hop.zone.name)
+        if there is None:
+            raise ValueError(f"{hop.zone.name!r} cannot reach the end zone")
+        return hop.zone.zone_type.turn_cost + there
+
+    def _costed_moves(self, zone_name: str) -> list[tuple[int, Hop]]:
+        """Return every move from the zone toward a zone that can finish.
+
+        Each move comes with its ``route_cost``. Self-loops are left out,
+        and so is everything when this zone is the end zone or cannot
+        reach it. The order is connection declaration order.
+
+        Raises:
+            ZoneNotFoundError: If no zone with this name exists.
+        """
+        here = self._distances.distance(zone_name)
         if here is None or here == 0:
             return []
-        costed: list[tuple[int, Hop]] = []
+        moves: list[tuple[int, Hop]] = []
         seen: set[str] = set()
         for connection in self.network.neighbors(zone_name):
             zone = self.network.get_zone(connection.other_end(zone_name))
-            there = self._distances.distance(zone.name)
-            if there is None or zone.name == zone_name or zone.name in seen:
+            if zone.name == zone_name or zone.name in seen:
                 continue
-            # A zone with a distance is traversable, so turn_cost is safe.
-            total = zone.zone_type.turn_cost + there
-            if total > here:
-                seen.add(zone.name)
-                costed.append((total, Hop(connection, zone)))
-        costed.sort(key=lambda item: item[0])
-        return [hop for _, hop in costed]
+            if self._distances.distance(zone.name) is None:
+                continue
+            seen.add(zone.name)
+            hop = Hop(connection, zone)
+            moves.append((self.route_cost(hop), hop))
+        return moves

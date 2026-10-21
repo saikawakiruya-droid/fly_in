@@ -124,12 +124,10 @@ class DetourPolicy:
     @staticmethod
     def _costed(pathfinder: Pathfinder, name: str) -> list[tuple[int, Hop]]:
         """Return the zone's detours with their total cost to the end."""
-        costed: list[tuple[int, Hop]] = []
-        for hop in pathfinder.detour_hops(name):
-            there = pathfinder.distance(hop.zone.name)
-            if there is not None:  # always true for a detour
-                costed.append((hop.zone.zone_type.turn_cost + there, hop))
-        return costed
+        return [
+            (pathfinder.route_cost(hop), hop)
+            for hop in pathfinder.detour_hops(name)
+        ]
 
     @staticmethod
     def _zones_below(name: str, hops: Mapping[str, list[Hop]]) -> set[str]:
