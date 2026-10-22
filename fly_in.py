@@ -1,6 +1,5 @@
 """Fly-in: entry point for the drone routing simulation (42 - Fly-in)."""
 
-import errno
 import os
 import sys
 
@@ -54,24 +53,12 @@ def _run(args: Args) -> int:
     except KeyboardInterrupt:
         print("error: interrupted", file=sys.stderr)
         return EXIT_INTERRUPTED
-    except OSError as exc:
-        if not _is_closed_pipe(exc):
-            raise
+    except BrokenPipeError:
+        # The reader of stdout went away (e.g. ``| head``). Map files that
+        # cannot be read are already reported as MapFileError.
         _silence_stdout()
         return 1
     return 0
-
-
-def _is_closed_pipe(exc: OSError) -> bool:
-    """Return whether the error means the reader of stdout went away.
-
-    That is ``BrokenPipeError`` on POSIX; Windows reports a write to a
-    closed pipe as ``EINVAL`` instead. Map files that cannot be read are
-    already reported as ``MapFileError``, so no other OSError is caught.
-    """
-    if isinstance(exc, BrokenPipeError):
-        return True
-    return os.name == "nt" and exc.errno == errno.EINVAL
 
 
 def _silence_stdout() -> None:
