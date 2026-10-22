@@ -269,6 +269,9 @@ python -m pytest tests/
   (端末かどうか・`NO_COLOR` は空でない値のときだけ)、知らない色・色なしは塗らない、close は flush するだけ、
   ステップ実行(最後のターン以外で Enter を待つ・端末でない入力や `step=False` では読まない・EOF で以後待たない)、
   状態を変えないこと、課題のサンプルマップの E2E
+- `tests/visualization/test_labels.py` — グラフィカル表示の文字(VL01〜VL14。pygame 不要、幅は `len` で測る): start/end の名前に
+  `(start)`/`(end)`(長い名前は名前だけを切る)、`~` での切り方、ゾーンの数字は在室数/容量で到着予定は `+N`(`1/1 +1`)、start は在室数・
+  end は配達数・blocked はなし、下の行の移動の一覧(収まらなければ `... +K more`、空は `-`、3,000 件でも測るのは 20 回以下)
 - `tests/visualization/test_graphical_view.py` — `GraphicalVisualizer` をヘッドレス(`SDL_VIDEODRIVER=dummy`)で:
   構築では窓を開かない、begin で開き close で閉じる、`_Layout` の座標変換(y は上向き・縮退した配置)、`zone_rgb` の
   色の引き方、課題のサンプルマップ・restricted だけのマップを最後まで描いて閉じる、途中で閉じても(×・Esc・q)計算は続く、
