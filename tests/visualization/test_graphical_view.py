@@ -11,6 +11,7 @@ so a view that waits for good closes its window and the test fails on
 test design".
 """
 
+import math
 import os
 import subprocess
 import sys
@@ -26,6 +27,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 pygame = pytest.importorskip("pygame")
 
 from droneflow.models.network import Network  # noqa: E402
+from droneflow.models.zone import ZoneType  # noqa: E402
 from droneflow.models.world import World  # noqa: E402
 from droneflow.pathfinding.pathfinder import Pathfinder  # noqa: E402
 from droneflow.simulation.engine import SimulationEngine  # noqa: E402
@@ -36,6 +38,10 @@ from droneflow.visualization.graphical_view import (  # noqa: E402
     GraphicalVisualizer,
     _Layout,
     zone_rgb,
+)
+from droneflow.visualization.geometry import (  # noqa: E402
+    distance_to_path,
+    middle,
 )
 from droneflow.visualization.palette import DEFAULT_ZONE_RGB  # noqa: E402
 
@@ -152,12 +158,17 @@ def test_layout_y_axis_points_up(coord_network: CoordNetwork) -> None:
 def test_layout_degenerate_maps(
     case: str, coord_network: CoordNetwork
 ) -> None:
-    """VG04: no division by zero; one axis is never stretched too far."""
+    """VG04: no division by zero; one axis is never stretched too far.
+
+    Zones at the same point are spread apart (2026-10-22, VO01).
+    """
     if case == "same_point":
         network = coord_network([("s", 3, 3), ("a", 3, 3), ("g", 3, 3)])
         layout = _Layout(network, (1200, 800))
         points = {layout.position(name) for name in ("s", "a", "g")}
-        assert len(points) == 1
+        assert len(points) == 3
+        for p, q in [(p, q) for p in points for q in points if p < q]:
+            assert math.dist(p, q) >= 2 * layout.radius
     elif case == "vertical":
         network = coord_network([("s", 0, 0), ("g", 0, 5)])
         layout = _Layout(network, (1200, 800))
@@ -415,3 +426,122 @@ def test_step_mode_does_not_wait_on_the_final_frame(
         headless.post_key(pygame.K_ESCAPE)
     view.close()
     assert view.is_open is False
+
+
+def test_zones_at_one_position_are_all_shown(
+    coord_network: CoordNetwork,
+) -> None:
+    """VO01: zones declared at the same position are drawn apart."""
+    network = coord_network([("s", 0, 0), ("a", 3, 0), ("b", 3, 0),
+                             ("g", 6, 0)])
+    layout = _Layout(network, (1200, 800))
+
+    a, b = layout.position("a"), layout.position("b")
+
+    assert a != b
+    assert layout.zone_at(a) == "a"
+    assert layout.zone_at(b) == "b"
+
+
+@pytest.fixture
+def through(coord_network: CoordNetwork) -> Callable[..., Network]:
+    """Return s, b, c, g on a line, with s-c running over b."""
+
+    def make(types: dict[str, ZoneType] | None = None) -> Network:
+        return coord_network(
+            [("s", 0, 0), ("b", 3, 0), ("c", 6, 0), ("g", 9, 0)],
+            "s-b b-c s-c c-g",
+            types=types,
+        )
+
+    return make
+
+
+def test_link_over_a_zone_is_an_arc(
+    through: Callable[..., Network],
+) -> None:
+    """VO02: a connection running over another zone bends round it."""
+    network = through()
+    layout = _Layout(network, (1200, 800))
+    s_c = network.connection_between("s", "c")
+    s_b = network.connection_between("s", "b")
+    assert s_c is not None and s_b is not None
+
+    path = layout.path(s_c)
+
+    assert len(path) > 2
+    assert distance_to_path(layout.position("b"), path) >= (
+        layout.radius * 1.2
+    )
+    assert layout.path(s_b) == [layout.position("s"), layout.position("b")]
+
+
+def test_drone_in_flight_on_the_arc(
+    headless: Headless, through: Callable[..., Network], place: Place
+) -> None:
+    """VO03: a drone flying to a restricted zone sits mid-arc."""
+    network = through({"c": ZoneType.RESTRICTED})
+    s_c = network.connection_between("s", "c")
+    assert s_c is not None
+    state = place(network, 1, flying={1: ("s", "c")})
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+
+    view.begin(state)
+    window = view._window
+    assert window is not None
+    point = window.drone_point(state.drones[1])
+    view.close()
+
+    assert point == middle(window.layout.path(s_c))
+
+
+def trails_after(
+    view: GraphicalVisualizer,
+    before: SimulationState,
+    after: SimulationState,
+    moves: list[Move],
+) -> tuple[list[list[tuple[int, int]]], list[tuple[int, int]]]:
+    """Show two frames; return the second one's trails and s-c's path."""
+    view.begin(before)
+    view.render(after, moves)
+    window = view._window
+    assert window is not None
+    s_c = after.network.connection_between("s", "c")
+    assert s_c is not None
+    trails, path = list(window._trails), window.layout.path(s_c)
+    view.close()
+    return trails, path
+
+
+def test_trail_follows_the_arc(
+    headless: Headless, through: Callable[..., Network], place: Place
+) -> None:
+    """VO04: a move along an arc is traced along the arc."""
+    network = through()
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+
+    trails, path = trails_after(
+        view,
+        place(network, 1),
+        place(network, 1, at={1: "c"}),
+        [Move(1, "c", "s-c")],
+    )
+
+    assert trails == [path]
+
+
+def test_landing_trail_starts_mid_arc(
+    headless: Headless, through: Callable[..., Network], place: Place
+) -> None:
+    """VO05: a landing is traced from the middle of the arc to the zone."""
+    network = through({"c": ZoneType.RESTRICTED})
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+
+    trails, path = trails_after(
+        view,
+        place(network, 1, flying={1: ("s", "c")}),
+        place(network, 1, at={1: "c"}),
+        [Move(1, "c")],
+    )
+
+    assert trails == [path[len(path) // 2:]]

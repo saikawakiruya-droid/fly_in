@@ -41,8 +41,12 @@ def test_start_and_end_titles() -> None:
 
 
 def test_long_name_keeps_the_role() -> None:
-    """VL03: only the name is cut; " (start)" is always shown."""
-    title = zone_title(zone("abcdefghij", ZoneRole.START), len, 12)
+    """VL03: only the name is cut; " (start)" is shown on top of it.
+
+    Since 2026-10-22 (VO) the suffix does not count toward the width, so
+    the start and end names get as much room as any other zone's.
+    """
+    title = zone_title(zone("abcdefghij", ZoneRole.START), len, 4)
 
     assert title == "abc~ (start)"
 

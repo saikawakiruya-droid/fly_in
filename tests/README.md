@@ -272,13 +272,18 @@ python -m pytest tests/
 - `tests/visualization/test_labels.py` — グラフィカル表示の文字(VL01〜VL14。pygame 不要、幅は `len` で測る): start/end の名前に
   `(start)`/`(end)`(長い名前は名前だけを切る)、`~` での切り方、ゾーンの数字は在室数/容量で到着予定は `+N`(`1/1 +1`)、start は在室数・
   end は配達数・blocked はなし、下の行の移動の一覧(収まらなければ `... +K more`、空は `-`、3,000 件でも測るのは 20 回以下)
+- `tests/visualization/test_geometry.py` — 表示の幾何(GE01〜GE19。pygame 不要): 同じ座標のゾーンを円周上に離す(2つは左右・間は直径の 1.1 倍)、
+  最近接距離(x で並べて打ち切る。乱数の300点で全組み合わせと一致)、2次ベジェの弧(両端・真ん中・向き)、経路の一部(真ん中まで・逆順)、
+  点と折れ線の距離、格子での近くの検索、接続の経路(邪魔がなければ直線・途中のゾーンは弧で避ける・両端は避けない・避けきれなければ最も離れるもの)
 - `tests/visualization/test_graphical_view.py` — `GraphicalVisualizer` をヘッドレス(`SDL_VIDEODRIVER=dummy`)で:
   構築では窓を開かない、begin で開き close で閉じる、`_Layout` の座標変換(y は上向き・縮退した配置)、`zone_rgb` の
   色の引き方、課題のサンプルマップ・restricted だけのマップを最後まで描いて閉じる、途中で閉じても(×・Esc・q)計算は続く、
   ステップ実行(一時停止で始まる・右矢印で1ターン・Space で自動再生・最後のフレームは待たない)、上下の矢印での待ち時間の
   変更と上下限、close は何度でも・close の後は窓を開かない、`hold_final` の最後の画面での待ちと待たない場合、マウスでの
   詳細表示、import で stdout に何も出ないこと(サブプロセス)。pygame が無ければファイルごと skip。入力イベントは
-  呼び出しの前に積み、番犬のタイマー(QUIT)でハングを防ぐ。実時間の sleep や経過時間のアサーションは使わない
+  呼び出しの前に積み、番犬のタイマー(QUIT)でハングを防ぐ。実時間の sleep や経過時間のアサーションは使わない。
+  重なりの改善(VO01〜VO05): 同じ座標のゾーンがどちらも見えてマウスで見つかる(VG04 の同じ点も3点に分かれる)、他のゾーンの上を通る接続は弧、
+  飛行中の機は弧の真ん中、移動の軌跡は使った接続の弧に沿い、着陸は弧の真ん中から先
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
 Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization)と、CLI / Application / エントリポイント
