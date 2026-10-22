@@ -77,3 +77,25 @@
   - 手順書 `docs/research/2026-10-22_live-coding-capacity-info.md`(答えのコードは書かない)。練習用ブランチ `feature/capacity_info` に
     `LIVE CODING (--capacity-info)` の印を5か所(`git grep -n "LIVE CODING"`)。**このブランチはマージしない。**
 - 未決: `test/visual_labels`・`test/trim_run_file` の develop へのマージ(ユーザーの許可待ち)。重なる接続(弧にするなど)・同じ座標のゾーン・透明度の改善をするか。
+## ビジュアライズの改善 2回目(重なる接続を弧に、同じ座標のゾーン)
+
+- 依頼: 重なる接続を弧にする、同じ座標のゾーンの改善を進める。終わったら WSL でテストマップに対して全体・部分実行する。
+  あわせて、線が黄色い理由と、overlap_t1 でターン1なのに start から2回動いて見える理由を知りたい(前回の説明が伝わっていなかった)。
+- 作業(`feature/visual_overlaps`、`test/visual_labels` から切った): 同じ座標のゾーンを円周上に並べる、他のゾーンの上を通る接続は2次ベジェの弧、
+  飛行中の機・`x2` は弧の真ん中、軌跡は使った接続の弧に沿う。幾何は `droneflow/visualization/geometry.py`(pygame 不要)。
+  start/end の名前の幅に `(start)` を数えないように変更(challenger で `s~ (start)` になったため)。
+- 性能: 1万ゾーンのメッシュで配置に225秒かかった。原因は既存の最近接距離の全組み合わせ(O(n²))を2回呼んだこと。x で並べて打ち切る方法に置き換えた。
+- テスト(`test/visual_overlaps`): GE01〜GE19・VO01〜VO05、VG04・VL03 を変更。pytest 858件成功、flake8・mypy 問題なし。
+- 決定: `docs/decisions.md` 2026-10-22「重なる接続を弧にし、同じ座標のゾーンをずらす」
+- WSL での全体・部分実行: 配布マップ・revie_case・課題の例・overlap_demo で、部分実行の検査 194/194 成功、make lint/test も成功
+  (`docs/research/2026-10-22_wsl-full-partial-runs.md`)。途中で、1万ゾーンの配置が遅い問題(避ける距離に上限)を直し、GE20 を追加(859件成功)。
+- 説明: 黄色の線はそのターンに動いた機の軌跡(接続は灰色)。overlap_t1 の D2・D3 は s→c を1回で動いたが、s-c が b の真下を通る直線だったため
+  s→b→c に見えた。弧にしたことで解消。
+- 未決: `test/visual_labels`・`test/trim_run_file`・`test/visual_overlaps` の develop へのマージ(ユーザーの許可待ち。overlaps は labels を含む)。
+- ユーザーの指摘・依頼と対応:
+  - 「曲げても結局重なっていないか」→ 重なっていた(一直線の5ゾーンで弧が全部下に束)。先に決めた弧からも離し、上側を先に試すよう修正。
+  - 「自己接続は試したか」→ WSL の実行(P06)では通っていたが、表示では描いていなかった。ゾーンの上の小さな輪として描くよう修正。
+  - 「省略された名前はカーソルを合わせると見えるか」→ 見える(詳細の箱に名前・役割・種類・色・在室数・ID)。`_tmp/visual_review/hover_challenger_t10.png`。
+  - 「同じ座標のドローンは個数表記でよい」→ 2機以上は件数の札1つに変更。
+  - テスト: GE21〜GE23・VO06・VO07 を追加、865件成功。
+  - 未決: 形の見た目(アンチエイリアスなど)、拡大縮小・移動(超巨大マップ向け)の設計

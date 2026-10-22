@@ -11,12 +11,13 @@ so a view that waits for good closes its window and the test fails on
 test design".
 """
 
+import math
 import os
 import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 import pytest
 
@@ -26,6 +27,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 pygame = pytest.importorskip("pygame")
 
 from droneflow.models.network import Network  # noqa: E402
+from droneflow.models.zone import Zone, ZoneType  # noqa: E402
 from droneflow.models.world import World  # noqa: E402
 from droneflow.pathfinding.pathfinder import Pathfinder  # noqa: E402
 from droneflow.simulation.engine import SimulationEngine  # noqa: E402
@@ -37,6 +39,11 @@ from droneflow.visualization.graphical_view import (  # noqa: E402
     _Layout,
     zone_rgb,
 )
+from droneflow.visualization.geometry import (  # noqa: E402
+    distance_to_path,
+    middle,
+)
+from droneflow.visualization.labels import Measure, zone_title  # noqa: E402
 from droneflow.visualization.palette import DEFAULT_ZONE_RGB  # noqa: E402
 
 MakeNetwork = Callable[..., Network]
@@ -152,12 +159,17 @@ def test_layout_y_axis_points_up(coord_network: CoordNetwork) -> None:
 def test_layout_degenerate_maps(
     case: str, coord_network: CoordNetwork
 ) -> None:
-    """VG04: no division by zero; one axis is never stretched too far."""
+    """VG04: no division by zero; one axis is never stretched too far.
+
+    Zones at the same point are spread apart (2026-10-22, VO01).
+    """
     if case == "same_point":
         network = coord_network([("s", 3, 3), ("a", 3, 3), ("g", 3, 3)])
         layout = _Layout(network, (1200, 800))
         points = {layout.position(name) for name in ("s", "a", "g")}
-        assert len(points) == 1
+        assert len(points) == 3
+        for p, q in [(p, q) for p in points for q in points if p < q]:
+            assert math.dist(p, q) >= 2 * layout.radius
     elif case == "vertical":
         network = coord_network([("s", 0, 0), ("g", 0, 5)])
         layout = _Layout(network, (1200, 800))
@@ -415,3 +427,323 @@ def test_step_mode_does_not_wait_on_the_final_frame(
         headless.post_key(pygame.K_ESCAPE)
     view.close()
     assert view.is_open is False
+
+
+def test_zones_at_one_position_are_all_shown(
+    coord_network: CoordNetwork,
+) -> None:
+    """VO01: zones declared at the same position are drawn apart."""
+    network = coord_network([("s", 0, 0), ("a", 3, 0), ("b", 3, 0),
+                             ("g", 6, 0)])
+    layout = _Layout(network, (1200, 800))
+
+    a, b = layout.position("a"), layout.position("b")
+
+    assert a != b
+    assert layout.zone_at(a) == "a"
+    assert layout.zone_at(b) == "b"
+
+
+@pytest.fixture
+def through(coord_network: CoordNetwork) -> Callable[..., Network]:
+    """Return s, b, c, g on a line, with s-c running over b."""
+
+    def make(types: dict[str, ZoneType] | None = None) -> Network:
+        return coord_network(
+            [("s", 0, 0), ("b", 3, 0), ("c", 6, 0), ("g", 9, 0)],
+            "s-b b-c s-c c-g",
+            types=types,
+        )
+
+    return make
+
+
+def test_link_over_a_zone_is_an_arc(
+    through: Callable[..., Network],
+) -> None:
+    """VO02: a connection running over another zone bends round it."""
+    network = through()
+    layout = _Layout(network, (1200, 800))
+    s_c = network.connection_between("s", "c")
+    s_b = network.connection_between("s", "b")
+    assert s_c is not None and s_b is not None
+
+    path = layout.path(s_c)
+
+    assert len(path) > 2
+    assert distance_to_path(layout.position("b"), path) >= (
+        layout.radius * 1.2
+    )
+    assert layout.path(s_b) == [layout.position("s"), layout.position("b")]
+
+
+def test_drone_in_flight_on_the_arc(
+    headless: Headless, through: Callable[..., Network], place: Place
+) -> None:
+    """VO03: a drone flying to a restricted zone sits mid-arc."""
+    network = through({"c": ZoneType.RESTRICTED})
+    s_c = network.connection_between("s", "c")
+    assert s_c is not None
+    state = place(network, 1, flying={1: ("s", "c")})
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+
+    view.begin(state)
+    window = view._window
+    assert window is not None
+    point = window.drone_point(state.drones[1])
+    view.close()
+
+    assert point == middle(window.layout.path(s_c))
+
+
+def trails_after(
+    view: GraphicalVisualizer,
+    before: SimulationState,
+    after: SimulationState,
+    moves: list[Move],
+) -> tuple[list[list[tuple[int, int]]], list[tuple[int, int]]]:
+    """Show two frames; return the second one's trails and s-c's path."""
+    view.begin(before)
+    view.render(after, moves)
+    window = view._window
+    assert window is not None
+    s_c = after.network.connection_between("s", "c")
+    assert s_c is not None
+    trails, path = list(window._trails), window.layout.path(s_c)
+    view.close()
+    return trails, path
+
+
+def test_trail_follows_the_arc(
+    headless: Headless, through: Callable[..., Network], place: Place
+) -> None:
+    """VO04: a move along an arc is traced along the arc."""
+    network = through()
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+
+    trails, path = trails_after(
+        view,
+        place(network, 1),
+        place(network, 1, at={1: "c"}),
+        [Move(1, "c", "s-c")],
+    )
+
+    assert trails == [path]
+
+
+def test_landing_trail_starts_mid_arc(
+    headless: Headless, through: Callable[..., Network], place: Place
+) -> None:
+    """VO05: a landing is traced from the middle of the arc to the zone."""
+    network = through({"c": ZoneType.RESTRICTED})
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+
+    trails, path = trails_after(
+        view,
+        place(network, 1, flying={1: ("s", "c")}),
+        place(network, 1, at={1: "c"}),
+        [Move(1, "c")],
+    )
+
+    assert trails == [path[len(path) // 2:]]
+
+
+def test_self_loop_is_drawn(coord_network: CoordNetwork) -> None:
+    """VO06: a self-loop has a loop path above its zone (P06's case)."""
+    network = coord_network([("s", 0, 0), ("a", 1, 1), ("g", 2, 2)],
+                            "s-a a-a a-g")
+    layout = _Layout(network, (1200, 800))
+    a_a = network.connection_between("a", "a")
+    assert a_a is not None
+
+    path = layout.path(a_a)
+    ax, ay = layout.position("a")
+
+    assert len(path) > 3
+    assert path[0] == path[-1] == (ax, ay)
+    assert middle(path)[1] < ay - layout.radius
+
+
+@pytest.mark.parametrize(("count", "badges"), [(1, 0), (5, 1)])
+def test_drones_at_one_point_are_a_badge(
+    count: int,
+    badges: int,
+    headless: Headless,
+    line: Network,
+    place: Place,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """VO07: one drone is a dot; several at one point are one badge."""
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+    view.begin(place(line, count))
+    window = view._window
+    assert window is not None
+    rects: list[object] = []
+    original = pygame.draw.rect
+
+    def spy(*args: object, **kwargs: object) -> object:
+        if kwargs.get("border_radius"):
+            rects.append(args)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pygame.draw, "rect", spy)
+    window._draw_drones(place(line, count), set())
+    view.close()
+
+    assert len(rects) == badges * 2  # the fill and its ring
+
+
+@pytest.fixture
+def opened(
+    headless: Headless, load_world: LoadWorld, subject_map: str
+) -> Iterator[tuple[GraphicalVisualizer, graphical_view._Window]]:
+    """Open the view on the subject's example and hand out its window."""
+    world = load_world(subject_map)
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+    view.begin(SimulationState(world.network, world.nb_drones))
+    window = view._window
+    assert window is not None
+    yield view, window
+    view.close()
+
+
+def event(kind: int, **fields: object) -> Any:
+    """Build a pygame event to hand to the window."""
+    return pygame.event.Event(kind, **fields)
+
+
+def test_wheel_zooms(
+    opened: tuple[GraphicalVisualizer, graphical_view._Window],
+) -> None:
+    """VZ01: the wheel zooms in and back out."""
+    _, window = opened
+
+    assert window._view_event(event(pygame.MOUSEWHEEL, x=0, y=1))
+    assert window.camera.zoom == pytest.approx(1.25)
+    assert window._view_event(event(pygame.MOUSEWHEEL, x=0, y=-1))
+    assert window.camera.zoom == pytest.approx(1.0)
+
+
+def test_drag_moves_the_map(
+    opened: tuple[GraphicalVisualizer, graphical_view._Window],
+) -> None:
+    """VZ02: dragging with the left button moves the map, then stops."""
+    _, window = opened
+
+    window._view_event(event(pygame.MOUSEBUTTONDOWN, button=1,
+                             pos=(100, 100)))
+    window._view_event(event(pygame.MOUSEMOTION, pos=(130, 90),
+                             rel=(30, -10), buttons=(1, 0, 0)))
+    window._view_event(event(pygame.MOUSEBUTTONUP, button=1,
+                             pos=(130, 90)))
+    window._view_event(event(pygame.MOUSEMOTION, pos=(200, 200),
+                             rel=(70, 110), buttons=(0, 0, 0)))
+
+    assert window.camera.offset == (30, -10)
+
+
+def test_f_fits_the_map(
+    opened: tuple[GraphicalVisualizer, graphical_view._Window],
+) -> None:
+    """VZ03: ``f`` shows the whole map again."""
+    _, window = opened
+    window.camera.zoom_at((300, 300), 3)
+    window.camera.pan(40, 40)
+
+    assert window._view_event(event(pygame.KEYDOWN, key=pygame.K_f))
+
+    assert window.camera.zoom == 1
+    assert window.camera.offset == (0, 0)
+
+
+def test_other_keys_are_left_alone(
+    opened: tuple[GraphicalVisualizer, graphical_view._Window],
+) -> None:
+    """VZ04: Space and the arrows keep their old meaning."""
+    _, window = opened
+
+    assert not window._view_event(event(pygame.KEYDOWN, key=pygame.K_SPACE))
+    assert not window._view_event(event(pygame.KEYDOWN, key=pygame.K_RIGHT))
+
+
+def test_detail_levels(
+    opened: tuple[GraphicalVisualizer, graphical_view._Window],
+    coord_network: CoordNetwork,
+    headless: Headless,
+) -> None:
+    """VZ05: dense maps lose labels, then shrink zones to dots."""
+    _, window = opened
+    assert window._detail() == (window.layout.radius, True)
+
+    mesh = coord_network(
+        [(f"z{x}_{y}", x, y) for x in range(20) for y in range(20)]
+    )
+    dense = GraphicalVisualizer(delay=0, hold_final=False)
+    dense.begin(SimulationState(mesh, 1))
+    dense_window = dense._window
+    assert dense_window is not None
+    radius, labels = dense_window._detail()
+    dense_window.camera.zoom_at((600, 400), 0.5)
+    small, _ = dense_window._detail()
+    dense.close()
+
+    assert labels is False
+    assert radius == dense_window.layout.radius
+    assert small < radius
+
+
+def test_hover_after_zooming(
+    opened: tuple[GraphicalVisualizer, graphical_view._Window],
+) -> None:
+    """VZ06: the zone under the mouse is found at any zoom."""
+    _, window = opened
+    window.camera.zoom_at((600, 400), 2)
+    point = window.camera.to_screen(window.layout.position("roof1"))
+
+    window._view_event(event(pygame.MOUSEMOTION, pos=point, rel=(0, 0),
+                             buttons=(0, 0, 0)))
+
+    assert window._hover is not None
+    assert window._hover[0] == "roof1"
+
+
+def test_names_get_room_when_zoomed(
+    opened: tuple[GraphicalVisualizer, graphical_view._Window],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """VZ07: the room for a name follows the zoom."""
+    _, window = opened
+    widths: list[int] = []
+
+    def spy(zone: Zone, measure: Measure, max_width: int) -> str:
+        widths.append(max_width)
+        return zone_title(zone, measure, max_width)
+
+    monkeypatch.setattr(graphical_view, "zone_title", spy)
+    window.redraw()
+    at_one = max(widths)
+    widths.clear()
+    window.camera.zoom_at((600, 400), 4)
+    window.redraw()
+
+    assert max(widths) > at_one
+
+
+def test_off_screen_is_not_drawn(
+    opened: tuple[GraphicalVisualizer, graphical_view._Window],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """VZ08: zones and drones off screen are skipped."""
+    _, window = opened
+    calls: list[object] = []
+    original = pygame.draw.aacircle
+
+    def spy(*args: object, **kwargs: object) -> object:
+        calls.append(args)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pygame.draw, "aacircle", spy)
+    window.camera.pan(5000, 0)
+    window.redraw()
+
+    assert calls == []
