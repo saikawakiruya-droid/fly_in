@@ -47,7 +47,6 @@ classDiagram
         -ranking : ZoneRanking
         -table : ReservationTable
         +decide_moves(state)
-        +is_on_priority_route(zone)
     }
     class ZoneRanking {
         +rank(zone) int | None
@@ -94,7 +93,7 @@ classDiagram
 ```
 
 `simulation/` は `visualization/`・`output/` を import しない(パッケージ単位の循環がなくなった)。表示とターンログの出力役は
-`TurnObserver` を満たすだけで、`visualization/base.py` の `Visualizer` は `TurnObserver` の別名。
+`TurnObserver` を満たすだけ(相互レビューの後、別名の `Visualizer` と `visualization/base.py` は削除した)。
 
 ## 挙動図(1ターンの判断、変更後)
 
