@@ -57,16 +57,19 @@ python -m pytest tests/
   connection / header の組み立て(max_drones の既定値と start/end での破棄)、
   禁止オプション(`ForbiddenOption` / `LineSpec.forbidden`): 既定は空、`START_END_FORBIDDEN` が
   start_hub / end_hub の両方に付くこと(max_drones は含まない)、キーが書かれた時だけ一致すること、
-  変換後の値で比べて文言には書かれたとおりの値を出すこと、変換エラーが禁止の検査より先なこと
+  変換後の値で比べて文言には書かれたとおりの値を出すこと、変換エラーが禁止の検査より先なこと、
+  `FieldValues` の型つきの読み出し(型違い・値なしは欄の名前つきの `TypeError`、`get_optional` の None)、
+  `Endpoints`、builder が `FieldValues` から読むこと・仕様と builder の食い違いは `TypeError`、
+  `metadata_keys` が frozenset(NT01〜NT08)
 - `tests/parsing/test_line_tokenizer.py` — `LineTokenizer` の構文検査(トークン数・括弧・
   key=value・未知キー・未知キーワード)と行番号、ヘッダー行の別扱い、メタデータの重複キー
   (全行種で拒否・同じ値の重複も拒否・不正なエントリとはトークン順で先の問題を報告・
-  未知キーより重複を先に報告・キーは大文字小文字を区別)
+  未知キーより重複を先に報告・キーは大文字小文字を区別)、`RawLine` が tuple と Mapping(NT09)
 - `tests/parsing/test_map_rules.py` — 行をまたぐ規則(ゾーン名重複・start/end重複・
   未定義ゾーンへの接続・接続重複と自己ループ)
 - `tests/output/test_formatter.py` — `TurnLogFormatter`: `D<ID>-<行き先>` の空白区切り整形、
   呼び出し順の保持(ソートしない)、接続名のそのまま出力
-- `tests/output/test_turn_log_view.py` — `TurnLogPrinter`(AP01〜AP04): begin は何も書かない・既定の出力先は stdout、
+- `tests/output/test_turn_log_printer.py` — `TurnLogPrinter`(AP01〜AP04): begin は何も書かない・既定の出力先は stdout、
   1ターン1行で書いた直後に flush、空のターンは書かず flush もしない、close は flush だけでストリームを閉じない、
   整形は `formatter` 属性に委譲(同じ `moves` を渡す)
 - `tests/output/test_summary.py` — `RunSummary`(AS01〜AS03): 課題の例の数値と文言(7ターン・5.00・2.14)、
@@ -75,7 +78,7 @@ python -m pytest tests/
 - `tests/test_cli.py` — 引数(AC01〜AC09): 既定値(terminal・0.5秒・ステップなし)、`--visual` の4つの値と誤った値
   (大文字小文字を区別)、`--delay` の受理(0 ちょうど・`-0`・`=` の書き方)と拒否(負・nan・inf・数でない・60 秒超、
   文言まで)、MAP なし・`--debug`・余分な引数の終了コード2、関係のないモードでの `--step`、`--help`(stdout・終了コード0・既定値)、
-  入力どおりのパス(`map_name`。比較には使わない)
+  入力どおりのパス(`map_name`。比較には使わない)、`VISUAL_MODES` が `VisualMode` の値と同じ順(NT10)
 - `tests/test_app.py` — `Application`(pygame 不要。AA01〜AA15): none / terminal で stdout が本物のスケジューラの出力
   (課題の例の5行。`scheduler_output`)と完全一致し、
   stderr はターミナル表示とまとめの1行、ターンの行がそのフレームより先に出ること、ステップ実行のビューの組み立て
@@ -170,10 +173,10 @@ python -m pytest tests/
   restricted の予約で満杯になること、着陸する機は接続を使わないこと(接続の使用数は出発だけ)、
   接続は両方向で共有、記録が他の接続・ゾーンに漏れないこと、台帳が状態を変えないこと。
   予約表との組み合わせ(L13〜L21): `link_free`(このターンの記録は将来のターンに数えない・予約した移動は出発のターンだけ
-  両方向で数える・着陸は数えない)、`has_seat` の `extra` の境界、`projected` が累積で将来のターンにも記録が残ること、
+  両方向で数える・着陸は数えない)、`fits` の `extra` の境界、`projected_load` が累積で将来のターンにも記録が残ること、
   restricted への記録は着陸のターンに数えること、将来の予約された席は使わないこと(規則6、台帳は立ち退きをしない)、
   `horizon` の下限と `arrival_turn`(restricted な end も2ターン)、`cancel` が `record` を打ち消すこと、表を渡さないと
-  着陸だけの表を作ること
+  着陸だけの表を作ること(公開の `projected_load` / `horizon` で確かめる)
 - `tests/simulation/test_reservation_table.py` — `ReservationTable`(Q01〜Q10): `entering` / `leaving` / `due`(ID 順)/
   `last_turn` の数え方(restricted は depart_turn に出て arrive_turn に入る)、1機2行と `remove`(索引がすべて消える)、
   `mark` / `rollback` の入れ子と `remove` の取り消し、`clear`(取り消しの記録も消える)、`start_turn`(着陸の読み込み・
@@ -260,6 +263,6 @@ python -m pytest tests/
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
 Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization)と、CLI / Application / エントリポイント
-(`droneflow/cli.py`・`droneflow/app.py`・`droneflow/output/turn_log_view.py`・`droneflow/output/summary.py`・`fly_in.py`)。
+(`droneflow/cli.py`・`droneflow/app.py`・`droneflow/output/turn_log_printer.py`・`droneflow/output/summary.py`・`fly_in.py`)。
 `Makefile` は単体テストの対象外(手動で確認する。`docs/research/2026-10-18_test-design-cli-app.md`、develop ブランチ)。
 以降の実装が進み次第、対応するテストを追加していく想定。
