@@ -19,7 +19,7 @@ def test_splits_positional_tokens_and_metadata() -> None:
     """A hub line is cut into tokens and a key/value dictionary."""
     raw = TOKENIZER.tokenize(line("hub: h 2 3 [zone=priority color=red]"))
     assert raw is not None
-    assert raw.positional == ["h", "2", "3"]
+    assert raw.positional == ("h", "2", "3")
     assert raw.metadata == {"zone": "priority", "color": "red"}
     assert raw.spec.keyword == "hub"
 
@@ -57,7 +57,7 @@ def test_syntax_errors_carry_the_line_number(text: str) -> None:
 def test_header_is_tokenized_separately() -> None:
     """The first line must be nb_drones, even if it is a comment."""
     raw = TOKENIZER.tokenize_header(line("nb_drones: 4", number=1))
-    assert raw.positional == ["4"]
+    assert raw.positional == ("4",)
     with pytest.raises(ParseError):
         TOKENIZER.tokenize_header(line("# nb_drones: 4", number=1))
 

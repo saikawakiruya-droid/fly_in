@@ -52,7 +52,7 @@ def test_evict_into_end_zone(
     state = place(network, 2, flying={1: ("s", "r")})
     table, ledger, evictor = evictor_for(state)
     zone_r = network.get_zone("r")
-    assert ledger.has_seats(zone_r, 2) is False
+    assert ledger.has_seat_from(zone_r, 2) is False
 
     assert evictor.make_room(zone_r, 2, 1) is True
     assert moves_of(table, 1) == [Rv(1, "s", "r", 0, 1), Rv(1, "r", "g", 2, 2)]
@@ -142,7 +142,7 @@ def test_long_chain_ends(
     }
     pathfinder = Pathfinder(network)
     for move in planned:
-        after = pathfinder.distance(move.zone)
+        after = pathfinder.distance(move.to_zone)
         before = pathfinder.distance(move.from_zone)
         assert after is not None and before is not None
         assert after < before
@@ -169,8 +169,8 @@ def test_failure_undoes_every_inner_move(
     for name in ("w-g", "z-w"):
         link = next(c for c in network.connections if c.name == name)
         assert ledger.link_free(link, 2) is True
-    assert ledger.projected("z", 2) == 2
-    assert ledger.projected("w", 2) == 1
+    assert ledger.projected_load("z", 2) == 2
+    assert ledger.projected_load("w", 2) == 1
 
     state = place(network, 4, at={1: "z", 2: "z", 3: "w"})
     table, _, evictor = evictor_for(state)

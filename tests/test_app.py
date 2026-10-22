@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from droneflow.app import Application
-from droneflow.cli import Args, parse_args
+from droneflow.cli import Args, VisualMode, parse_args
 from droneflow.errors import (
     FlyInError,
     MapFileError,
@@ -29,7 +29,7 @@ from droneflow.errors import (
     VisualizationError,
 )
 from droneflow.models.network import Network
-from droneflow.output.turn_log_view import TurnLogPrinter
+from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.scheduler import Scheduler
@@ -289,7 +289,7 @@ def test_map_errors_pass_through(
 
 @pytest.mark.parametrize("visual", ["graphical", "both"])
 @pytest.mark.usefixtures("no_pygame")
-def test_missing_pygame(visual: str, sample_path: Path) -> None:
+def test_missing_pygame(visual: VisualMode, sample_path: Path) -> None:
     """AA08: no pygame: VisualizationError before anything is shown."""
     info, out, err = run_failing(
         Args(sample_path, visual), VisualizationError

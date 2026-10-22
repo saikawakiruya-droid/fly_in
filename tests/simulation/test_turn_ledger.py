@@ -33,7 +33,8 @@ def has_room(ledger: TurnLedger, hop: Hop) -> bool:
     ``TurnLedger.has_room``, and as the no-eviction check of
     ``HopTaker._take``.
     """
-    return ledger.link_free(hop.connection, ledger.turn) and ledger.has_seats(
+    turn = ledger.planning_turn
+    return ledger.link_free(hop.connection, turn) and ledger.has_seat_from(
         hop.zone, ledger.arrival_turn(hop.zone)
     )
 
@@ -160,8 +161,8 @@ def test_link_counts_only_departures(
     # r still has a place left on turn 2, so the link is what is full.
     assert has_room(ledger, into_r) is False
     assert ledger.link_free(into_r.connection, 1) is False
-    assert ledger.has_seats(network.get_zone("r"), 2) is True
-    assert ledger.projected("r", 2) == 3
+    assert ledger.has_seat_from(network.get_zone("r"), 2) is True
+    assert ledger.projected_load("r", 2) == 3
 
 
 # --- connections ------------------------------------------------------
@@ -291,16 +292,16 @@ def test_link_free_counts_planned_departures(
         assert ledger.link_free(link(network, name), turn) is free
 
 
-def test_has_seat_with_extra(make_network: MakeNetwork, place: Place) -> None:
+def test_fits_with_extra(make_network: MakeNetwork, place: Place) -> None:
     """L15: ``extra`` drones fit up to the limit; start and end never fill."""
     network = make_network("s-a a-g", capacity={"a": 2})
     ledger = TurnLedger(place(network, 3, at={1: "a"}))
     zone = network.get_zone
 
-    assert ledger.has_seat(zone("a"), 1, 1) is True
-    assert ledger.has_seat(zone("a"), 1, 2) is False
-    assert ledger.has_seat(zone("s"), 1, 100) is True
-    assert ledger.has_seat(zone("g"), 1, 100) is True
+    assert ledger.fits(zone("a"), 1, 1) is True
+    assert ledger.fits(zone("a"), 1, 2) is False
+    assert ledger.fits(zone("s"), 1, 100) is True
+    assert ledger.fits(zone("g"), 1, 100) is True
 
 
 def test_projected_load_accumulates(
@@ -312,10 +313,10 @@ def test_projected_load_accumulates(
         place(network, 3, at={1: "a"}), Rv(1, "a", "g", 3, 3)
     )
 
-    assert [ledger.projected("a", t) for t in range(1, 5)] == [1, 1, 0, 0]
+    assert [ledger.projected_load("a", t) for t in range(1, 5)] == [1, 1, 0, 0]
     ledger.record("s", hop(network, "s", "a"))
-    assert [ledger.projected("a", t) for t in range(1, 5)] == [2, 2, 1, 1]
-    assert ledger.projected("s", 1) == 1
+    assert [ledger.projected_load("a", t) for t in range(1, 5)] == [2, 2, 1, 1]
+    assert ledger.projected_load("s", 1) == 1
 
 
 def test_restricted_record_counts_on_landing_turn(
@@ -330,8 +331,8 @@ def test_restricted_record_counts_on_landing_turn(
 
     ledger.record("s", into_r)
 
-    assert ledger.projected("r", 1) == 0
-    assert ledger.projected("r", 2) == 1
+    assert ledger.projected_load("r", 1) == 0
+    assert ledger.projected_load("r", 2) == 1
     assert has_room(ledger, into_r) is True
 
 
@@ -345,8 +346,8 @@ def test_seat_kept_for_later_is_not_taken(
     )
     zone_a = network.get_zone("a")
 
-    assert ledger.has_seat(zone_a, 1, 1) is True
-    assert ledger.has_seats(zone_a, 1) is False
+    assert ledger.fits(zone_a, 1, 1) is True
+    assert ledger.has_seat_from(zone_a, 1) is False
     assert has_room(ledger, hop(network, "s", "a")) is False
     assert ledger.horizon() == 3
 
@@ -362,7 +363,7 @@ def test_horizon_and_arrival_turn(
         assert TurnLedger(state).horizon() == 2
         state.turn_number = 4
         ledger = TurnLedger(state)
-        assert ledger.turn == 5
+        assert ledger.planning_turn == 5
         assert ledger.horizon() == 6
         assert ledger_with(state, Rv(1, "s", "a", 7, 8)).horizon() == 8
     elif case == "arrival":
@@ -391,21 +392,23 @@ def test_cancel_undoes_record(
     entered = 2 if restricted else 1
 
     ledger.record("s", into)
-    assert ledger.projected(name, entered) == 1
+    assert ledger.projected_load(name, entered) == 1
     ledger.cancel("s", into)
 
-    assert ledger.projected(name, entered) == 0
+    assert ledger.projected_load(name, entered) == 0
     assert has_room(ledger, into) is True
     assert ledger.link_free(into.connection, 1) is True
 
 
 def test_ledger_without_table_loads_landings(
-    make_network: MakeNetwork, place: Place, moves_of: MovesOf
+    make_network: MakeNetwork, place: Place
 ) -> None:
-    """L21: without a table, the ledger makes one with the landings only."""
+    """L21: without a table, the ledger makes one with the landings only:
+    D1 landing in r counts there from turn 1, and nothing else is planned
+    (the horizon is the default, the next turn)."""
     network = make_network("s-r r-g", types={"r": R})
     ledger = TurnLedger(place(network, 2, flying={1: ("s", "r")}))
 
-    assert moves_of(ledger.table, 1) == [Rv(1, "s", "r", 0, 1)]
-    assert moves_of(ledger.table, 2) == []
-    assert ledger.table.mark() == 0
+    assert [ledger.projected_load("r", t) for t in (1, 2, 3)] == [1, 1, 1]
+    assert ledger.projected_load("s", 1) == 1
+    assert ledger.horizon() == 2

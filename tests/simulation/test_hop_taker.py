@@ -66,7 +66,7 @@ def test_free_hop_is_recorded_in_ledger_and_board(
     assert taken is not None
     assert taken.zone.name == "a"
     assert board.where(1) == ("a", 1)
-    assert ledger.projected("a", 1) == 1
+    assert ledger.projected_load("a", 1) == 1
     assert ledger.link_free(link(network, "s", "a"), 1) is False
     assert moves_of(table, 1) == []
 
@@ -148,8 +148,8 @@ def test_enter_then_evict(
     table.reserve(Rv(2, "s", "a", 2, 2))
     table, ledger, board, taker = taker_for(place(network, 2), table)
     zone_a = network.get_zone("a")
-    assert ledger.has_seats(zone_a, 1) is False
-    assert ledger.has_seat(zone_a, 1, 1) is True
+    assert ledger.has_seat_from(zone_a, 1) is False
+    assert ledger.fits(zone_a, 1, 1) is True
 
     taken = taker.take_first(1, "s", hops_from(network, "s"))
 
@@ -158,8 +158,8 @@ def test_enter_then_evict(
     assert board.where(1) == ("a", 1)
     assert moves_of(table, 1) == [Rv(1, "a", "g", 2, 2)]
     assert moves_of(table, 2) == [Rv(2, "s", "a", 2, 2)]
-    assert ledger.projected("a", 1) == 1
-    assert ledger.projected("a", 2) == 1
+    assert ledger.projected_load("a", 1) == 1
+    assert ledger.projected_load("a", 2) == 1
 
 
 def test_enter_then_evict_is_undone_on_failure(
@@ -184,7 +184,7 @@ def test_enter_then_evict_is_undone_on_failure(
     assert taker.take_first(1, "s", hops_from(network, "s")) is None
     assert board.where(1) == ("s", 0)
     assert board.drones_in("a") == [5]
-    assert ledger.projected("a", 1) == 1
+    assert ledger.projected_load("a", 1) == 1
     assert ledger.link_free(link(network, "s", "a"), 1) is True
     assert table.mark() == mark
     assert moves_of(table, 1) == []

@@ -112,21 +112,21 @@ def run_checked(world: World) -> CheckedRun:
             here = drone.current_zone
             assert here is not None
             shortest = [hop.zone.name for hop in pathfinder.next_hops(here)]
-            if order.zone in shortest:
-                after = pathfinder.distance(order.zone)
+            if order.zone_name in shortest:
+                after = pathfinder.distance(order.zone_name)
                 before = pathfinder.distance(here)
                 assert after is not None and before is not None
                 assert after < before
             else:
                 longer = [h.zone.name for h in pathfinder.detour_hops(here)]
-                assert order.zone in longer, (
+                assert order.zone_name in longer, (
                     f"D{drone_id} takes neither a shortest hop nor a detour"
                 )
-                assert order.zone not in visited[drone_id], (
-                    f"D{drone_id} enters {order.zone} again by a detour"
+                assert order.zone_name not in visited[drone_id], (
+                    f"D{drone_id} enters {order.zone_name} again by a detour"
                 )
                 detours[drone_id] += 1
-            visited[drone_id].add(order.zone)
+            visited[drone_id].add(order.zone_name)
         moves = resolver.resolve(state, orders)
         assert moves, f"turn {state.turn_number}: no drone moved"
         turns.append(moves)
@@ -588,7 +588,7 @@ def orders_by_turn(world: World) -> list[list[tuple[int, str]]]:
     while not state.is_complete:
         assert state.turn_number < default_turn_limit(world)
         orders = scheduler.decide_moves(state)
-        turns.append([(order.drone_id, order.zone) for order in orders])
+        turns.append([(order.drone_id, order.zone_name) for order in orders])
         resolver.resolve(state, orders)
     return turns
 

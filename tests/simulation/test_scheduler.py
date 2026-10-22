@@ -519,7 +519,7 @@ def orders_by_turn(
     while not state.is_complete:
         assert state.turn_number < 50, "not finished in 50 turns"
         orders = scheduler.decide_moves(state)
-        turns.append([(order.drone_id, order.zone) for order in orders])
+        turns.append([(order.drone_id, order.zone_name) for order in orders])
         resolver.resolve(state, orders)
     return turns
 

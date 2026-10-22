@@ -25,7 +25,7 @@ import fly_in
 from droneflow.app import Application
 from droneflow.errors import ParseError
 from droneflow.models.network import Network
-from droneflow.output.turn_log_view import TurnLogPrinter
+from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.state import Move, SimulationState
