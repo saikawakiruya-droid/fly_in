@@ -284,9 +284,17 @@ def test_unrecognized_keyword_raises_parse_error(tmp_path: Path) -> None:
 
 
 def test_empty_file_raises_parse_error(tmp_path: Path) -> None:
-    """An empty map file is rejected rather than crashing."""
-    with pytest.raises(ParseError):
+    """An empty map file is rejected at line 1, where nb_drones belongs.
+
+    It used to say ``line 0`` (bugs.md 2026-10-16).
+    """
+    with pytest.raises(ParseError) as excinfo:
         MapParser(write_map(tmp_path, "")).parse()
+    assert excinfo.value.line_number == 1
+    assert str(excinfo.value) == (
+        "line 1: map file is empty, expected 'nb_drones: <n>' as the first "
+        "line"
+    )
 
 
 def test_hub_role_is_used_for_plain_hub_lines(tmp_path: Path) -> None:

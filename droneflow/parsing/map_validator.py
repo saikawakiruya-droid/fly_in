@@ -50,8 +50,11 @@ class MapValidator:
                 missing.
         """
         if self._nb_drones is None:
+            # Line 1 is always read as the header (anything else there is
+            # already an error), so no header means the file has no line:
+            # report line 1, where 'nb_drones:' was expected.
             raise ParseError(
-                self._last_number,
+                1,
                 "map file is empty, expected 'nb_drones: <n>' as the first "
                 "line",
             )
