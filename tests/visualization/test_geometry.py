@@ -164,7 +164,7 @@ def test_route_straight_when_clear() -> None:
     """GE16: nothing in the way keeps the straight line."""
     points = {"s": (0, 0), "g": (200, 0), "a": (100, 100)}
 
-    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10)
+    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100)
 
     assert path == [(0, 0), (200, 0)]
 
@@ -173,7 +173,7 @@ def test_route_bends_round_a_zone() -> None:
     """GE17: a zone on the line is avoided by an arc."""
     points = {"s": (0, 0), "b": (100, 0), "g": (200, 0)}
 
-    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10)
+    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100)
 
     assert len(path) > 2
     assert distance_to_path((100, 0), path) >= 12
@@ -183,7 +183,7 @@ def test_route_ignores_its_ends() -> None:
     """GE18: the two zones the connection joins are not in the way."""
     points = {"s": (0, 0), "g": (200, 0)}
 
-    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10)
+    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100)
 
     assert path == [(0, 0), (200, 0)]
 
@@ -197,9 +197,26 @@ def test_route_when_nothing_clears() -> None:
                 points[f"z{x}_{y}"] = (x, y)
     others = [p for n, p in points.items() if n not in ("s", "g")]
 
-    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10)
+    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100)
 
     def gap(candidate: list[Point]) -> float:
         return min(distance_to_path(p, candidate) for p in others)
 
     assert gap(path) >= gap([(0, 0), (200, 0)])
+
+
+def test_route_clearance_capped_by_spacing() -> None:
+    """GE20: on a dense map, neighbours beside the line are not in the way.
+
+    Zones 7 pixels apart drawn with radius 10 would all be closer than
+    1.2 * radius; the cap (half the spacing) keeps the line straight, but
+    a zone right on the line is still avoided.
+    """
+    beside = {"s": (0, 0), "g": (14, 0), "n": (7, 7)}
+    on_line = {"s": (0, 0), "g": (14, 0), "m": (7, 0)}
+
+    straight = route((0, 0), (14, 0), ("s", "g"), grid_of(beside), 10, 7)
+    bent = route((0, 0), (14, 0), ("s", "g"), grid_of(on_line), 10, 7)
+
+    assert straight == [(0, 0), (14, 0)]
+    assert len(bent) > 2
