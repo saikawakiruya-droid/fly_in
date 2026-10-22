@@ -64,12 +64,13 @@ error: line 1: the first line must be 'nb_drones: <n>'
 Comments and blank lines are accepted anywhere after the first line. A
 comment must take a whole line: `hub: a 1 0 # note` is a parse error.
 
-The maps distributed with the subject (`maps.tar.gz`) start with comment
-lines, so they are rejected as they are. To run one, drop the lines before
-`nb_drones:` first, for example:
+The maps distributed with the subject (`maps.tar.gz`, from the subject page;
+it is not part of this repository) start with comment lines, so they are
+rejected as they are. To run one, extract the archive and drop the lines
+before `nb_drones:` first, for example:
 
 ```text
-$ tar xzf maps.tar.gz
+$ tar xzf /path/to/maps.tar.gz
 $ sed '/^nb_drones:/,$!d' maps/easy/01_linear_path.txt > linear_path.txt
 $ python fly_in.py linear_path.txt
 ```

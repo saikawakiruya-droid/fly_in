@@ -51,11 +51,11 @@ error: line 1: the first line must be 'nb_drones: <n>'
 2行目以降なら、コメントと空行はどこにあっても構いません。コメントは1行全体でなければならず、
 `hub: a 1 0 # メモ` のような行末のコメントはパースエラーです。
 
-課題に付いている配布マップ(`maps.tar.gz`)は先頭がコメント行なので、そのままでは読み込めません。
+課題に付いている配布マップ(課題ページから入手する `maps.tar.gz`。このリポジトリには含めていません)は先頭がコメント行なので、そのままでは読み込めません。
 実行するときは、先に `nb_drones:` より前の行を取り除きます。例:
 
 ```text
-$ tar xzf maps.tar.gz
+$ tar xzf /path/to/maps.tar.gz
 $ sed '/^nb_drones:/,$!d' maps/easy/01_linear_path.txt > linear_path.txt
 $ python fly_in.py linear_path.txt
 ```
