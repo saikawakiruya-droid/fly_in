@@ -228,3 +228,12 @@
   対応)。`WorldFile` は表示名と開くパスを分けていなかった。
 - 対応状況: 対応済み(`feature/stage_files`)。`WorldFile(path, name=None)` で開くパス(`Path`)と表示名を分け、`write_json` にも表示名の引数を足した。
   `Application` は `WorldFile(self.args.map_path, name)` で開く。
+
+## 2026-10-22: VG08(`test_step_mode_starts_paused[False]`)が WSL でときどき失敗する
+
+- 箇所: `tests/visualization/test_graphical_view.py` `test_step_mode_starts_paused`(`step=False`)、`droneflow/visualization/graphical_view.py`
+  `GraphicalVisualizer.begin` / `is_open`
+- 症状: WSL で `assert view.is_open is (not step)` が `False is not False` で落ちる(ステップモードでないのに、`begin` の後で窓が閉じている)。
+  develop(1b3aa4e)で4回中3回、`feature/scheduling_package` で3回中2回失敗。Windows の pytest では失敗しない。
+- 原因: 未調査。`headless.watchdog(200)` の終了の合図が、`step=False` の `begin` が戻る前に届いている可能性がある(時間に依存)。
+- 対応状況: 未対応。`simulation/scheduling/` への移動の検証中に見つけた(移動とは無関係。develop でも再現)。

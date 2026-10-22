@@ -1462,3 +1462,17 @@ sequenceDiagram
      太い線は通常の線の上に `aalines` を重ねる。restricted の四角は軸に沿うので通常の描き方のまま。
 - 理由: ユーザー判断。超巨大マップ(1万〜4万ゾーン)では全体を1画面に収めるとゾーンが重なって読めない。小さな点がひし形に見え、弧や輪がカクカクしていた。
 - 検討した代替案: マップの大きさに合わせて窓を大きくする(画面に収まらない)、ゾーンの大きさを倍率に合わせて変える(拡大しても重なりが解けない)。
+
+## 2026-10-22: Scheduler とその部品を `simulation/scheduling/` にまとめる
+
+- 決定内容: `Scheduler` が作って処理を任せる8つのモジュール(`scheduler`・`detour_policy`・`zone_ranking`・`reservation_table`・
+  `turn_ledger`・`positions`・`hop_taker`・`evictor`)を `droneflow/simulation/scheduling/` に移した。エンジン側(`engine`・`turn_resolver`・
+  `state`・`observer`)は `simulation/` に残す。テストも同じ形にした(`tests/simulation/scheduling/`。フィクスチャは `tests/simulation/conftest.py`
+  のまま)。README 両版のコード構成と `tests/README.md` のパスを更新。動作は変えていない。
+- 理由: ユーザーの依頼(プログラムの親子関係の図を、ファイル構成にも反映する)。親子関係が一番ずれていたのは、Scheduler の子が
+  エンジン側のモジュールと同じ階層に並んでいた点だった。`PositionBoard` は `state` しか使わないが、使うのは Scheduler の部品だけなので
+  `scheduling/` に入れた。
+- 検討した代替案:
+  - `interchange/` を分けて `world_file` を読み込み側、`run_file` を `output/` に移す案。2026-10-22 の決定(段階の間で渡すものをファイルで
+    見るための1つのパッケージ)と食い違い、共通の `json_file` の置き場所も問題になるため見送った。
+  - 図をそのまま再現して `app/` の下に①読み込み〜④出力を置く案。import が全体に深くなり、変更が大きいわりに読みやすくならないため見送った。
