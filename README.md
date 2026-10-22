@@ -470,9 +470,9 @@ droneflow/
   models/                  Zone, Connection, Network (hand-built adjacency), Drone, World
   parsing/                 MapReader -> LineTokenizer -> rule table (MapFormat) -> MapValidator
   pathfinding/             DistanceMap (Dijkstra), Pathfinder (shortest and detour hops)
-  simulation/              SimulationEngine, TurnObserver; Scheduler with ZoneRanking,
-                           HopTaker, DetourPolicy, Evictor, TurnLedger, ReservationTable,
-                           PositionBoard; TurnResolver, SimulationState
+  simulation/              SimulationEngine, TurnObserver, TurnResolver, SimulationState
+    scheduling/            Scheduler with ZoneRanking, HopTaker, DetourPolicy, Evictor,
+                           TurnLedger, ReservationTable, PositionBoard
   output/                  turn log formatter and printer, run summary
   visualization/           terminal view, graphical view, palette
   interchange/             World and run as JSON files (additional features)

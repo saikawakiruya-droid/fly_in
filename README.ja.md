@@ -366,9 +366,9 @@ droneflow/
   models/                  Zone, Connection, Network(自前の隣接構造), Drone, World
   parsing/                 MapReader -> LineTokenizer -> 規則の仕様表 (MapFormat) -> MapValidator
   pathfinding/             DistanceMap(ダイクストラ法), Pathfinder(最短と遠回りの次の一手)
-  simulation/              SimulationEngine, TurnObserver。Scheduler と ZoneRanking, HopTaker,
-                           DetourPolicy, Evictor, TurnLedger, ReservationTable, PositionBoard。
-                           TurnResolver, SimulationState
+  simulation/              SimulationEngine, TurnObserver, TurnResolver, SimulationState
+    scheduling/            Scheduler と ZoneRanking, HopTaker, DetourPolicy, Evictor,
+                           TurnLedger, ReservationTable, PositionBoard
   output/                  ターンログの整形と出力、実行のまとめ
   visualization/           ターミナル表示、グラフィカル表示、色の表
   interchange/             World と実行の記録の JSON ファイル(追加機能)
