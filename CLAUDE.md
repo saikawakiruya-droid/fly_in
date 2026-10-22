@@ -34,7 +34,11 @@
 ## ブランチごとの責任分化
 
 - **`main`**: 提出物としてのデリバラブルのみを含む。`docs/`(調査記録・意思決定記録・バグ記録)は含めない。
-  - 含めるもの: ソースコード(`fly_in.py`, `droneflow/` 等)、`Makefile`、`.gitignore`、`README.md`、`CLAUDE.md`。
+  - 含めるもの: ソースコード(`fly_in.py`, `droneflow/`)、`Makefile`、`.gitignore`、`.gitattributes`、`README.md`、`README.ja.md`、
+    `requirements.txt`、`setup.cfg`、`maps/subject_example.txt`(`make run` の既定のマップ)、`CLAUDE.md`。
+  - 含めないもの: `docs/`、`tests/`(2026-10-19 の決定)、`maps.tar.gz`(配布資料。2026-10-22 の決定)。
+  - main 用の差分: `tests/` が無いので、main では `Makefile` の `test` ターゲット、README の `make test` と「Testing and quality」の
+    tests の記述、`requirements.txt` の pytest、`setup.cfg` の `[mypy-tests.*]` を取り除く(develop には残す)。
   - `CLAUDE.md` はAI協業のための運用ルールであり「ドキュメント」(調査記録等)には含めない。`main` に残す。
 - **`develop`**: `main` の内容に加えて `docs/` 配下(調査記録・意思決定記録・バグ記録)一式を含む、開発用の完全な履歴。
   - 上記「ドキュメント化ルール」で記録するものは、原則として `develop` 側にのみコミットする。

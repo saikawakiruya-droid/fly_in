@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Connection:
     """A bidirectional link between two zones.
 
@@ -18,10 +18,31 @@ class Connection:
     zone_b: str
     max_link_capacity: int = 1
 
+    @property
+    def name(self) -> str:
+        """Return the connection's name as declared, ``zone_a-zone_b``.
+
+        This is the ``<connection>`` printed for drones in flight toward a
+        restricted zone. Duplicate connections (a-b and b-a) are rejected
+        by the parser, so the name is unique within a network.
+        """
+        return f"{self.zone_a}-{self.zone_b}"
+
     def involves(self, zone_name: str) -> bool:
-        """Return whether the given zone is one of this connection's endpoints."""
-        raise NotImplementedError
+        """Return whether the zone is one of this connection's endpoints."""
+        return zone_name == self.zone_a or zone_name == self.zone_b
 
     def other_end(self, zone_name: str) -> str:
-        """Return the endpoint opposite the given zone name."""
-        raise NotImplementedError
+        """Return the endpoint opposite the given zone name.
+
+        Raises:
+            ValueError: If zone_name is not one of this connection's
+                endpoints.
+        """
+        if zone_name == self.zone_a:
+            return self.zone_b
+        if zone_name == self.zone_b:
+            return self.zone_a
+        raise ValueError(
+            f"{zone_name!r} is not an endpoint of this connection"
+        )

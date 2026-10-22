@@ -14,10 +14,68 @@ class ParseError(FlyInError):
     """
 
     def __init__(self, line_number: int, reason: str) -> None:
+        """Build ``line <n>: <reason>``."""
         self.line_number = line_number
         self.reason = reason
         super().__init__(f"line {line_number}: {reason}")
 
 
+class ZoneNotFoundError(FlyInError):
+    """Raised when a zone name cannot be found in the network.
+
+    Attributes:
+        zone_name: The name that was looked up and not found.
+    """
+
+    def __init__(self, zone_name: str) -> None:
+        """Build ``zone not found: <name>``."""
+        self.zone_name = zone_name
+        super().__init__(f"zone not found: {zone_name}")
+
+
 class SimulationError(FlyInError):
     """Raised when the simulation reaches an illegal or unresolvable state."""
+
+
+class UnreachableGoalError(FlyInError):
+    """Raised when the end zone cannot be reached from a given zone.
+
+    This is a property of the whole map rather than of a single line, so
+    the message carries zone names instead of a line number.
+
+    Attributes:
+        zone_name: The zone the goal was looked for from (usually start).
+        goal_name: The name of the end zone.
+    """
+
+    def __init__(self, zone_name: str, goal_name: str) -> None:
+        """Build ``goal '<end>' is unreachable from '<zone>'``."""
+        self.zone_name = zone_name
+        self.goal_name = goal_name
+        super().__init__(
+            f"goal {goal_name!r} is unreachable from {zone_name!r}"
+        )
+
+
+class MapFileError(FlyInError):
+    """Raised when the map file cannot be opened or read as text.
+
+    Attributes:
+        path: The map file path as given on the command line.
+        reason: Why it could not be read (e.g. "No such file or
+            directory").
+    """
+
+    def __init__(self, path: str, reason: str) -> None:
+        """Build ``cannot read map file '<path>': <reason>``."""
+        self.path = path
+        self.reason = reason
+        super().__init__(f"cannot read map file '{path}': {reason}")
+
+
+class VisualizationError(FlyInError):
+    """Raised when the requested visualization cannot be used.
+
+    For example when the graphical view is asked for but pygame is not
+    installed, or when no window can be opened.
+    """

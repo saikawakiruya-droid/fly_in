@@ -3,16 +3,23 @@
 from pathlib import Path
 
 from ..models.world import World
+from .line_tokenizer import LineTokenizer
+from .map_format import DEFAULT_FORMAT
+from .map_reader import MapReader
+from .map_rules import default_rules
+from .map_validator import MapValidator
 
 
 class MapParser:
     """Reads and validates a Fly-in map file, producing a World.
 
-    See the subject's Parser Constraints (章VII.4) for the full validation
-    rules this class must enforce.
+    The work is delegated: MapReader supplies numbered lines, LineTokenizer
+    splits them, and MapValidator checks and assembles the result. See the
+    subject's Parser Constraints (章VII.4) for the rules being enforced.
     """
 
     def __init__(self, path: str | Path) -> None:
+        """Keep the path of the map file to parse."""
         self.path = Path(path)
 
     def parse(self) -> World:
@@ -21,26 +28,16 @@ class MapParser:
         Raises:
             droneflow.errors.ParseError: If the file violates any parser
                 constraint, including the offending line number and cause.
+            OSError: If the file cannot be opened.
+            UnicodeDecodeError: If the file is not UTF-8 text.
         """
-        raise NotImplementedError
-
-    def _parse_zone_line(self, line_number: int, line: str) -> None:
-        """Parse a ``start_hub:`` / ``end_hub:`` / ``hub:`` line."""
-        raise NotImplementedError
-
-    def _parse_connection_line(self, line_number: int, line: str) -> None:
-        """Parse a ``connection:`` line."""
-        raise NotImplementedError
-
-    def _parse_metadata(self, line_number: int, raw: str) -> dict[str, str]:
-        """Parse a bracketed ``[key=value ...]`` metadata block."""
-        raise NotImplementedError
-
-    def _validate(self) -> None:
-        """Run whole-file validation once every line has been read.
-
-        Checks uniqueness of zone names, exactly one start/end zone, no
-        duplicate connections, and any other cross-line constraint that
-        cannot be checked line by line.
-        """
-        raise NotImplementedError
+        tokenizer = LineTokenizer(DEFAULT_FORMAT)
+        validator = MapValidator(default_rules())
+        for src in MapReader(self.path):
+            if src.number == 1:
+                validator.accept(tokenizer.tokenize_header(src))
+                continue
+            raw = tokenizer.tokenize(src)
+            if raw is not None:
+                validator.accept(raw)
+        return validator.finish()

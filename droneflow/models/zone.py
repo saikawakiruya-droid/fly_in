@@ -14,13 +14,22 @@ class ZoneType(Enum):
 
     @property
     def turn_cost(self) -> int:
-        """Return the number of turns required to move into this zone type."""
-        raise NotImplementedError
+        """Return the number of turns required to move into this zone type.
+
+        Raises:
+            ValueError: If called on BLOCKED, which has no turn cost.
+                Callers must check ``is_traversable`` first.
+        """
+        if self is ZoneType.BLOCKED:
+            raise ValueError("blocked zones have no turn cost")
+        if self is ZoneType.RESTRICTED:
+            return 2
+        return 1
 
     @property
     def is_traversable(self) -> bool:
         """Return whether a drone may ever enter a zone of this type."""
-        raise NotImplementedError
+        return self is not ZoneType.BLOCKED
 
 
 class ZoneRole(Enum):
@@ -31,7 +40,7 @@ class ZoneRole(Enum):
     END = "end_hub"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Zone:
     """A single zone (node) in the drone network.
 
@@ -57,4 +66,26 @@ class Zone:
     @property
     def has_unlimited_capacity(self) -> bool:
         """Return True for the start and end zones, which ignore max_drones."""
-        raise NotImplementedError
+        return self.role in (ZoneRole.START, ZoneRole.END)
+
+    @property
+    def capacity(self) -> int | None:
+        """Return how many drones the zone may hold, or None if unlimited.
+
+        The start and end zones are unlimited; so is a hub built without
+        ``max_drones`` (the parser always gives hubs one).
+        """
+        if self.has_unlimited_capacity:
+            return None
+        return self.max_drones
+
+    def arrival_turn(self, depart_turn: int) -> int:
+        """Return the turn a drone departing toward this zone enters it.
+
+        A restricted zone takes two turns: the drone spends the departure
+        turn on the connection and lands on the next one. Any other zone
+        is entered on the departure turn.
+        """
+        if self.zone_type is ZoneType.RESTRICTED:
+            return depart_turn + 1
+        return depart_turn

@@ -1,1 +1,1 @@
-"""Turn log formatting for the required simulation output format."""
+"""Turn log output (formatting and printing) and the run summary."""
