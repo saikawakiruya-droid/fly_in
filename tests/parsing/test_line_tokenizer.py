@@ -1,5 +1,7 @@
 """Tests for droneflow.parsing.line_tokenizer."""
 
+from collections.abc import Mapping
+
 import pytest
 
 from droneflow.errors import ParseError
@@ -141,3 +143,13 @@ def test_duplicate_key_is_reported_before_unknown_key(
     with pytest.raises(ParseError) as excinfo:
         TOKENIZER.tokenize(line(text, number=7))
     assert str(excinfo.value) == f"line 7: {expected}"
+
+
+def test_raw_line_holds_a_tuple_and_a_mapping() -> None:
+    """NT09: positional is a tuple, metadata a Mapping (read-only types)."""
+    raw = TOKENIZER.tokenize(line("connection: a-b [max_link_capacity=2]"))
+    assert raw is not None
+    assert isinstance(raw.positional, tuple)
+    assert raw.positional == ("a-b",)
+    assert isinstance(raw.metadata, Mapping)
+    assert dict(raw.metadata) == {"max_link_capacity": "2"}

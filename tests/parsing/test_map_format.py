@@ -8,9 +8,13 @@ from droneflow.parsing.map_format import (
     DEFAULT_FORMAT,
     START_END_FORBIDDEN,
     DroneCount,
+    Endpoints,
     FieldSpec,
+    FieldValues,
     ForbiddenOption,
     LineSpec,
+    ZoneBuilder,
+    build_connection,
     to_endpoints,
     to_int,
     to_positive_int,
@@ -186,3 +190,111 @@ def test_conversion_errors_come_before_forbidden_checks() -> None:
     message = str(excinfo.value)
     assert "max_drones must be a positive integer" in message
     assert "cannot have" not in message
+
+
+def test_field_values_get_returns_the_typed_value() -> None:
+    """NT01: get returns the value when it has the asked type."""
+    values = FieldValues({"x": 3, "zone": ZoneType.PRIORITY})
+    assert values.get("x", int) == 3
+    assert values.get("zone", ZoneType) is ZoneType.PRIORITY
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        ({"x": "3"}, "field 'x' is str, not int"),
+        ({}, "field 'x' is NoneType, not int"),
+        ({"x": None}, "field 'x' is NoneType, not int"),
+    ],
+)
+def test_field_values_get_rejects_wrong_or_missing(
+    values: dict[str, object], message: str
+) -> None:
+    """NT02: another type, or no value, is a TypeError naming the field."""
+    with pytest.raises(TypeError) as info:
+        FieldValues(values).get("x", int)
+    assert str(info.value) == message
+
+
+def test_field_values_get_optional() -> None:
+    """NT03: None (or absent) gives None; a value of another type does not."""
+    values = FieldValues({"color": None, "name": "h", "x": 1})
+    assert values.get_optional("color", str) is None
+    assert values.get_optional("missing", str) is None
+    assert values.get_optional("name", str) == "h"
+    with pytest.raises(TypeError, match="^field 'x' is int, not str$"):
+        values.get_optional("x", str)
+
+
+def test_field_values_keeps_its_own_copy() -> None:
+    """NT04: changing the mapping after the fact does not change the values."""
+    raw: dict[str, object] = {"n": 1}
+    values = FieldValues(raw)
+    raw["n"] = 2
+    assert values.get("n", int) == 1
+
+
+def test_to_endpoints_returns_named_endpoints() -> None:
+    """NT05: the two names come back as Endpoints(zone_a, zone_b)."""
+    endpoints = to_endpoints("roof1-goal")
+    assert endpoints == Endpoints("roof1", "goal")
+    assert (endpoints.zone_a, endpoints.zone_b) == ("roof1", "goal")
+
+
+def test_builders_read_through_field_values() -> None:
+    """NT06: ZoneBuilder and build_connection build from FieldValues."""
+    zone = ZoneBuilder(ZoneRole.HUB)(
+        FieldValues(
+            {
+                "name": "h",
+                "x": 1,
+                "y": 2,
+                "zone": ZoneType.NORMAL,
+                "color": None,
+                "max_drones": 3,
+            }
+        )
+    )
+    assert zone == Zone(
+        "h", 1, 2, ZoneType.NORMAL, ZoneRole.HUB, None, max_drones=3
+    )
+    connection = build_connection(
+        FieldValues(
+            {"endpoints": Endpoints("a", "b"), "max_link_capacity": 2}
+        )
+    )
+    assert connection == Connection("a", "b", 2)
+
+
+def test_spec_and_builder_mismatch_is_a_type_error() -> None:
+    """NT07: a field spec whose converter disagrees with its builder (x
+    kept as text, endpoints as a tuple) is a TypeError, not a ParseError
+    or a wrong model."""
+    spec = LineSpec(
+        keyword="probe",
+        usage="probe <name> <x> <y>",
+        positional=(
+            FieldSpec("name", to_zone_name),
+            FieldSpec("x", to_zone_name),
+            FieldSpec("y", to_int),
+        ),
+        metadata=(
+            FieldSpec("zone", to_zone_type, default=ZoneType.NORMAL),
+            FieldSpec("color", to_zone_name),
+        ),
+        builder=ZoneBuilder(ZoneRole.START),
+    )
+    with pytest.raises(TypeError, match="^field 'x' is str, not int$"):
+        spec.build(["h", "1", "2"], {})
+    with pytest.raises(TypeError, match="^field 'endpoints' is tuple"):
+        build_connection(
+            FieldValues({"endpoints": ("a", "b"), "max_link_capacity": 1})
+        )
+
+
+def test_metadata_keys_is_a_frozenset() -> None:
+    """NT08: the accepted keys are a frozenset (read-only)."""
+    spec = DEFAULT_FORMAT.find("hub")
+    assert spec is not None
+    assert spec.metadata_keys == frozenset({"zone", "color", "max_drones"})
+    assert isinstance(spec.metadata_keys, frozenset)
