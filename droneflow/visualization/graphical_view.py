@@ -68,6 +68,8 @@ _HELP = (
 )
 _READABLE_SPACING = 120
 """Screen pixels between the closest zones at the deepest zoom."""
+_MIN_MAX_ZOOM = 8.0
+"""Every map can be zoomed in at least this far."""
 _LABEL_SPACING = 40
 """Screen pixels between the closest zones below which labels are left out."""
 
@@ -210,9 +212,9 @@ class _Window:
         self._frame: _Frame | None = None
         self._trails: list[Path] = []
         self._hover: tuple[str, Point] | None = None
-        self.camera = Camera(
-            _READABLE_SPACING / max(self.layout.spacing, 1.0)
-        )
+        self.camera = Camera(max(
+            _MIN_MAX_ZOOM, _READABLE_SPACING / max(self.layout.spacing, 1.0)
+        ))
         self._drag: Point | None = None
 
     def drone_point(self, drone: Drone) -> Point | None:
