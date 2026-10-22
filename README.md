@@ -138,7 +138,9 @@ python fly_in.py MAP [--visual {terminal,graphical,both,none}] [--delay SECONDS]
 | `--step` | Advance one turn at a time: Enter in the terminal view, the right arrow in the graphical view (with `both`, the window drives the steps) |
 
 `--delay` is ignored outside the graphical view, and `--step` with
-`--visual none`.
+`--visual none`. Three more options run the parser or the simulation on their
+own (`--parse-only`, `--from-world`, `--save-run`); see
+[Additional features](#additional-features).
 
 Standard output always contains **only the turn log**, in every mode, so it can
 be redirected or piped and checked as it is. Everything else (the terminal
@@ -149,7 +151,7 @@ view, the final summary, warnings and errors) goes to standard error.
 | Code | When |
 |---|---|
 | 0 | Every drone was delivered |
-| 1 | The map file cannot be read, is invalid, or its goal is unreachable; the simulation failed; the graphical view cannot be used; an unexpected internal error; standard output was closed early (e.g. `\| head`) |
+| 1 | The map file cannot be read, is invalid, or its goal is unreachable; the world file (`--from-world`) is invalid; a JSON file (`--parse-only`, `--save-run`) cannot be written; the simulation failed; the graphical view cannot be used; an unexpected internal error; standard output was closed early (e.g. `\| head`) |
 | 2 | Invalid command-line arguments (argparse usage error) |
 | 130 | Interrupted with Ctrl+C |
 
@@ -473,6 +475,7 @@ droneflow/
                            PositionBoard; TurnResolver, SimulationState
   output/                  turn log formatter and printer, run summary
   visualization/           terminal view, graphical view, palette
+  interchange/             World and run as JSON files (additional features)
 ```
 
 How the scheduler's parts work together for one drone:
@@ -587,6 +590,51 @@ in flight: D4 s-b -> b, D5 s-a -> a
 - The colors of the map are kept, so the view matches the map author's
   intent, and the summary line gives the score (total turns) and the secondary
   metrics of every run.
+
+## Additional features
+
+These options are not required by the subject. They run one stage of the
+pipeline on its own, and what that stage hands to the next one goes through a
+JSON file, so it can be read (or edited) between the stages.
+
+| Option | What it does |
+|---|---|
+| `--parse-only FILE` | Parse `MAP`, write the `World` (every zone and connection with all its fields, and `nb_drones`) to `FILE`, and stop without simulating |
+| `--from-world` | Read `MAP` as a world file written by `--parse-only` and simulate it without the parser |
+| `--save-run FILE` | Write each turn to `FILE`: its moves (`drone_id`, `destination`, the `connection` used) and the `SimulationState` after it (drones not delivered yet, zone occupancy and drones in flight toward each zone, connections with drones in flight). Turn 0 is the initial state |
+
+`--parse-only` and `--save-run` cannot be used together. The other options
+(`--visual`, `--delay`, `--step`) work as usual with `--from-world`, so
+`--step` shows the movement one turn at a time.
+
+```sh
+# 1. the parser alone: map -> world.json
+python fly_in.py maps/subject_example.txt --parse-only world.json
+# 2. the simulation alone: world.json -> turn log (stdout) and run.json
+python fly_in.py world.json --from-world --visual none --save-run run.json
+# the same, one turn at a time (Enter)
+python fly_in.py world.json --from-world --step
+```
+
+The turn log of step 2 is the same as a normal run of the map. A world file
+is checked like a map when it is read (field types, positive capacities, zone
+names, the parser's rules, one start and one end that are not blocked); an
+invalid one stops with one line such as
+`error: invalid world file 'world.json': zones[2].max_drones: must be a positive integer`.
+If the simulation fails part-way, `--save-run` still writes the turns played
+so far, with `"complete": false`.
+
+An excerpt of `run.json` for the subject's example (turn 2):
+
+```json
+{"turn": 2, "log": "D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1",
+ "moves": [{"drone_id": 4, "destination": "hub-roof1", "connection": "hub-roof1"}, ...],
+ "delivered_count": 0,
+ "drones": [{"drone_id": 4, "status": "in_transit", "zone": null,
+             "connection": "hub-roof1", "target": "roof1"}, ...],
+ "zones": {"roof1": {"occupancy": 1, "reserved": 1}, ...},
+ "connections": {"hub-roof1": 1}}
+```
 
 ## Testing and quality
 
