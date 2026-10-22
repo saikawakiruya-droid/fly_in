@@ -34,3 +34,12 @@
 - 作成・変更したファイル: `droneflow/errors.py`、`droneflow/cli.py`、`droneflow/app.py`、`droneflow/interchange/`(新規)、
   `README.md`、`README.ja.md`、`tests/interchange/`(新規)、`tests/test_cli.py`・`test_app.py`・`test_fly_in.py`、`tests/README.md`、
   `docs/decisions.md`、`docs/bugs.md`、`docs/roadmap.md`、`docs/research/2026-10-22_workflow-stage-files.md`・`2026-10-22_test-design-stage-files.md`
+
+## 成果物の確認と、表示の単体実行
+
+- 依頼: それぞれの実行の成果物を確認したい → 課題の例で `_tmp/stage_files/` に出力(world.json、run.json、stdout/stderr)し、
+  中身を表にして説明。直接実行と `--from-world` のターンログはバイト単位で一致。
+- 質問: 表示の単体実行はできないか → できない(表示はエンジンの observer)。記録を再生する案を提示したが、ユーザー判断で見送り。
+  スケジューラーの実行に `--visual`・`--step` を付ければ表示でき、`--save-run` と併用しても記録は同じことを確認。
+- 決定: `docs/decisions.md` 2026-10-22「表示の単体実行(記録の再生)は作らない」
+- 未決: `test/stage_files` の develop へのマージ(ユーザーの許可待ち)
