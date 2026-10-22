@@ -1,5 +1,7 @@
 """Tests for droneflow.parsing.line_tokenizer."""
 
+from collections.abc import Mapping
+
 import pytest
 
 from droneflow.errors import ParseError
@@ -19,7 +21,7 @@ def test_splits_positional_tokens_and_metadata() -> None:
     """A hub line is cut into tokens and a key/value dictionary."""
     raw = TOKENIZER.tokenize(line("hub: h 2 3 [zone=priority color=red]"))
     assert raw is not None
-    assert raw.positional == ["h", "2", "3"]
+    assert raw.positional == ("h", "2", "3")
     assert raw.metadata == {"zone": "priority", "color": "red"}
     assert raw.spec.keyword == "hub"
 
@@ -57,7 +59,7 @@ def test_syntax_errors_carry_the_line_number(text: str) -> None:
 def test_header_is_tokenized_separately() -> None:
     """The first line must be nb_drones, even if it is a comment."""
     raw = TOKENIZER.tokenize_header(line("nb_drones: 4", number=1))
-    assert raw.positional == ["4"]
+    assert raw.positional == ("4",)
     with pytest.raises(ParseError):
         TOKENIZER.tokenize_header(line("# nb_drones: 4", number=1))
 
@@ -141,3 +143,13 @@ def test_duplicate_key_is_reported_before_unknown_key(
     with pytest.raises(ParseError) as excinfo:
         TOKENIZER.tokenize(line(text, number=7))
     assert str(excinfo.value) == f"line 7: {expected}"
+
+
+def test_raw_line_holds_a_tuple_and_a_mapping() -> None:
+    """NT09: positional is a tuple, metadata a Mapping (read-only types)."""
+    raw = TOKENIZER.tokenize(line("connection: a-b [max_link_capacity=2]"))
+    assert raw is not None
+    assert isinstance(raw.positional, tuple)
+    assert raw.positional == ("a-b",)
+    assert isinstance(raw.metadata, Mapping)
+    assert dict(raw.metadata) == {"max_link_capacity": "2"}

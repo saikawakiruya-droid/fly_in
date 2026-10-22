@@ -1,4 +1,4 @@
-"""Tests for droneflow.output.turn_log_view (TurnLogPrinter).
+"""Tests for droneflow.output.turn_log_printer (TurnLogPrinter).
 
 ``FlushCountingIO`` records the text at every ``flush``, so the tests can
 check that each turn line is flushed as soon as it is written. Decisions
@@ -12,7 +12,7 @@ import pytest
 
 from droneflow.models.network import Network
 from droneflow.output.formatter import TurnLogFormatter
-from droneflow.output.turn_log_view import TurnLogPrinter
+from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.simulation.state import Move, SimulationState
 
 MakeNetwork = Callable[..., Network]
@@ -109,12 +109,15 @@ def test_close_flushes_without_closing() -> None:
 
 
 def test_formatting_is_delegated(state: SimulationState) -> None:
-    """AP04 (2): the formatter makes the line from the very same moves."""
+    """AP04 (2): the printer's formatter makes the line from the very
+    same moves."""
     stream = io.StringIO()
     formatter = StubFormatter()
     moves = [Move(1, "a")]
 
-    TurnLogPrinter(stream, formatter).render(state, moves)
+    printer = TurnLogPrinter(stream)
+    printer.formatter = formatter
+    printer.render(state, moves)
 
     assert stream.getvalue() == "X\n"
     assert len(formatter.received) == 1

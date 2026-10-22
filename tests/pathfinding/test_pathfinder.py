@@ -10,11 +10,12 @@ from droneflow.errors import (
     UnreachableGoalError,
     ZoneNotFoundError,
 )
+from droneflow.models.connection import Connection
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.parsing.map_parser import MapParser
 from droneflow.pathfinding.distance_map import DistanceMap
-from droneflow.pathfinding.pathfinder import Hop, Pathfinder, Route
+from droneflow.pathfinding.pathfinder import Hop, Pathfinder
 
 MakeNetwork = Callable[..., Network]
 WriteMap = Callable[[str], Path]
@@ -54,22 +55,14 @@ def turn_cost(network: Network, name: str) -> int:
     return network.get_zone(name).zone_type.turn_cost
 
 
-def assert_route_is_consistent(network: Network, route: Route) -> None:
-    """Check a route against the network without fixed expectations.
-
-    The route ends at the end zone, every step follows a real connection,
-    no zone repeats, and the total cost is both the sum of entry costs and
-    the distance of the first zone.
-    """
-    zones = route.zones
-    assert zones[-1] == network.end_zone.name
-    for here, there in zip(zones, zones[1:]):
-        assert any(
-            c.other_end(here) == there for c in network.neighbors(here)
-        )
-    assert len(set(zones)) == len(zones)
-    assert route.total_cost == sum(turn_cost(network, z) for z in zones[1:])
-    assert route.total_cost == Pathfinder(network).distance(zones[0])
+def first_hop_route(pathfinder: Pathfinder, name: str) -> list[str]:
+    """Follow the first shortest hop from ``name`` until the end zone."""
+    zones = [name]
+    hops = pathfinder.next_hops(name)
+    while hops:
+        zones.append(hops[0].zone.name)
+        hops = pathfinder.next_hops(zones[-1])
+    return zones
 
 
 # --- construction -----------------------------------------------------
@@ -261,96 +254,7 @@ def test_priority_further_ahead_does_not_reorder_ties(
         make_network("s-b b-c c-g s-a a-p p-g", types={"p": P})
     )
     assert hop_names(pathfinder.next_hops("s")) == ["b", "a"]
-    assert pathfinder.best_route().zones == ["s", "b", "c", "g"]
-
-
-# --- best_route -------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("edges", "types", "expected"),
-    [
-        pytest.param("s-a a-g", {}, Route(["s", "a", "g"], 2), id="normal"),
-        pytest.param(
-            "s-r r-g", {"r": R}, Route(["s", "r", "g"], 3), id="restricted"
-        ),
-    ],
-)
-def test_best_route_sums_entry_costs(
-    make_network: MakeNetwork,
-    edges: str,
-    types: dict[str, ZoneType],
-    expected: Route,
-) -> None:
-    """B01: total_cost is the sum of entry costs, not the hop count."""
-    pathfinder = Pathfinder(make_network(edges, types=types))
-    assert pathfinder.best_route() == expected
-
-
-def test_best_route_takes_a_tying_priority_zone(
-    make_network: MakeNetwork,
-) -> None:
-    """B02: following the first hop goes through the priority zone."""
-    pathfinder = Pathfinder(make_network("s-a a-g s-p p-g", types={"p": P}))
-    route = pathfinder.best_route()
-    assert route.zones == ["s", "p", "g"]
-    assert route.total_cost == 2
-
-
-def test_best_route_from_a_given_zone(make_network: MakeNetwork) -> None:
-    """B03: routes can start mid-way or at the goal; start by default."""
-    pathfinder = Pathfinder(
-        make_network("s-r r-g s-a a-b b-g", types={"r": R})
-    )
-    assert pathfinder.best_route("a") == Route(["a", "b", "g"], 2)
-    assert pathfinder.best_route("g") == Route(["g"], 0)
-    assert pathfinder.best_route().zones[0] == "s"
-
-
-@pytest.mark.parametrize("from_zone", ["z", "x"])
-def test_best_route_from_unreachable_zone_raises(
-    make_network: MakeNetwork, from_zone: str
-) -> None:
-    """B04: asking from a zone that cannot reach the goal fails."""
-    pathfinder = Pathfinder(
-        make_network("s-a a-g s-x", types={"x": X}, isolated=("z",))
-    )
-    with pytest.raises(UnreachableGoalError) as excinfo:
-        pathfinder.best_route(from_zone)
-    assert excinfo.value.zone_name == from_zone
-    assert excinfo.value.goal_name == "g"
-
-
-def test_best_route_from_unknown_zone_raises_zone_not_found(
-    make_network: MakeNetwork,
-) -> None:
-    """B05: an unknown start is ZoneNotFoundError, not unreachable."""
-    pathfinder = Pathfinder(make_network("s-a a-g"))
-    with pytest.raises(ZoneNotFoundError):
-        pathfinder.best_route("nope")
-
-
-@pytest.mark.parametrize(
-    ("edges", "types"),
-    [
-        pytest.param("s-x x-g s-a a-b b-g", {"x": X}, id="blocked"),
-        pytest.param(SELF_LOOP_AND_TRIANGLE, {}, id="self-loop-and-triangle"),
-        pytest.param("s-r r-g s-a a-b b-g", {"r": R}, id="restricted-tie"),
-        pytest.param(None, {}, id="grid"),
-    ],
-)
-def test_best_route_is_consistent_with_the_network(
-    make_network: MakeNetwork,
-    grid_network: Network,
-    edges: str | None,
-    types: dict[str, ZoneType],
-) -> None:
-    """B06: routes satisfy the general invariants on varied shapes."""
-    if edges is None:
-        network = grid_network
-    else:
-        network = make_network(edges, types=types)
-    assert_route_is_consistent(network, Pathfinder(network).best_route())
+    assert first_hop_route(pathfinder, "s") == ["s", "b", "c", "g"]
 
 
 # --- end to end through the parser ------------------------------------
@@ -373,9 +277,10 @@ def test_subject_sample_map_end_to_end(write_map: WriteMap) -> None:
     for name, distance in expected.items():
         assert pathfinder.distance(name) == distance
     assert hop_names(pathfinder.next_hops("hub")) == ["corridorA"]
-    assert pathfinder.best_route() == Route(
-        ["hub", "corridorA", "tunnelB", "goal"], 3
-    )
+    assert first_hop_route(pathfinder, "hub") == [
+        "hub", "corridorA", "tunnelB", "goal"
+    ]
+    assert pathfinder.route_cost(pathfinder.next_hops("hub")[0]) == 3
 
 
 def test_unreachable_map_parses_but_pathfinding_fails(
@@ -682,3 +587,83 @@ def test_provided_map_detour_counts(
 
     total = sum(len(pathfinder.detour_hops(name)) for name in network.zones)
     assert total == count
+
+
+# --- route_cost -------------------------------------------------------
+
+
+RC_EDGES = "s-a a-g s-r r-g s-x x-g"
+
+
+def rc_network(make_network: MakeNetwork) -> Network:
+    """Return RC_EDGES with r restricted, x blocked and z isolated."""
+    return make_network(
+        RC_EDGES, types={"r": R, "x": X}, isolated=("z",)
+    )
+
+
+def make_hop(network: Network, from_zone: str, to_zone: str) -> Hop:
+    """Return the hop from one zone into an adjacent one."""
+    connection = network.connection_between(from_zone, to_zone)
+    assert connection is not None
+    return Hop(connection, network.get_zone(to_zone))
+
+
+def test_route_cost_is_entry_cost_plus_distance(
+    make_network: MakeNetwork,
+) -> None:
+    """RC01: the turns to enter the zone plus its distance, for a hop
+    going backward too."""
+    network = rc_network(make_network)
+    pathfinder = Pathfinder(network)
+
+    assert pathfinder.route_cost(make_hop(network, "s", "a")) == 2
+    assert pathfinder.route_cost(make_hop(network, "s", "r")) == 3
+    assert pathfinder.route_cost(make_hop(network, "a", "g")) == 1
+    assert pathfinder.route_cost(make_hop(network, "a", "s")) == 3
+
+
+def test_route_cost_into_a_zone_that_cannot_finish_raises(
+    make_network: MakeNetwork,
+) -> None:
+    """RC02: a hop into a blocked or isolated zone is a ValueError."""
+    network = rc_network(make_network)
+    pathfinder = Pathfinder(network)
+
+    with pytest.raises(ValueError) as blocked:
+        pathfinder.route_cost(make_hop(network, "s", "x"))
+    assert str(blocked.value) == "'x' cannot reach the end zone"
+    with pytest.raises(ValueError) as isolated:
+        pathfinder.route_cost(
+            Hop(Connection("s", "z"), network.get_zone("z"))
+        )
+    assert str(isolated.value) == "'z' cannot reach the end zone"
+
+
+@pytest.mark.parametrize(
+    "member",
+    [None, *(entry[0] for entry in PROVIDED_MAP_DETOURS)],
+    ids=["subject", *(map_id(entry[0]) for entry in PROVIDED_MAP_DETOURS)],
+)
+def test_route_cost_splits_shortest_hops_and_detours(
+    write_map: WriteMap,
+    provided_map: Callable[[str], str],
+    member: str | None,
+) -> None:
+    """RC03: on real maps, every shortest hop costs the zone's distance and
+    every detour more, cheapest first."""
+    text = SUBJECT_SAMPLE_MAP if member is None else provided_map(member)
+    network = MapParser(write_map(text)).parse().network
+    pathfinder = Pathfinder(network)
+
+    cost = pathfinder.route_cost
+    for name in network.zones:
+        here = pathfinder.distance(name)
+        shortest = [cost(hop) for hop in pathfinder.next_hops(name)]
+        detours = [cost(hop) for hop in pathfinder.detour_hops(name)]
+        if here is None:
+            assert shortest == [] and detours == [], name
+            continue
+        assert all(total == here for total in shortest), name
+        assert all(total > here for total in detours), name
+        assert detours == sorted(detours), name

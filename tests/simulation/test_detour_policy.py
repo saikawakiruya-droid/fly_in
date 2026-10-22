@@ -22,14 +22,24 @@ from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Hop, Pathfinder
 from droneflow.simulation.detour_policy import DetourPolicy
-from droneflow.simulation.evictor import Position
+from droneflow.simulation.positions import PositionBoard
 
 MakeNetwork = Callable[..., Network]
 
 R = ZoneType.RESTRICTED
 
+Spots = dict[int, tuple[str, int]]
+
 M1 = "s-a a-g s-r r-g q-g"
-AHEAD: dict[int, Position] = {9: ("a", 0)}
+AHEAD: Spots = {9: ("a", 0)}
+
+
+def board_of(spots: Spots) -> PositionBoard:
+    """Return a board with each drone placed as ``{id: (zone, since)}``."""
+    board = PositionBoard()
+    for drone_id, (zone, since) in spots.items():
+        board.place(drone_id, zone, since)
+    return board
 
 
 def hop_names(hops: list[Hop]) -> list[str]:
@@ -55,10 +65,12 @@ def allowed_names(
     policy: DetourPolicy,
     drone_id: int,
     zone_name: str,
-    positions: dict[int, Position],
+    positions: Spots,
 ) -> list[str]:
     """Return the zones of the detours the drone may take now."""
-    return hop_names(policy.allowed(drone_id, zone_name, positions))
+    return hop_names(
+        policy.allowed(drone_id, zone_name, board_of(positions))
+    )
 
 
 # --- detours ----------------------------------------------------------
@@ -100,7 +112,7 @@ def test_equal_costs_allow_the_detour(make_network: MakeNetwork) -> None:
 )
 def test_queue_at_the_detour_counts(
     make_network: MakeNetwork,
-    positions: dict[int, Position],
+    positions: Spots,
     expected: list[str],
 ) -> None:
     """DP04: one more drone in r refuses (3 + 1 > 2 + 1); one more ahead
@@ -116,7 +128,7 @@ def test_queue_at_the_detour_counts(
     ids=["landing-ahead", "landing-everywhere"],
 )
 def test_landing_drones_count_by_zone(
-    make_network: MakeNetwork, positions: dict[int, Position]
+    make_network: MakeNetwork, positions: Spots
 ) -> None:
     """DP05: drones are counted by zone, whatever turn they arrive."""
     assert allowed_names(m1_policy(make_network), 1, "s", positions) == [
@@ -134,7 +146,7 @@ def test_landing_drones_count_by_zone(
 )
 def test_shared_downstream_cancels_out(
     make_network: MakeNetwork,
-    positions: dict[int, Position],
+    positions: Spots,
     expected: list[str],
 ) -> None:
     """DP06: g is below both s and r, so a drone there counts on both
@@ -150,7 +162,7 @@ def test_shared_downstream_cancels_out(
     ids=["in-own-zone", "other-branch"],
 )
 def test_drones_off_both_routes_do_not_count(
-    make_network: MakeNetwork, positions: dict[int, Position]
+    make_network: MakeNetwork, positions: Spots
 ) -> None:
     """DP07: drones in the drone's own zone or on another branch are not
     ahead of it."""
@@ -169,7 +181,7 @@ def test_drones_off_both_routes_do_not_count(
 )
 def test_zones_further_down_and_merges(
     make_network: MakeNetwork,
-    positions: dict[int, Position],
+    positions: Spots,
     expected: list[str],
 ) -> None:
     """DP08: zones two hops down count, and a merge counts on both sides.
@@ -193,7 +205,7 @@ def test_zones_further_down_and_merges(
 )
 def test_every_shortest_branch_counts(
     make_network: MakeNetwork,
-    positions: dict[int, Position],
+    positions: Spots,
     expected: list[str],
 ) -> None:
     """DP09: a drone on any shortest branch is ahead; one on a branch not
@@ -214,7 +226,7 @@ def test_every_shortest_branch_counts(
 )
 def test_allowed_detours_cheapest_first(
     make_network: MakeNetwork,
-    positions: dict[int, Position],
+    positions: Spots,
     expected: list[str],
 ) -> None:
     """DP11: allowed detours come by total cost; more drones ahead allow
@@ -238,7 +250,7 @@ def test_detour_back_through_the_zone_is_never_allowed(
 ) -> None:
     """DP12: a is below s, so whatever is ahead of a is also queuing for
     s, along with the deciding drone itself."""
-    positions: dict[int, Position] = {1: ("a", 0)}
+    positions: Spots = {1: ("a", 0)}
     for drone_id in range(7, 7 + landing):
         positions[drone_id] = ("g", 1)
 
@@ -257,7 +269,7 @@ def test_detour_back_through_the_zone_is_never_allowed(
 )
 def test_each_detour_has_its_own_queue(
     make_network: MakeNetwork,
-    positions: dict[int, Position],
+    positions: Spots,
     expected: list[str],
 ) -> None:
     """DP13: with two detours, a busy one is refused on its own."""
@@ -290,7 +302,7 @@ def test_unknown_zone_raises(make_network: MakeNetwork) -> None:
     with pytest.raises(ZoneNotFoundError):
         policy.detours("nope")
     with pytest.raises(ZoneNotFoundError):
-        policy.allowed(1, "nope", {})
+        policy.allowed(1, "nope", PositionBoard())
 
 
 def test_reads_only_and_returns_new_lists(
@@ -299,15 +311,15 @@ def test_reads_only_and_returns_new_lists(
     """DP16: positions are left as they were, and clearing a returned
     list does not change the next answer."""
     policy = m1_policy(make_network)
-    positions: dict[int, Position] = {9: ("a", 0)}
-    before = dict(positions)
+    board = board_of({9: ("a", 0)})
 
-    allowed = policy.allowed(1, "s", positions)
-    assert positions == before
+    allowed = policy.allowed(1, "s", board)
+    assert board.zone_by_drone() == {9: "a"}
+    assert board.where(9) == ("a", 0)
     allowed.clear()
     policy.detours("s").clear()
 
-    assert allowed_names(policy, 1, "s", positions) == ["r"]
+    assert hop_names(policy.allowed(1, "s", board)) == ["r"]
     assert hop_names(policy.detours("s")) == ["r"]
 
 
@@ -324,15 +336,15 @@ def test_never_back_into_a_visited_zone(make_network: MakeNetwork) -> None:
     assert allowed_names(policy, 1, "s", AHEAD) == ["r"]
     assert allowed_names(policy, 2, "s", AHEAD) == ["r"]
 
-    policy.remember(1, {1: ("r", 0), 2: ("s", 0)})
+    policy.remember(1, board_of({1: ("r", 0), 2: ("s", 0)}))
     assert allowed_names(policy, 1, "s", AHEAD) == []
     assert allowed_names(policy, 2, "s", AHEAD) == ["r"]
 
-    policy.remember(2, {1: ("s", 1)})
+    policy.remember(2, board_of({1: ("s", 1)}))
     assert allowed_names(policy, 1, "s", AHEAD) == []
 
     landing = m1_policy(make_network)
-    landing.remember(1, {3: ("r", 1)})
+    landing.remember(1, board_of({3: ("r", 1)}))
     assert allowed_names(landing, 3, "s", AHEAD) == []
     assert allowed_names(landing, 1, "s", AHEAD) == ["r"]
 
@@ -343,19 +355,19 @@ def test_reporting_a_turn_again_replaces_it(
     """DP17: a turn reported again replaces what it said before, and only
     that turn: earlier turns stay."""
     policy = m1_policy(make_network)
-    policy.remember(1, {1: ("s", 0)})
-    policy.remember(2, {1: ("r", 1)})
+    policy.remember(1, board_of({1: ("s", 0)}))
+    policy.remember(2, board_of({1: ("r", 1)}))
     assert allowed_names(policy, 1, "s", AHEAD) == []
 
-    policy.remember(2, {1: ("s", 1)})
+    policy.remember(2, board_of({1: ("s", 1)}))
     assert allowed_names(policy, 1, "s", AHEAD) == ["r"]
-    policy.remember(2, {1: ("s", 1)})
+    policy.remember(2, board_of({1: ("s", 1)}))
     assert allowed_names(policy, 1, "s", AHEAD) == ["r"]
 
     earlier = m1_policy(make_network)
-    earlier.remember(1, {1: ("r", 0)})
-    earlier.remember(2, {1: ("s", 1)})
-    earlier.remember(2, {})
+    earlier.remember(1, board_of({1: ("r", 0)}))
+    earlier.remember(2, board_of({1: ("s", 1)}))
+    earlier.remember(2, board_of({}))
     assert allowed_names(earlier, 1, "s", AHEAD) == []
 
 
@@ -365,22 +377,22 @@ def test_reporting_an_earlier_turn_drops_later_ones(
     """DP18: reporting an earlier turn drops every later turn, even when
     the turns reported skip some numbers."""
     policy = m1_policy(make_network)
-    policy.remember(1, {1: ("s", 0)})
-    policy.remember(2, {1: ("r", 1)})
-    policy.remember(3, {2: ("r", 2)})
+    policy.remember(1, board_of({1: ("s", 0)}))
+    policy.remember(2, board_of({1: ("r", 1)}))
+    policy.remember(3, board_of({2: ("r", 2)}))
     assert allowed_names(policy, 1, "s", AHEAD) == []
     assert allowed_names(policy, 2, "s", AHEAD) == []
 
-    policy.remember(2, {1: ("s", 1), 2: ("s", 1)})
+    policy.remember(2, board_of({1: ("s", 1), 2: ("s", 1)}))
     assert allowed_names(policy, 1, "s", AHEAD) == ["r"]
     assert allowed_names(policy, 2, "s", AHEAD) == ["r"]
 
-    policy.remember(1, {})
+    policy.remember(1, board_of({}))
     assert allowed_names(policy, 1, "s", AHEAD) == ["r"]
     assert allowed_names(policy, 2, "s", AHEAD) == ["r"]
 
     skipped = m1_policy(make_network)
-    skipped.remember(5, {1: ("r", 0)})
-    skipped.remember(3, {2: ("r", 0)})
+    skipped.remember(5, board_of({1: ("r", 0)}))
+    skipped.remember(3, board_of({2: ("r", 0)}))
     assert allowed_names(skipped, 1, "s", AHEAD) == ["r"]
     assert allowed_names(skipped, 2, "s", AHEAD) == []

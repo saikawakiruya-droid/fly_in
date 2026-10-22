@@ -70,7 +70,7 @@ def test_core_modules_do_not_import_pygame() -> None:
         "import sys\n"
         "import droneflow.simulation.engine\n"
         "import droneflow.visualization.terminal_view\n"
-        "import droneflow.visualization.composite\n"
+        "import droneflow.simulation.observer\n"
         "import droneflow.visualization.palette\n"
         "print('pygame' in sys.modules)\n"
     )

@@ -2,13 +2,11 @@
 
 from collections.abc import Mapping
 
-from ..models.zone import Zone, ZoneType
+from ..models.zone import Zone
 from ..pathfinding.pathfinder import Hop
-from .reservation_table import Reservation
+from .positions import PositionBoard
+from .reservation_table import Reservation, ReservationTable
 from .turn_ledger import TurnLedger
-
-Position = tuple[str, int]
-"""Where a drone will be, and the turn from whose end it is surely there."""
 
 
 class Evictor:
@@ -30,22 +28,23 @@ class Evictor:
     def __init__(
         self,
         ledger: TurnLedger,
+        table: ReservationTable,
         hops: Mapping[str, list[Hop]],
-        positions: Mapping[int, Position],
+        board: PositionBoard,
     ) -> None:
         """Plan evictions over this turn's ledger.
 
         Args:
-            ledger: This turn's counts; its table receives the evictions.
+            ledger: This turn's counts.
+            table: The table the ledger counts; it receives the evictions.
             hops: The shortest next hops of every zone.
-            positions: For every drone still on the map, the zone it will
-                be in after this turn's moves and the turn from whose end it
-                is surely there. Kept up to date by the scheduler.
+            board: Where every drone still on the map will be after
+                this turn's moves. Kept up to date by the scheduler.
         """
         self.ledger = ledger
-        self.table = ledger.table
+        self.table = table
         self.hops = hops
-        self.positions = positions
+        self.board = board
 
     def make_room(self, zone: Zone, first_turn: int, extra: int) -> bool:
         """Evict occupants until ``extra`` more drones fit in the zone.
@@ -63,9 +62,16 @@ class Evictor:
         return False
 
     def _keep_seats(self, zone: Zone, first_turn: int, extra: int) -> bool:
+        """Evict until ``extra`` more drones fit on every turn from first_turn.
+
+        This ends: the planned moves reach only a few turns ahead (the
+        horizon), and each eviction moves a drone into a zone strictly
+        closer to the end zone, so the recursion goes at most as deep as
+        the distance to the end zone, which always has room.
+        """
         turn = first_turn
         while turn <= max(first_turn, self.ledger.horizon()):
-            while not self.ledger.has_seat(zone, turn, extra):
+            while not self.ledger.fits(zone, turn, extra):
                 if not self._evict_one(zone, turn):
                     return False
             turn += 1
@@ -79,9 +85,7 @@ class Evictor:
         for hop in self.hops.get(zone.name, []):
             if not self.ledger.link_free(hop.connection, turn):
                 continue
-            arrive = turn
-            if hop.zone.zone_type is ZoneType.RESTRICTED:
-                arrive = turn + 1
+            arrive = hop.zone.arrival_turn(turn)
             mark = self.table.mark()
             if not self._keep_seats(hop.zone, arrive, 1):
                 self.table.rollback(mark)
@@ -99,17 +103,11 @@ class Evictor:
         no planned move after this turn (it is not already leaving). Trying
         one drone is enough: all of them would take the same hops.
         """
-        now = self.ledger.turn
-        best: int | None = None
-        for drone_id, (where, since) in self.positions.items():
-            if where != zone_name or since > turn - 1:
+        now = self.ledger.planning_turn
+        for drone_id in self.board.drones_in(zone_name):
+            if self.board.where(drone_id).since_turn > turn - 1:
                 continue
-            if best is not None and drone_id > best:
+            if self.table.leaves_after(drone_id, now):
                 continue
-            if any(
-                move.depart_turn > now
-                for move in self.table.planned(drone_id)
-            ):
-                continue
-            best = drone_id
-        return best
+            return drone_id
+        return None

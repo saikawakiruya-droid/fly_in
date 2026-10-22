@@ -14,6 +14,7 @@ class ParseError(FlyInError):
     """
 
     def __init__(self, line_number: int, reason: str) -> None:
+        """Build ``line <n>: <reason>``."""
         self.line_number = line_number
         self.reason = reason
         super().__init__(f"line {line_number}: {reason}")
@@ -27,6 +28,7 @@ class ZoneNotFoundError(FlyInError):
     """
 
     def __init__(self, zone_name: str) -> None:
+        """Build ``zone not found: <name>``."""
         self.zone_name = zone_name
         super().__init__(f"zone not found: {zone_name}")
 
@@ -47,6 +49,7 @@ class UnreachableGoalError(FlyInError):
     """
 
     def __init__(self, zone_name: str, goal_name: str) -> None:
+        """Build ``goal '<end>' is unreachable from '<zone>'``."""
         self.zone_name = zone_name
         self.goal_name = goal_name
         super().__init__(
@@ -64,6 +67,7 @@ class MapFileError(FlyInError):
     """
 
     def __init__(self, path: str, reason: str) -> None:
+        """Build ``cannot read map file '<path>': <reason>``."""
         self.path = path
         self.reason = reason
         super().__init__(f"cannot read map file '{path}': {reason}")

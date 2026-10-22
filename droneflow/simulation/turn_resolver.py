@@ -50,6 +50,7 @@ class TurnResolver:
     """
 
     def __init__(self, network: Network) -> None:
+        """Check moves against ``network``."""
         self.network = network
 
     def resolve(
@@ -87,15 +88,9 @@ class TurnResolver:
                     f"drone D{drone.drone_id} is in flight without a route"
                 )
             zone = self.network.get_zone(drone.transit_target)
-            connection = self._find_connection(link, zone.name)
+            connection = self.network.connection_named(zone.name, link)
             steps.append(_Step(drone, connection, zone, is_arrival=True))
         return steps
-
-    def _find_connection(self, name: str, zone_name: str) -> Connection:
-        for connection in self.network.neighbors(zone_name):
-            if connection.name == name:
-                return connection
-        raise SimulationError(f"unknown connection {name!r}")
 
     def _check_orders(
         self, state: SimulationState, orders: list[MoveOrder]
@@ -122,10 +117,10 @@ class TurnResolver:
     def _check_order(self, drone: Drone, order: MoveOrder) -> _Step:
         label = f"D{drone.drone_id}"
         try:
-            zone = self.network.get_zone(order.zone)
+            zone = self.network.get_zone(order.zone_name)
         except ZoneNotFoundError:
             raise SimulationError(
-                f"{label} ordered into unknown zone {order.zone!r}"
+                f"{label} ordered into unknown zone {order.zone_name!r}"
             ) from None
         if not zone.zone_type.is_traversable:
             raise SimulationError(
@@ -183,11 +178,10 @@ class TurnResolver:
                     continue  # on the connection until next turn
             delta[name] = delta.get(name, 0) + 1
         for name, change in delta.items():
-            zone = self.network.get_zone(name)
-            if change <= 0 or zone.has_unlimited_capacity:
+            limit = self.network.get_zone(name).capacity
+            if change <= 0 or limit is None:
                 continue
-            limit = zone.max_drones
-            if limit is None or state.occupancy(name) + change <= limit:
+            if state.occupancy(name) + change <= limit:
                 continue
             turn = state.turn_number + 1
             stuck = landing.get(name)
@@ -208,8 +202,9 @@ class TurnResolver:
         if step.is_arrival:
             state.complete_transit(drone_id)
             return Move(drone_id, step.zone.name)
+        link = step.connection.name
         if step.zone.zone_type is ZoneType.RESTRICTED:
             state.enter_transit(drone_id, step.connection, step.zone.name)
-            return Move(drone_id, step.connection.name)
+            return Move(drone_id, destination=link, connection_name=link)
         state.enter_zone(drone_id, step.zone.name)
-        return Move(drone_id, step.zone.name)
+        return Move(drone_id, destination=step.zone.name, connection_name=link)

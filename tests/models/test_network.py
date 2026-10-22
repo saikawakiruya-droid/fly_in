@@ -1,11 +1,15 @@
 """Tests for droneflow.models.network."""
 
+from typing import Callable, cast
+
 import pytest
 
 from droneflow.errors import SimulationError, ZoneNotFoundError
 from droneflow.models.connection import Connection
 from droneflow.models.network import Network
 from droneflow.models.zone import Zone, ZoneRole, ZoneType
+
+MakeNetwork = Callable[..., Network]
 
 
 def make_zone(name: str, role: ZoneRole = ZoneRole.HUB) -> Zone:
@@ -37,21 +41,21 @@ def test_add_connection_updates_adjacency_for_both_ends() -> None:
     connection = Connection(zone_a="a", zone_b="b")
     network.add_connection(connection)
 
-    assert network.neighbors("a") == [connection]
-    assert network.neighbors("b") == [connection]
+    assert network.neighbors("a") == (connection,)
+    assert network.neighbors("b") == (connection,)
 
 
 def test_neighbors_empty_for_zone_with_no_connections() -> None:
     """A zone with no registered connections has an empty neighbor list."""
     network = Network()
     network.add_zone(make_zone("a"))
-    assert network.neighbors("a") == []
+    assert network.neighbors("a") == ()
 
 
 def test_neighbors_empty_for_unknown_zone() -> None:
     """Asking for neighbors of an unregistered zone name is not an error."""
     network = Network()
-    assert network.neighbors("missing") == []
+    assert network.neighbors("missing") == ()
 
 
 def test_start_zone_and_end_zone() -> None:
@@ -130,3 +134,56 @@ def test_connection_between_finds_self_loop(has_loop: bool) -> None:
         assert found is network.connections[0]
     else:
         assert found is None
+
+
+# --- read-only views and connection_named -----------------------------
+
+
+def test_zones_is_a_read_only_live_view(make_network: MakeNetwork) -> None:
+    """NW01: ``zones`` keeps declaration order, refuses writes, and shows
+    zones added later."""
+    network = make_network("s-a a-g s-b")
+    zones = network.zones
+
+    assert list(zones) == ["s", "g", "a", "b"]
+    with pytest.raises(TypeError):
+        cast(dict[str, Zone], zones)["x"] = make_zone("x")
+    network.add_zone(make_zone("late"))
+    assert list(zones)[-1] == "late"
+
+
+def test_connections_is_a_tuple(make_network: MakeNetwork) -> None:
+    """NW02: ``connections`` is a tuple, and one taken earlier does not
+    change when a connection is added."""
+    network = make_network("s-a a-g s-b")
+    conns = network.connections
+
+    network.add_zone(make_zone("late"))
+    network.add_connection(Connection("late", "g"))
+
+    assert isinstance(conns, tuple)
+    assert [c.name for c in conns] == ["s-a", "a-g", "s-b"]
+    assert network.connections[-1].name == "late-g"
+
+
+def test_neighbors_is_a_tuple(make_network: MakeNetwork) -> None:
+    """NW03: ``neighbors`` returns a tuple, empty for an unknown name."""
+    network = make_network("s-a a-g s-b")
+
+    assert tuple(c.name for c in network.neighbors("s")) == ("s-a", "s-b")
+    assert isinstance(network.neighbors("s"), tuple)
+    assert network.neighbors("nope") == ()
+
+
+def test_connection_named(make_network: MakeNetwork) -> None:
+    """NW04: the connection of that name touching the zone, the same
+    object from both ends; otherwise SimulationError."""
+    network = make_network("s-a a-g s-b")
+
+    from_a = network.connection_named("a", "s-a")
+    assert from_a.name == "s-a"
+    assert network.connection_named("s", "s-a") is from_a
+    for zone_name, name in [("a", "s-b"), ("a", "nope"), ("nope", "s-a")]:
+        with pytest.raises(SimulationError) as excinfo:
+            network.connection_named(zone_name, name)
+        assert str(excinfo.value) == f"unknown connection {name!r}"

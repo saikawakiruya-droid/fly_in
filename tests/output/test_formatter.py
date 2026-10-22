@@ -1,7 +1,5 @@
 """Tests for droneflow.output.formatter."""
 
-import pytest
-
 from droneflow.output.formatter import TurnLogFormatter
 from droneflow.simulation.state import Move
 
@@ -32,29 +30,3 @@ def test_format_turn_passes_connection_name_through() -> None:
 def test_format_turn_empty_returns_empty_string() -> None:
     """An empty move list yields an empty string."""
     assert TurnLogFormatter().format_turn([]) == ""
-
-
-def test_emit_prints_one_line_per_turn(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Each non-empty turn is printed on its own line, in order."""
-    turns = [[Move(1, "roof1"), Move(2, "corridorA")], [Move(2, "goal")]]
-    TurnLogFormatter().emit(turns)
-    assert capsys.readouterr().out == "D1-roof1 D2-corridorA\nD2-goal\n"
-
-
-def test_emit_skips_empty_turns(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Turns where nothing moved produce no output line."""
-    turns = [[Move(1, "a")], [], [Move(1, "b")]]
-    TurnLogFormatter().emit(turns)
-    assert capsys.readouterr().out == "D1-a\nD1-b\n"
-
-
-def test_emit_no_turns_prints_nothing(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """No turns at all produces no output."""
-    TurnLogFormatter().emit([])
-    assert capsys.readouterr().out == ""

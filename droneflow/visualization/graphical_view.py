@@ -7,6 +7,7 @@ package works without it. Nothing is opened until the first ``begin`` or
 
 import math
 import os
+from typing import NamedTuple
 
 # pygame prints a banner to standard output on import, which would corrupt
 # the turn log; this must be set before the import below.
@@ -138,6 +139,14 @@ def zone_rgb(color_name: str | None) -> RGB:
     return DEFAULT_ZONE_RGB
 
 
+class _Frame(NamedTuple):
+    """The last frame drawn, kept so it can be drawn again."""
+
+    state: SimulationState
+    moves: list[Move]
+    note: str
+
+
 class _Window:
     """The pygame window: drawing one frame and waiting between turns."""
 
@@ -156,7 +165,7 @@ class _Window:
         }
         self.delay = delay
         self.paused = False
-        self._frame: tuple[SimulationState, list[Move], str] | None = None
+        self._frame: _Frame | None = None
         self._trails: list[tuple[Point, Point]] = []
         self._hover: tuple[str, Point] | None = None
 
@@ -177,7 +186,7 @@ class _Window:
         note: str = "",
     ) -> None:
         """Draw a frame and remember it, so it can be redrawn later."""
-        self._frame = (state, moves, note)
+        self._frame = _Frame(state, moves, note)
         self._trails = trails
         self.redraw()
 
@@ -186,7 +195,7 @@ class _Window:
         if self._frame is None:
             return
         if note is not None:
-            self._frame = (self._frame[0], self._frame[1], note)
+            self._frame = self._frame._replace(note=note)
         state, moves, shown_note = self._frame
         self.screen.fill(_BACKGROUND)
         self._draw_links(state)
@@ -295,7 +304,7 @@ class _Window:
             ring = _OUTLINE
             if zone.zone_type is ZoneType.PRIORITY:
                 ring = _PRIORITY_RING
-            if zone.has_unlimited_capacity:
+            if zone.role in (ZoneRole.START, ZoneRole.END):
                 ring = _ENDPOINT_RING
             pygame.draw.circle(self.screen, ring, center, radius, 3)
         if zone.zone_type is ZoneType.BLOCKED:
@@ -322,18 +331,18 @@ class _Window:
             return
         if zone.role is ZoneRole.END:
             label = f"{state.delivered_count} in"
-        elif zone.max_drones is None:
+        elif (capacity := zone.capacity) is None:
             label = str(state.occupancy(zone.name))
         else:
             load = state.load(zone.name)
-            fraction = min(load / zone.max_drones, 1.0)
+            fraction = min(load / capacity, 1.0)
             bar = pygame.Rect(center[0] - radius, top, radius * 2, 6)
             pygame.draw.rect(self.screen, _BAR_EMPTY, bar)
             if fraction > 0:
                 filled = bar.copy()
                 filled.width = max(1, round(bar.width * fraction))
                 pygame.draw.rect(self.screen, _load_color(fraction), filled)
-            label = f"{load}/{zone.max_drones}"
+            label = f"{load}/{capacity}"
         self._text(label, (center[0], top + 26), _TEXT_DIM, True)
 
     def _draw_drones(self, state: SimulationState, moved: set[int]) -> None:
@@ -394,9 +403,7 @@ class _Window:
             controls = f"{note}   {controls}"
         surface = self.font.render(controls, True, _TEXT_DIM)
         self.screen.blit(surface, (width - surface.get_width() - 10, 11))
-        move_text = " ".join(
-            f"D{m.drone_id}-{m.destination}" for m in moves
-        )
+        move_text = " ".join(move.text for move in moves)
         self.screen.blit(
             self.font.render(move_text or "-", True, _TEXT_DIM),
             (10, height - _FOOTER_HEIGHT + 6),
@@ -410,10 +417,10 @@ class _Window:
         here = [d.drone_id for d in state.drones_at(name)]
         if zone.role is ZoneRole.END:
             count = f"delivered: {state.delivered_count}"
-        elif zone.max_drones is None:
+        elif (capacity := zone.capacity) is None:
             count = f"drones: {len(here)} (no limit)"
         else:
-            count = f"drones: {state.occupancy(name)}/{zone.max_drones}"
+            count = f"drones: {state.occupancy(name)}/{capacity}"
             if state.reserved(name):
                 count += f" (+{state.reserved(name)} arriving)"
         ids = " ".join(f"D{i}" for i in here[:10])
@@ -528,7 +535,12 @@ class GraphicalVisualizer:
         self._show(state, [])
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Draw the turn, with each move's path highlighted, then wait."""
+        """Draw the turn, with each move's path highlighted, then wait.
+
+        Raises:
+            VisualizationError: If the window has to be opened here (no
+                ``begin`` before) and cannot be.
+        """
         self._show(state, moves)
 
     def close(self) -> None:

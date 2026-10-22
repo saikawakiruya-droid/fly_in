@@ -2,14 +2,17 @@
 
 from typing import Callable
 
+import dataclasses
+
 import pytest
 
-from droneflow.errors import SimulationError, ZoneNotFoundError
+from droneflow.errors import SimulationError
 from droneflow.models.connection import Connection
 from droneflow.models.drone import DroneStatus
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
-from droneflow.simulation.state import SimulationState
+from droneflow.simulation.state import Move, MoveOrder, SimulationState
+from droneflow.simulation.turn_resolver import TurnResolver
 
 MakeNetwork = Callable[..., Network]
 
@@ -26,7 +29,7 @@ def link(network: Network, zone_a: str, zone_b: str) -> Connection:
 def test_new_state_puts_every_drone_at_start(
     make_network: MakeNetwork,
 ) -> None:
-    """S01: drones 1..n start AT_ZONE (not WAITING) in the start zone."""
+    """S01: drones 1..n start AT_ZONE in the start zone."""
     state = SimulationState(make_network("s-a a-g"), 3)
 
     assert state.turn_number == 0
@@ -40,17 +43,6 @@ def test_new_state_puts_every_drone_at_start(
     assert state.is_complete is False
 
 
-def test_free_capacity(make_network: MakeNetwork) -> None:
-    """S02: start/end are unlimited (None), hubs report remaining room."""
-    state = SimulationState(make_network("s-a a-g", capacity={"a": 2}), 1)
-
-    assert state.free_capacity("s") is None
-    assert state.free_capacity("g") is None
-    assert state.free_capacity("a") == 2
-    with pytest.raises(ZoneNotFoundError):
-        state.free_capacity("nope")
-
-
 def test_enter_zone_moves_occupancy(make_network: MakeNetwork) -> None:
     """S03: enter_zone moves one drone's occupancy between zones."""
     state = SimulationState(make_network("s-a a-g"), 3)
@@ -59,7 +51,6 @@ def test_enter_zone_moves_occupancy(make_network: MakeNetwork) -> None:
     assert state.occupancy("s") == 2
     assert state.occupancy("a") == 1
     assert [d.drone_id for d in state.drones_at("a")] == [1]
-    assert state.free_capacity("a") == 0
 
 
 def test_entering_end_delivers(make_network: MakeNetwork) -> None:
@@ -90,11 +81,9 @@ def test_enter_transit_reserves_target(make_network: MakeNetwork) -> None:
     assert drone.current_zone is None
     assert drone.in_transit_connection == "s-r"
     assert drone.transit_target == "r"
-    assert drone.turns_remaining == 1
     assert state.occupancy("r") == 0
     assert state.reserved("r") == 1
     assert state.load("r") == 1
-    assert state.free_capacity("r") == 0
     assert state.link_load(connection) == 1
     assert state.drones_in_transit() == [drone]
 
@@ -114,7 +103,6 @@ def test_complete_transit_turns_reservation_into_occupancy(
     assert drone.current_zone == "r"
     assert drone.in_transit_connection is None
     assert drone.transit_target is None
-    assert drone.turns_remaining == 0
     assert state.reserved("r") == 0
     assert state.occupancy("r") == 1
     assert state.load("r") == 1
@@ -151,3 +139,44 @@ def test_basic_operations_refuse_broken_preconditions(
         state.enter_transit(1, connection, "r")
     with pytest.raises(SimulationError, match="not in flight"):
         state.complete_transit(2)
+
+
+# --- Move -------------------------------------------------------------
+
+
+def test_move_text_and_default() -> None:
+    """MV01: the printed text, and no connection name by default."""
+    assert Move(3, "x").text == "D3-x"
+    assert Move(12, "a-b", "a-b").text == "D12-a-b"
+    assert Move(3, "x").connection_name is None
+
+
+def test_resolver_sets_the_connection_name(
+    make_network: MakeNetwork,
+) -> None:
+    """MV02: departures carry the connection used (a departure toward a
+    restricted zone has it as destination too); a landing carries None."""
+    network = make_network("s-a a-r r-g", types={"r": R})
+    state = SimulationState(network, 2)
+    resolver = TurnResolver(network)
+
+    assert resolver.resolve(state, [MoveOrder(1, "a")]) == [
+        Move(1, "a", "s-a")
+    ]
+    second = resolver.resolve(state, [MoveOrder(1, "r"), MoveOrder(2, "a")])
+    assert second == [Move(1, "a-r", "a-r"), Move(2, "a", "s-a")]
+    assert " ".join(move.text for move in second) == "D1-a-r D2-a"
+    assert resolver.resolve(state, []) == [Move(1, "r", None)]
+    assert resolver.resolve(state, [MoveOrder(1, "g")]) == [
+        Move(1, "g", "r-g")
+    ]
+
+
+def test_move_is_frozen_and_compares_the_connection() -> None:
+    """MV03: a Move cannot be changed, and the connection name is part of
+    its equality."""
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        setattr(Move(1, "a"), "destination", "b")
+    assert len({Move(1, "a"), Move(1, "a")}) == 1
+    assert (Move(1, "a") == Move(1, "a", None)) is True
+    assert (Move(1, "a") == Move(1, "a", "s-a")) is False

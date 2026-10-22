@@ -7,6 +7,7 @@ design" (the 60 second limit, the map path as typed).
 """
 
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
@@ -15,6 +16,7 @@ from droneflow.cli import (
     MAX_DELAY,
     VISUAL_MODES,
     Args,
+    VisualMode,
     parse_args,
 )
 
@@ -179,3 +181,9 @@ def test_delay_above_upper_limit(
         "fly_in.py: error: argument --delay: "
         f"must be between 0 and 60 seconds: '{value}'"
     )
+
+
+def test_visual_modes_come_from_the_literal() -> None:
+    """NT10: VISUAL_MODES is the Literal's values, in the same order."""
+    assert VISUAL_MODES == get_args(VisualMode)
+    assert VISUAL_MODES == ("terminal", "graphical", "both", "none")

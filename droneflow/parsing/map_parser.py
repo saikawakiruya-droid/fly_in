@@ -19,6 +19,7 @@ class MapParser:
     """
 
     def __init__(self, path: str | Path) -> None:
+        """Keep the path of the map file to parse."""
         self.path = Path(path)
 
     def parse(self) -> World:
@@ -27,6 +28,8 @@ class MapParser:
         Raises:
             droneflow.errors.ParseError: If the file violates any parser
                 constraint, including the offending line number and cause.
+            OSError: If the file cannot be opened.
+            UnicodeDecodeError: If the file is not UTF-8 text.
         """
         tokenizer = LineTokenizer(DEFAULT_FORMAT)
         validator = MapValidator(default_rules())

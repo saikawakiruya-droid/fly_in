@@ -4,7 +4,7 @@ from typing import Callable
 
 import pytest
 
-from droneflow.errors import SimulationError, ZoneNotFoundError
+from droneflow.errors import SimulationError
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Pathfinder
@@ -94,49 +94,6 @@ def test_same_zone_keeps_active_drone_order(
     assert real_scheduler(network).decide_moves(place(network, 3)) == [
         MoveOrder(1, "a")
     ]
-
-
-# --- is_on_priority_route ---------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("edges", "zone", "expected"),
-    [
-        ("s-p p-g", "p", True),
-        ("s-p p-g", "s", True),
-        ("s-a a-p p-g", "s", False),
-        ("s-a a-g s-p p-q q-g", "s", False),
-        ("s-p p-g", "g", False),
-    ],
-    ids=[
-        "in-priority-zone",
-        "next-hop-priority",
-        "priority-two-hops-away",
-        "priority-on-detour",
-        "end-zone",
-    ],
-)
-def test_is_on_priority_route(
-    make_network: MakeNetwork,
-    real_scheduler: RealScheduler,
-    edges: str,
-    zone: str,
-    expected: bool,
-) -> None:
-    """D07: only the zone itself and its shortest next hop count."""
-    network = make_network(edges, types={"p": P})
-
-    assert real_scheduler(network).is_on_priority_route(zone) is expected
-
-
-def test_is_on_priority_route_unknown_zone(
-    make_network: MakeNetwork, real_scheduler: RealScheduler
-) -> None:
-    """D08: an unknown zone name raises ZoneNotFoundError."""
-    network = make_network("s-a a-g")
-
-    with pytest.raises(ZoneNotFoundError):
-        real_scheduler(network).is_on_priority_route("nope")
 
 
 # --- choosing a hop ---------------------------------------------------
@@ -562,7 +519,7 @@ def orders_by_turn(
     while not state.is_complete:
         assert state.turn_number < 50, "not finished in 50 turns"
         orders = scheduler.decide_moves(state)
-        turns.append([(order.drone_id, order.zone) for order in orders])
+        turns.append([(order.drone_id, order.zone_name) for order in orders])
         resolver.resolve(state, orders)
     return turns
 
@@ -871,3 +828,76 @@ def test_same_turn_with_another_state_forgets_its_visits(
 
     assert orders == real_scheduler(network).decide_moves(place(network, 2))
     assert orders == [MoveOrder(1, "a"), MoveOrder(2, "r")]
+
+
+# --- drones evicted this turn are decided too -------------------------
+
+# RV (the review's counterexample): u and v are two turns from g, w, y
+# and z1 one; v is restricted (room for 1), u has room for 2 and w for 4.
+# D1 and D2 stand in u, D3 to D5 in w, D6 in v.
+RV_AT = {1: "u", 2: "u", 3: "w", 4: "w", 5: "w", 6: "v"}
+RV_ORDERS = [
+    MoveOrder(3, "g"), MoveOrder(1, "w"), MoveOrder(2, "v"), MoveOrder(6, "y")
+]
+
+
+def rv_network(make_network: MakeNetwork) -> Network:
+    """Return RV: s-u u-w w-g u-v v-y y-g v-z1 z1-g, v restricted."""
+    return make_network(
+        "s-u u-w w-g u-v v-y y-g v-z1 z1-g",
+        types={"v": R},
+        capacity={"u": 2, "w": 4},
+    )
+
+
+def test_drone_evicted_this_turn_is_decided(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """RV01: D2 finds u-w taken by D1 and detours into the full v, which
+    plans D6's eviction (v -> y on turn 2). D6, decided after that, drops
+    the planned move and goes to y now."""
+    network = rv_network(make_network)
+
+    orders = real_scheduler(network).decide_moves(place(network, 6, at=RV_AT))
+
+    assert orders == RV_ORDERS
+
+
+def test_evicted_drone_keeps_no_planned_move(
+    make_network: MakeNetwork,
+    place: Place,
+    real_scheduler: RealScheduler,
+    fmt: Fmt,
+) -> None:
+    """RV02: played to the end, D6 has no planned move left on turn 2 and
+    D2 lands in v."""
+    network = rv_network(make_network)
+
+    lines = play_out(real_scheduler(network), place(network, 6, at=RV_AT), fmt)
+    turns = orders_by_turn(network, place(network, 6, at=RV_AT))
+
+    assert lines == [
+        "D1-w D2-u-v D3-g D6-y",
+        "D1-g D2-v D6-g",
+        "D2-y D4-g",
+        "D2-g D5-g",
+    ]
+    assert turns[1] == [(1, "g"), (6, "g")]
+
+
+def test_evicted_drone_same_turn_again(
+    make_network: MakeNetwork, place: Place, real_scheduler: RealScheduler
+) -> None:
+    """RV03: deciding the RV turn twice gives the same orders both times,
+    the same as a new scheduler: the dropped and the restored planned
+    moves are not doubled."""
+    network = rv_network(make_network)
+    scheduler = real_scheduler(network)
+    state = place(network, 6, at=RV_AT)
+
+    first = scheduler.decide_moves(state)
+    second = scheduler.decide_moves(state)
+
+    assert first == RV_ORDERS
+    assert second == RV_ORDERS
+    assert real_scheduler(network).decide_moves(state) == RV_ORDERS

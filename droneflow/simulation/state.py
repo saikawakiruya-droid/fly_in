@@ -9,20 +9,32 @@ from ..models.network import Network
 from ..models.zone import ZoneRole
 
 
-@dataclass
+@dataclass(frozen=True)
 class Move:
     """One drone's action during a single turn, as printed in the output.
 
-    Moves are produced by the simulation engine, never by the scheduler.
+    Moves are produced by the ``TurnResolver`` (driven by the engine),
+    never by the scheduler.
 
     Attributes:
         drone_id: Which drone moved.
         destination: Target zone name, or the connection name if the drone
             just entered a restricted-zone transit.
+        connection_name: Name of the connection the drone departed along,
+            or None for a landing (the drone left its connection then). Only
+            departures count toward a connection's capacity. Kept for views
+            (for example a capacity report); the turn log and the rule
+            checks do not use it.
     """
 
     drone_id: int
     destination: str
+    connection_name: str | None = None
+
+    @property
+    def text(self) -> str:
+        """Return the move as printed: ``D<id>-<destination>``."""
+        return f"D{self.drone_id}-{self.destination}"
 
 
 @dataclass(frozen=True)
@@ -30,16 +42,16 @@ class MoveOrder:
     """A scheduler's instruction: move one drone into an adjacent zone.
 
     The scheduler always names the zone to enter, even a restricted one;
-    the engine turns that into the connection-name output and completes
-    the arrival on the next turn by itself.
+    the ``TurnResolver`` turns that into the connection-name output and
+    lands the drone on the next turn by itself.
 
     Attributes:
         drone_id: Which drone to move.
-        zone: Name of the adjacent zone the drone should enter.
+        zone_name: Name of the adjacent zone the drone should enter.
     """
 
     drone_id: int
-    zone: str
+    zone_name: str
 
 
 class SimulationState:
@@ -84,24 +96,6 @@ class SimulationState:
     def load(self, zone_name: str) -> int:
         """Return occupancy plus reservations: the room already taken."""
         return self.occupancy(zone_name) + self.reserved(zone_name)
-
-    def free_capacity(self, zone_name: str) -> int | None:
-        """Return how many more drones may enter the zone, before departures.
-
-        Drones leaving the zone this turn free more room; the scheduler has
-        to account for those itself.
-
-        Returns:
-            The remaining room, or None for the start and end zones, which
-            have no limit.
-
-        Raises:
-            ZoneNotFoundError: If no zone with this name exists.
-        """
-        zone = self.network.get_zone(zone_name)
-        if zone.has_unlimited_capacity or zone.max_drones is None:
-            return None
-        return zone.max_drones - self.load(zone_name)
 
     def link_load(self, connection: Connection) -> int:
         """Return how many drones are in flight on the connection.
@@ -162,7 +156,6 @@ class SimulationState:
         drone.status = DroneStatus.IN_TRANSIT
         drone.in_transit_connection = connection.name
         drone.transit_target = zone_name
-        drone.turns_remaining = 1
         self._add(self._reserved, zone_name, 1)
         self._add(self._link_load, connection.name, 1)
 
@@ -178,7 +171,6 @@ class SimulationState:
             self._add(self._link_load, link, -1)
         drone.in_transit_connection = None
         drone.transit_target = None
-        drone.turns_remaining = 0
         self._arrive(drone, target)
 
     def _drone_at_zone(self, drone_id: int) -> Drone:

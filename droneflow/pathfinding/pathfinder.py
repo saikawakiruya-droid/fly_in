@@ -1,4 +1,4 @@
-"""Pathfinder: next hops (shortest and detours) and routes to the end."""
+"""Pathfinder: next hops toward the end zone, shortest and detours."""
 
 from dataclasses import dataclass
 
@@ -7,19 +7,6 @@ from ..models.connection import Connection
 from ..models.network import Network
 from ..models.zone import Zone, ZoneType
 from .distance_map import DistanceMap
-
-
-@dataclass
-class Route:
-    """A concrete route through the network.
-
-    Attributes:
-        zones: Ordered zone names from the first zone to the end, inclusive.
-        total_cost: Sum of movement costs along the path, in turns.
-    """
-
-    zones: list[str]
-    total_cost: int
 
 
 @dataclass(frozen=True)
@@ -51,9 +38,9 @@ class Pathfinder:
                 start zone.
         """
         self.network = network
-        self._distances = DistanceMap(network)
+        self._distance_map = DistanceMap(network)
         start = network.start_zone
-        if self._distances.distance(start.name) is None:
+        if self._distance_map.distance(start.name) is None:
             raise UnreachableGoalError(start.name, network.end_zone.name)
 
     def distance(self, zone_name: str) -> int | None:
@@ -66,7 +53,7 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        return self._distances.distance(zone_name)
+        return self._distance_map.distance(zone_name)
 
     def next_hops(self, zone_name: str) -> list[Hop]:
         """Return every move that keeps a drone on a shortest route.
@@ -84,20 +71,11 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self._distances.distance(zone_name)
-        if here is None or here == 0:
-            return []
-        hops: list[Hop] = []
-        seen: set[str] = set()
-        for connection in self.network.neighbors(zone_name):
-            zone = self.network.get_zone(connection.other_end(zone_name))
-            there = self._distances.distance(zone.name)
-            if there is None or zone.name in seen:
-                continue
-            # A zone with a distance is traversable, so turn_cost is safe.
-            if zone.zone_type.turn_cost + there == here:
-                seen.add(zone.name)
-                hops.append(Hop(connection, zone))
+        here = self._distance_map.distance(zone_name)
+        hops = [
+            hop for total, hop in self._costed_moves(zone_name)
+            if total == here
+        ]
         hops.sort(key=lambda hop: hop.zone.zone_type is not ZoneType.PRIORITY)
         return hops
 
@@ -119,46 +97,54 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self._distances.distance(zone_name)
-        if here is None or here == 0:
+        here = self._distance_map.distance(zone_name)
+        if here is None:
             return []
-        costed: list[tuple[int, Hop]] = []
-        seen: set[str] = set()
-        for connection in self.network.neighbors(zone_name):
-            zone = self.network.get_zone(connection.other_end(zone_name))
-            there = self._distances.distance(zone.name)
-            if there is None or zone.name == zone_name or zone.name in seen:
-                continue
-            # A zone with a distance is traversable, so turn_cost is safe.
-            total = zone.zone_type.turn_cost + there
-            if total > here:
-                seen.add(zone.name)
-                costed.append((total, Hop(connection, zone)))
+        costed = [
+            (total, hop) for total, hop in self._costed_moves(zone_name)
+            if total > here
+        ]
         costed.sort(key=lambda item: item[0])
         return [hop for _, hop in costed]
 
-    def best_route(self, from_zone: str | None = None) -> Route:
-        """Return one shortest route to the end zone.
+    def route_cost(self, hop: Hop) -> int:
+        """Return the turns to the end zone when going through ``hop``.
 
-        Follows the first hop of ``next_hops`` at every step, so priority
-        zones are taken whenever they tie with the alternatives.
-
-        Args:
-            from_zone: Where the route begins; the start zone if omitted.
+        That is the turns to enter the hop's zone plus that zone's own
+        distance.
 
         Raises:
-            ZoneNotFoundError: If ``from_zone`` does not exist.
-            UnreachableGoalError: If the end zone cannot be reached from
-                ``from_zone``.
+            ValueError: If the end zone cannot be reached from the hop's
+                zone (never the case for ``next_hops`` and
+                ``detour_hops``).
         """
-        name = self.network.start_zone.name if from_zone is None else from_zone
-        total = self._distances.distance(name)
-        if total is None:
-            raise UnreachableGoalError(name, self.network.end_zone.name)
-        zones = [name]
-        hops = self.next_hops(name)
-        while hops:
-            name = hops[0].zone.name
-            zones.append(name)
-            hops = self.next_hops(name)
-        return Route(zones, total)
+        there = self._distance_map.distance(hop.zone.name)
+        if there is None:
+            raise ValueError(f"{hop.zone.name!r} cannot reach the end zone")
+        return hop.zone.zone_type.turn_cost + there
+
+    def _costed_moves(self, zone_name: str) -> list[tuple[int, Hop]]:
+        """Return every move from the zone toward a zone that can finish.
+
+        Each move comes with its ``route_cost``. Self-loops are left out,
+        and so is everything when this zone is the end zone or cannot
+        reach it. The order is connection declaration order.
+
+        Raises:
+            ZoneNotFoundError: If no zone with this name exists.
+        """
+        here = self._distance_map.distance(zone_name)
+        if here is None or here == 0:
+            return []
+        moves: list[tuple[int, Hop]] = []
+        seen: set[str] = set()
+        for connection in self.network.neighbors(zone_name):
+            zone = self.network.get_zone(connection.other_end(zone_name))
+            if zone.name == zone_name or zone.name in seen:
+                continue
+            if self._distance_map.distance(zone.name) is None:
+                continue
+            seen.add(zone.name)
+            hop = Hop(connection, zone)
+            moves.append((self.route_cost(hop), hop))
+        return moves

@@ -35,7 +35,7 @@ def test_single_move(make_network: MakeNetwork, fmt: Fmt) -> None:
     state, resolver = prepare(make_network("s-a a-g"), 1)
     moves = resolver.resolve(state, [MoveOrder(1, "a")])
 
-    assert moves == [Move(1, "a")]
+    assert moves == [Move(1, "a", "s-a")]
     assert fmt(moves) == "D1-a"
     assert state.turn_number == 1
     assert state.drones[1].current_zone == "a"

@@ -25,7 +25,7 @@ pygame = pytest.importorskip("pygame")
 
 import fly_in  # noqa: E402
 from droneflow.app import Application  # noqa: E402
-from droneflow.cli import Args  # noqa: E402
+from droneflow.cli import Args, VisualMode  # noqa: E402
 from droneflow.errors import VisualizationError  # noqa: E402
 from droneflow.visualization import graphical_view  # noqa: E402
 from droneflow.visualization.graphical_view import (  # noqa: E402
@@ -90,7 +90,7 @@ def run_app(args: Args) -> tuple[str, str]:
 
 @pytest.mark.parametrize("visual", ["graphical", "both"])
 def test_stdout_is_the_same_log(
-    visual: str,
+    visual: VisualMode,
     sample_path: Path,
     scheduler_output: list[str],
     headless: list[object],
@@ -147,7 +147,7 @@ def test_graphical_view_assembly(
 @pytest.mark.parametrize("visual", ["graphical", "both"])
 @pytest.mark.usefixtures("no_window")
 def test_window_cannot_open(
-    visual: str, sample_path: Path, monkeypatch: pytest.MonkeyPatch
+    visual: VisualMode, sample_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """AG03: no window: VisualizationError, other views still closed."""
     closes: list[TerminalVisualizer] = []

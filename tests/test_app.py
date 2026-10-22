@@ -10,7 +10,6 @@ in the CLI phase", "step mode", "the CLI's shape", "turn log", "summary",
 "terminal view on stderr".
 """
 
-import functools
 import io
 import sys
 import types
@@ -20,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from droneflow.app import Application
-from droneflow.cli import Args, parse_args
+from droneflow.cli import Args, VisualMode, parse_args
 from droneflow.errors import (
     FlyInError,
     MapFileError,
@@ -30,14 +29,17 @@ from droneflow.errors import (
     VisualizationError,
 )
 from droneflow.models.network import Network
-from droneflow.output.turn_log_view import TurnLogPrinter
+from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
+from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.scheduler import Scheduler
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
 from droneflow.visualization.terminal_view import TerminalVisualizer
 
 WriteMap = Callable[[str], Path]
 TtyStream = Callable[..., io.StringIO]
+SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]
+StuckAfter = Callable[[int], SchedulerMaker]
 
 GRAPHICAL_MODULE = "droneflow.visualization.graphical_view"
 SUMMARY = (
@@ -67,12 +69,14 @@ def run_app(
 
 
 def run_failing(
-    args: Args, expected: type[BaseException]
+    args: Args,
+    expected: type[BaseException],
+    make_scheduler: SchedulerMaker = Scheduler,
 ) -> tuple[pytest.ExceptionInfo[BaseException], str, str]:
     """Run the application expecting ``expected``; return it and output."""
     out, err = io.StringIO(), io.StringIO()
     with pytest.raises(expected) as info:
-        Application(args, out, err).run()
+        Application(args, out, err, make_scheduler).run()
     return info, out.getvalue(), err.getvalue()
 
 
@@ -93,31 +97,6 @@ def no_pygame(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make ``import pygame`` fail as if pygame were not installed."""
     monkeypatch.setitem(sys.modules, "pygame", None)
     monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
-
-
-class StuckScheduler:
-    """The real scheduler for ``ok_turns`` turns, then nothing at all."""
-
-    def __init__(
-        self, network: Network, pathfinder: Pathfinder, ok_turns: int
-    ) -> None:
-        self.inner = Scheduler(network, pathfinder)
-        self.left = ok_turns
-
-    def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
-        """Delegate while turns are left; then order no move."""
-        if self.left == 0:
-            return []
-        self.left -= 1
-        return self.inner.decide_moves(state)
-
-
-def stuck_after(monkeypatch: pytest.MonkeyPatch, ok_turns: int) -> None:
-    """Make the application's engine stop after ``ok_turns`` turns."""
-    monkeypatch.setattr(
-        "droneflow.app.Scheduler",
-        functools.partial(StuckScheduler, ok_turns=ok_turns),
-    )
 
 
 @pytest.fixture
@@ -310,7 +289,7 @@ def test_map_errors_pass_through(
 
 @pytest.mark.parametrize("visual", ["graphical", "both"])
 @pytest.mark.usefixtures("no_pygame")
-def test_missing_pygame(visual: str, sample_path: Path) -> None:
+def test_missing_pygame(visual: VisualMode, sample_path: Path) -> None:
     """AA08: no pygame: VisualizationError before anything is shown."""
     info, out, err = run_failing(
         Args(sample_path, visual), VisualizationError
@@ -387,12 +366,12 @@ def test_close_failure_after_success_is_a_warning(
 
 @pytest.mark.usefixtures("fail_close")
 def test_close_failure_keeps_the_original_error(
-    sample_path: Path, monkeypatch: pytest.MonkeyPatch
+    sample_path: Path, stuck_after: StuckAfter
 ) -> None:
     """AA12: a failing close does not replace the run's own error."""
-    stuck_after(monkeypatch, 0)
-
-    info, out, err = run_failing(Args(sample_path), SimulationError)
+    info, out, err = run_failing(
+        Args(sample_path), SimulationError, stuck_after(0)
+    )
 
     assert type(info.value) is SimulationError
     assert str(info.value).startswith("turn 1: no drone moved")
@@ -402,15 +381,19 @@ def test_close_failure_keeps_the_original_error(
 
 
 def test_failed_run_keeps_the_log_so_far(
-    sample_path: Path, monkeypatch: pytest.MonkeyPatch, log: str
+    sample_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    log: str,
+    stuck_after: StuckAfter,
 ) -> None:
     """AA13: on a SimulationError the lines so far stay, views close."""
-    stuck_after(monkeypatch, 3)
     out, err = io.StringIO(), io.StringIO()
     view = record_terminal(monkeypatch, out)
 
     with pytest.raises(SimulationError, match="^turn 4: no drone moved"):
-        Application(Args(sample_path), out, err).run()
+        Application(
+            Args(sample_path), out, err, make_scheduler=stuck_after(3)
+        ).run()
 
     assert out.getvalue() == "".join(log.splitlines(keepends=True)[:3])
     assert out.getvalue() == (
@@ -452,3 +435,65 @@ def test_map_path_shown_as_typed(
     assert str(info.value).startswith(
         "cannot read map file './no_such//map.txt': "
     )
+
+
+# --- byte order mark, injected schedulers -----------------------------
+
+
+def test_map_with_bom_runs(
+    tmp_path: Path, subject_map: str, scheduler_output: list[str]
+) -> None:
+    """BM04: a map saved with a byte order mark runs end to end."""
+    path = tmp_path / "map.txt"
+    path.write_bytes(b"\xef\xbb\xbf" + subject_map.encode())
+
+    out, err = run_app(Args(path, visual="none"))
+
+    assert out.splitlines() == scheduler_output
+    assert err == SUMMARY + "\n"
+
+
+def test_make_scheduler_builds_the_decider(sample_path: Path) -> None:
+    """AI01: the application calls ``make_scheduler(network, pathfinder)``
+    once and runs the engine with what it returns."""
+    made: list[tuple[Network, Pathfinder]] = []
+
+    class Recording:
+        """Record how it was built; move D1 on turn 1 only."""
+
+        def __init__(self, network: Network, pathfinder: Pathfinder) -> None:
+            """Record the arguments."""
+            made.append((network, pathfinder))
+            self.turn = 0
+
+        def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
+            """Order D1 to corridorA on the first turn, then nothing."""
+            self.turn += 1
+            return [MoveOrder(1, "corridorA")] if self.turn == 1 else []
+
+    info, out, err = run_failing(
+        Args(sample_path, visual="none"), SimulationError, Recording
+    )
+
+    assert len(made) == 1
+    network, pathfinder = made[0]
+    assert pathfinder.network is network
+    assert str(info.value) == (
+        "turn 2: no drone moved, so the simulation cannot progress"
+    )
+    assert out == "D1-corridorA\n"
+    assert err == ""
+
+
+def test_shared_stuck_scheduler(
+    sample_path: Path, scheduler_output: list[str], stuck_after: StuckAfter
+) -> None:
+    """AI02: the conftest's ``stuck_after`` stops a real run part-way."""
+    info, out, _ = run_failing(
+        Args(sample_path, visual="none"), SimulationError, stuck_after(2)
+    )
+
+    assert str(info.value) == (
+        "turn 3: D4 is stuck on connection 'hub-roof1': zone 'roof1' is full"
+    )
+    assert out.splitlines() == scheduler_output[:2]

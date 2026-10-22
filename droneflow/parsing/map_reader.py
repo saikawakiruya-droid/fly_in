@@ -19,12 +19,23 @@ class SourceLine:
 
 
 class MapReader:
-    """Reads a map file and yields its lines as SourceLine objects."""
+    """Reads a map file and yields its lines as SourceLine objects.
+
+    The file is read as UTF-8; a byte order mark at its start, as some
+    editors write, is skipped.
+    """
 
     def __init__(self, path: str | Path) -> None:
+        """Keep the path of the file to read."""
         self.path = Path(path)
 
     def __iter__(self) -> Iterator[SourceLine]:
-        with open(self.path, encoding="utf-8") as f:
+        """Yield every line, numbered from 1, without its line ending.
+
+        Raises:
+            OSError: If the file cannot be opened.
+            UnicodeDecodeError: If the file is not UTF-8 text.
+        """
+        with open(self.path, encoding="utf-8-sig") as f:
             for number, text in enumerate(f, start=1):
                 yield SourceLine(number, text.rstrip("\r\n"))

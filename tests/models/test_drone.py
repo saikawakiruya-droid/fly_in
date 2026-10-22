@@ -13,7 +13,7 @@ def test_is_delivered_true_when_status_is_delivered() -> None:
 
 @pytest.mark.parametrize(
     "status",
-    [DroneStatus.WAITING, DroneStatus.AT_ZONE],
+    [DroneStatus.AT_ZONE],
 )
 def test_is_delivered_false_for_other_statuses(status: DroneStatus) -> None:
     """A drone that has not reached DELIVERED status is not delivered."""
@@ -28,7 +28,6 @@ def test_is_delivered_false_while_in_transit() -> None:
         current_zone=None,
         status=DroneStatus.IN_TRANSIT,
         in_transit_connection="a-b",
-        turns_remaining=1,
     )
     assert drone.is_delivered is False
 
@@ -45,7 +44,6 @@ def test_transit_target_kept_while_in_transit() -> None:
         current_zone=None,
         status=DroneStatus.IN_TRANSIT,
         in_transit_connection="s-r",
-        turns_remaining=1,
         transit_target="r",
     )
     assert drone.transit_target == "r"

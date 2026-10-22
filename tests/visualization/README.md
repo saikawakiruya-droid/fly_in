@@ -2,13 +2,13 @@
 
 `droneflow/visualization/`(Stage 7)の単体テスト。エンジンが可視化を呼ぶ契約(`begin` / `render` / `close`)のテストは
 `engine.py` のテストなので `tests/simulation/test_engine_hooks.py` にある。
+`ObserverGroup` のテストは `tests/simulation/test_observer.py`(旧 `test_composite.py` の VC01〜VC05 を移した)。
 
 ## ファイル
 
 - `conftest.py` — `coord_network`(座標・色つきのネットワーク)。pygame 不要。`tty_stream`(`isatty()` が True の `StringIO`)は
   CLI のフェーズで `tests/conftest.py` に移した(Application のテストと共有)
 - `test_palette.py` — 色名の表(VP01〜VP04)。pygame 不要
-- `test_composite.py` — `CompositeVisualizer`(VC01〜VC05)。pygame 不要
 - `test_terminal_view.py` — `TerminalVisualizer`(VT01〜VT16)。pygame 不要
 - `test_graphical_view.py` — `GraphicalVisualizer`(VG01〜VG18)。pygame が無ければファイルごと skip
 

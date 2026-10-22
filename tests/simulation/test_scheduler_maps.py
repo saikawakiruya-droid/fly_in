@@ -112,21 +112,21 @@ def run_checked(world: World) -> CheckedRun:
             here = drone.current_zone
             assert here is not None
             shortest = [hop.zone.name for hop in pathfinder.next_hops(here)]
-            if order.zone in shortest:
-                after = pathfinder.distance(order.zone)
+            if order.zone_name in shortest:
+                after = pathfinder.distance(order.zone_name)
                 before = pathfinder.distance(here)
                 assert after is not None and before is not None
                 assert after < before
             else:
                 longer = [h.zone.name for h in pathfinder.detour_hops(here)]
-                assert order.zone in longer, (
+                assert order.zone_name in longer, (
                     f"D{drone_id} takes neither a shortest hop nor a detour"
                 )
-                assert order.zone not in visited[drone_id], (
-                    f"D{drone_id} enters {order.zone} again by a detour"
+                assert order.zone_name not in visited[drone_id], (
+                    f"D{drone_id} enters {order.zone_name} again by a detour"
                 )
                 detours[drone_id] += 1
-            visited[drone_id].add(order.zone)
+            visited[drone_id].add(order.zone_name)
         moves = resolver.resolve(state, orders)
         assert moves, f"turn {state.turn_number}: no drone moved"
         turns.append(moves)
@@ -162,29 +162,22 @@ Load = Callable[[str], World]
 def test_subject_sample_map_output(
     load_world: Load,
     scheduler_output: list[str],
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """R01: the real scheduler prints these five lines.
 
     Two drones go round by roof1, so the run is shorter than the seven
     lines of the subject's example.
     """
-    TurnLogFormatter().emit(run_engine(load_world(SUBJECT)))
-
-    assert capsys.readouterr().out.splitlines() == scheduler_output
+    assert output_lines(load_world(SUBJECT)) == scheduler_output
 
 
-def test_restricted_only_map_output(
-    load_world: Load, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_restricted_only_map_output(load_world: Load) -> None:
     """R02: through restricted roof1 only, the run takes eight turns.
 
     The drone landing in roof1 is planned to leave it (for roof2) on the
     next turn, so one drone can take off toward roof1 every turn.
     """
-    TurnLogFormatter().emit(run_engine(load_world(RESTRICTED_ONLY)))
-
-    assert capsys.readouterr().out.splitlines() == [
+    assert output_lines(load_world(RESTRICTED_ONLY)) == [
         "D1-hub-roof1",
         "D1-roof1 D2-hub-roof1",
         "D1-roof2 D2-roof1 D3-hub-roof1",
@@ -595,7 +588,7 @@ def orders_by_turn(world: World) -> list[list[tuple[int, str]]]:
     while not state.is_complete:
         assert state.turn_number < default_turn_limit(world)
         orders = scheduler.decide_moves(state)
-        turns.append([(order.drone_id, order.zone) for order in orders])
+        turns.append([(order.drone_id, order.zone_name) for order in orders])
         resolver.resolve(state, orders)
     return turns
 

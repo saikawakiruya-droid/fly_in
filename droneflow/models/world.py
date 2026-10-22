@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from .network import Network
 
 
-@dataclass
+@dataclass(frozen=True)
 class World:
     """Bundles everything the parser produces for the rest of the pipeline.
 
