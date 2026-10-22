@@ -226,3 +226,13 @@ key: S=start E=end .=normal P=priority R=restricted X=blocked | in/max: -=no lim
   hub       S 5/-        goal      E 0/-        roof1     R 0/1        roof2     . 0/1
 == graphical view, headless, delay 0 (window closed by the watchdog-free path: --visual graphical is covered by pytest)
 ```
+
+## 3回目: Windows 対応の削除と `simulation/scheduling/` への整理を合わせたマージ前の検証
+
+- 対象: develop に `test/drop_windows_support` と `feature/scheduling_package`(別セッションの作業)をマージした状態(3b40b46)。
+  `docs/decisions.md` の末尾の追記どうしの衝突は、両方を残して解消。
+- 結果: Windows で flake8・mypy(両方)・pytest 878 passed。WSL で make lint/lint-strict 問題なし、make test は4回とも 878 passed
+  (bugs.md の VG08 の不安定な失敗は今回は再現せず)、部分実行の検査 197/197 成功。配布マップのターン数は変わらない。
+- 全マップの部分実行の一覧(ユーザーの依頼で作成): `_tmp/partial_runs/summary.md`(マップごとの world.json・run.json・標準出力・標準エラー出力も同じフォルダ)。
+  正常に終わる 47 枚は `--parse-only` → `--from-world --save-run` のターンログが全体実行と一致。到達不能の3枚(X02・X03・X05)は
+  パースは通り、シミュレーションで同じエラー。パースエラーの 40 枚は `--parse-only` でも全体実行と同じ1行のエラー。

@@ -114,3 +114,8 @@
   検証: Windows で pytest 878件、WSL で make lint/test(878件)・全体/部分実行 197/197、実際に `| head -1` でパイプを閉じて
   stderr なし・終了コード 1。
 - 未決: `test/drop_windows_support` の develop へのマージ(ユーザーの許可待ち)
+- マージ(ユーザーの許可「ほかの作業とともにマージ」): `test/drop_windows_support` と、別セッションの `feature/scheduling_package`
+  (Scheduler の部品を `simulation/scheduling/` へ移す整理。検証済みでマージ待ちだった)を、scratchpad の作業ツリーで develop に合わせて
+  検証し、develop を 3b40b46 まで進めた。別セッションの作業ツリー(D:)には触れていない。
+- 依頼: 全マップの部分実行を見たい → `_tmp/partial_runs/summary.md`(一覧)と各マップの成果物を WSL から持ち帰った。
+- 残っているもの: `feature/capacity_info`(練習用。マージしない)、main への反映、VG08 の不安定さの調査(bugs.md)。
