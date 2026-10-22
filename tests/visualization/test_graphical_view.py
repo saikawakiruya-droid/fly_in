@@ -545,3 +545,19 @@ def test_landing_trail_starts_mid_arc(
     )
 
     assert trails == [path[len(path) // 2:]]
+
+
+def test_self_loop_is_drawn(coord_network: CoordNetwork) -> None:
+    """VO06: a self-loop has a loop path above its zone (P06's case)."""
+    network = coord_network([("s", 0, 0), ("a", 1, 1), ("g", 2, 2)],
+                            "s-a a-a a-g")
+    layout = _Layout(network, (1200, 800))
+    a_a = network.connection_between("a", "a")
+    assert a_a is not None
+
+    path = layout.path(a_a)
+    ax, ay = layout.position("a")
+
+    assert len(path) > 3
+    assert path[0] == path[-1] == (ax, ay)
+    assert middle(path)[1] < ay - layout.radius

@@ -15,6 +15,7 @@ from droneflow.visualization.geometry import (
     arc,
     closest_distance,
     distance_to_path,
+    loop,
     middle,
     route,
     spread_duplicates,
@@ -164,7 +165,7 @@ def test_route_straight_when_clear() -> None:
     """GE16: nothing in the way keeps the straight line."""
     points = {"s": (0, 0), "g": (200, 0), "a": (100, 100)}
 
-    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100)
+    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100, [])
 
     assert path == [(0, 0), (200, 0)]
 
@@ -173,7 +174,7 @@ def test_route_bends_round_a_zone() -> None:
     """GE17: a zone on the line is avoided by an arc."""
     points = {"s": (0, 0), "b": (100, 0), "g": (200, 0)}
 
-    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100)
+    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100, [])
 
     assert len(path) > 2
     assert distance_to_path((100, 0), path) >= 12
@@ -183,7 +184,7 @@ def test_route_ignores_its_ends() -> None:
     """GE18: the two zones the connection joins are not in the way."""
     points = {"s": (0, 0), "g": (200, 0)}
 
-    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100)
+    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100, [])
 
     assert path == [(0, 0), (200, 0)]
 
@@ -197,7 +198,7 @@ def test_route_when_nothing_clears() -> None:
                 points[f"z{x}_{y}"] = (x, y)
     others = [p for n, p in points.items() if n not in ("s", "g")]
 
-    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100)
+    path = route((0, 0), (200, 0), ("s", "g"), grid_of(points), 10, 100, [])
 
     def gap(candidate: list[Point]) -> float:
         return min(distance_to_path(p, candidate) for p in others)
@@ -215,8 +216,57 @@ def test_route_clearance_capped_by_spacing() -> None:
     beside = {"s": (0, 0), "g": (14, 0), "n": (7, 7)}
     on_line = {"s": (0, 0), "g": (14, 0), "m": (7, 0)}
 
-    straight = route((0, 0), (14, 0), ("s", "g"), grid_of(beside), 10, 7)
-    bent = route((0, 0), (14, 0), ("s", "g"), grid_of(on_line), 10, 7)
+    straight = route((0, 0), (14, 0), ("s", "g"), grid_of(beside), 10, 7, [])
+    bent = route((0, 0), (14, 0), ("s", "g"), grid_of(on_line), 10, 7, [])
 
     assert straight == [(0, 0), (14, 0)]
     assert len(bent) > 2
+
+
+def test_arcs_keep_apart() -> None:
+    """GE21: connections over the same zones bend apart, not together.
+
+    Five zones on a line joined by every connection that skips a zone:
+    each arc is placed apart from the arcs placed before it.
+    """
+    names = "abcde"
+    points = {n: (i * 100, 0) for i, n in enumerate(names)}
+    grid = grid_of(points)
+    placed: list[list[Point]] = []
+    arcs = []
+    for i, j in itertools.combinations(range(5), 2):
+        if j - i < 2:
+            continue
+        path = route(points[names[i]], points[names[j]],
+                     (names[i], names[j]), grid, 10, 100, placed)
+        arcs.append(path)
+
+    assert all(len(path) > 2 for path in arcs)
+    assert len(placed) == len(arcs)
+    for first, second in itertools.combinations(arcs, 2):
+        close = sum(
+            1 for p in second if distance_to_path(p, first) < 6
+        )
+        assert close * 3 <= len(second)
+
+
+def test_first_arc_bends_upwards() -> None:
+    """GE22: the first arc tried bends up (labels are below zones)."""
+    points = {"s": (0, 100), "b": (100, 100), "g": (200, 100)}
+
+    path = route((0, 100), (200, 100), ("s", "g"), grid_of(points), 10,
+                 100, [])
+
+    assert middle(path)[1] < 100
+
+
+def test_self_loop() -> None:
+    """GE23: a zone joined to itself gets a small loop above it."""
+    path = route((50, 50), (50, 50), ("a", "a"), grid_of({"a": (50, 50)}),
+                 10, 100, [])
+
+    assert path == loop((50, 50), 10)
+    assert path[0] == path[-1] == (50, 50)
+    assert len(path) > 3
+    assert all(y <= 50 for _, y in path)
+    assert middle(path)[1] < 50 - 10
