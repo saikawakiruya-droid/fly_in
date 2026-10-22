@@ -152,3 +152,15 @@
   `step=True` のときだけにし、0.3秒の待ちを入れても通ることを確認。
 - 記録: `docs/bugs.md` の2件を対応済みに更新(各ブランチ)。
 - 未決: 3つのブランチの develop へのマージ(ユーザーの許可待ち)
+
+## README の完成、バグ修正のマージ、main の反映と push
+
+- 依頼: README は書いてもらう。push までする。
+- サブエージェントを再開し、README.md・README.ja.md を作成(`feature/readme_rewrite` eeb6220)。中身を確認(ローカルパス・個人情報なし、
+  説明はコードと実行結果どおり)。サブエージェントの指摘のうち、速さのキーが `--delay` の範囲の端で逆に働く件を bugs.md に未対応で記録。
+- develop: バグ修正の2ブランチをマージ(4dd9e85)。README は同じものに tests の記述だけを足して `feature/readme_for_develop` からマージ(1a57ee6)。
+  決定は `docs/decisions.md`「README を見出しだけから書き直す」。
+- main: `feature/readme_rewrite` まで進め(早送り)、`map_validator.py` のバグ修正を develop から取り出して 24ba8cb。
+- 検証(main を取り出した状態、WSL): make lint/lint-strict 成功、全体・部分実行 197/197、develop とのターンログ80枚一致、README の
+  配布マップの手順(sed で先頭のコメントを落とす)で challenger が44ターン、空ファイルは `line 1`。
+- 途中、変数を使った `rm -rf` を含むコマンドが安全確認で止められたので、削除せずに新しいフォルダへ取り出してやり直した。
