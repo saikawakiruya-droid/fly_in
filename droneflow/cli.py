@@ -33,6 +33,12 @@ class Args:
         map_arg: The map path exactly as typed, for messages; None means
             ``str(map_path)``. Not compared, so Args built by hand equal
             parsed ones.
+        parse_only: Write the parsed World to this JSON file and stop,
+            without simulating (``--parse-only``); None to simulate.
+        from_world: Read ``map_path`` as a world JSON file written by
+            ``--parse-only`` instead of parsing a map (``--from-world``).
+        save_run: Write every turn's moves and state to this JSON file
+            (``--save-run``); None to write none.
     """
 
     map_path: Path
@@ -40,6 +46,9 @@ class Args:
     delay: float = DEFAULT_DELAY
     step: bool = False
     map_arg: str | None = field(default=None, compare=False)
+    parse_only: str | None = None
+    from_world: bool = False
+    save_run: str | None = None
 
     @property
     def map_name(self) -> str:
@@ -86,6 +95,33 @@ def build_parser() -> argparse.ArgumentParser:
             "drives the steps)"
         ),
     )
+    extra = parser.add_argument_group(
+        "stages on their own (additional features)",
+        "Run the parser or the simulation alone; what one hands to the "
+        "next goes through a JSON file you can read.",
+    )
+    extra.add_argument(
+        "--from-world",
+        action="store_true",
+        help=(
+            "MAP is a world JSON file written by --parse-only: simulate "
+            "it without the parser"
+        ),
+    )
+    outputs = extra.add_mutually_exclusive_group()
+    outputs.add_argument(
+        "--parse-only",
+        metavar="FILE",
+        help="parse MAP, write the World to FILE as JSON, and stop",
+    )
+    outputs.add_argument(
+        "--save-run",
+        metavar="FILE",
+        help=(
+            "write every turn's moves and the state after it to FILE as "
+            "JSON"
+        ),
+    )
     return parser
 
 
@@ -110,6 +146,9 @@ def parse_args(argv: list[str] | None = None) -> Args:
         delay=namespace.delay,
         step=namespace.step,
         map_arg=namespace.map_path,
+        parse_only=namespace.parse_only,
+        from_world=namespace.from_world,
+        save_run=namespace.save_run,
     )
 
 

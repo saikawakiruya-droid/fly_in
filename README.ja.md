@@ -92,7 +92,6 @@ $ python fly_in.py linear_path.txt
 | `make lint-strict` | `flake8 .` と `mypy . --strict` |
 
 `run`・`debug`・`lint`・`lint-strict` は、仮想環境がないか `requirements.txt` より古いとき、先に `install` を実行します。
-Makefile は Linux/macOS では `.venv/bin`、Windows では `.venv/Scripts` を使います。
 
 `make debug` は `FLYIN_DEBUG=1` を設定し、`python -m pdb` でプログラムを起動します。ふだん予期しない例外(バグ)は
 `error: internal error: ...` の1行で報告しますが、`FLYIN_DEBUG=1` のときはそのまま送出されるので、pdb がその場で止まり、
@@ -115,6 +114,8 @@ python fly_in.py MAP [--visual {terminal,graphical,both,none}] [--delay SECONDS]
 | `--step` | 1ターンずつ進める。ターミナル表示では Enter、グラフィカル表示では右矢印(`both` では窓の側で進める) |
 
 `--delay` はグラフィカル表示以外では、`--step` は `--visual none` では無視します。
+パーサーやシミュレーションを単体で動かすオプション(`--parse-only`、`--from-world`、`--save-run`)もあります。
+[追加機能](#追加機能)を参照してください。
 
 標準出力には、どのモードでも**ターンログだけ**が出るので、そのままリダイレクトやパイプで検査できます。
 それ以外(ターミナル表示、最後のまとめ、警告、エラー)はすべて標準エラー出力に出ます。
@@ -124,7 +125,7 @@ python fly_in.py MAP [--visual {terminal,graphical,both,none}] [--delay SECONDS]
 | コード | いつ |
 |---|---|
 | 0 | 全機を配達した |
-| 1 | マップファイルが読めない・不正・ゴールに到達できない、シミュレーションの失敗、グラフィカル表示が使えない、予期しない内部エラー、標準出力が途中で閉じられた(例: `\| head`) |
+| 1 | マップファイルが読めない・不正・ゴールに到達できない、World のファイル(`--from-world`)が不正、JSON のファイル(`--parse-only`、`--save-run`)が書けない、シミュレーションの失敗、グラフィカル表示が使えない、予期しない内部エラー、標準出力が途中で閉じられた(例: `\| head`) |
 | 2 | コマンドライン引数の誤り(argparse の usage エラー) |
 | 130 | Ctrl+C で中断した |
 
@@ -363,11 +364,12 @@ droneflow/
   models/                  Zone, Connection, Network(自前の隣接構造), Drone, World
   parsing/                 MapReader -> LineTokenizer -> 規則の仕様表 (MapFormat) -> MapValidator
   pathfinding/             DistanceMap(ダイクストラ法), Pathfinder(最短と遠回りの次の一手)
-  simulation/              SimulationEngine, TurnObserver。Scheduler と ZoneRanking, HopTaker,
-                           DetourPolicy, Evictor, TurnLedger, ReservationTable, PositionBoard。
-                           TurnResolver, SimulationState
+  simulation/              SimulationEngine, TurnObserver, TurnResolver, SimulationState
+    scheduling/            Scheduler と ZoneRanking, HopTaker, DetourPolicy, Evictor,
+                           TurnLedger, ReservationTable, PositionBoard
   output/                  ターンログの整形と出力、実行のまとめ
   visualization/           ターミナル表示、グラフィカル表示、色の表
+  interchange/             World と実行の記録の JSON ファイル(追加機能)
 ```
 
 1機を判断するときの、スケジューラの部品のつながり:
@@ -389,10 +391,6 @@ Scheduler: ZoneRanking の順にゾーン、ゾーンの中は ID 順
 
 継承は「〜は〜の一種」の関係にだけ使っています。例外の階層(`FlyInError` とその派生)と、パーサーの行をまたぐ規則の
 抽象基底クラス(`ZoneRule`、`ConnectionRule`。派生クラスがそれぞれ1つの制約を検査します)です。それ以外は Enum、NamedTuple、Protocol です。
-
-毎ターン新しい情報(例: 接続の使用量)を表示したいときは、`begin`・`render`・`close` を持つクラスを書いて
-`Application._make_views` に足します。各 `Move` は出発した機が使った接続を持ち(`Move.connection`。着陸は `None`)、
-`SimulationState` からゾーンの在室数と容量(`Zone.capacity`)が分かります。
 
 ## 可視化
 
@@ -422,16 +420,25 @@ in flight: D4 s-b -> b, D5 s-a -> a
 ### グラフィカル表示(`--visual graphical`)
 
 - マップの座標そのままに、窓に収まるよう拡大縮小して描きます。y 軸は上向きです(グラフ用紙と同じ)。
+  同じ座標に宣言されたゾーンは、その位置のまわりに並べて、どれも見えるようにします。
 - ゾーンは `color=` の色で塗ります。restricted のゾーンは赤い枠の四角、priority のゾーンは金色の輪、start と end のゾーンは白い輪、
   blocked のゾーンは灰色に×印です。
-- 各ゾーンの下のバーが、容量に対する負荷を示します(緑、橙、満員で赤)。`負荷/容量` も表示し、end のゾーンには配達済みの数を出します。
+- 各ゾーンに名前を書きます。start と end のゾーンは名前の後に ` (start)` / ` (end)` を付けます。長い名前は `~` で切ります
+  (マウスを重ねるか、拡大すると読めます)。
+- 各ゾーンの下のバーが、容量に対する在室数を示します(緑、橙、満員で赤)。`在室数/容量` も表示し、そのゾーンへ飛行中の機
+  (次のターンに着く機)は `+N` で続けます(例: `1/1 +1`)。end のゾーンには配達済みの数を出します。
 - 接続は容量が大きいほど太く描き、容量が2以上なら `xN` と書きます。ドローンが飛行中の接続は明るくします。
+  まっすぐ引くと他のゾーンの上を通る接続は、そのゾーンを避ける弧で描きます(弧どうしも離します)。自分自身への接続は、
+  ゾーンの上の小さな輪で描きます。
 - ドローンは点で描きます。ゾーンにいる機は白、飛行中の機は水色(接続の中点に描きます)。そのターンに動いた機には金色の輪が付き、
-  そのターンの移動は金色の軌跡で示します。混んでいるゾーンは点を12個まで描き、残りは `+N` で示します。
+  そのターンの移動は、使った接続に沿った金色の軌跡で示します。同じ点にいる複数の機は、数を書いた札1つで示します。
 - 上の帯にターン数・動いた数・配達済みの数・飛行中の数を、下の行にそのターンの移動を出力形式で表示します。
-- **ゾーンにマウスを重ねると**、名前・役割・種類・色・負荷と容量(着く予定の機)・いるドローンのIDをツールチップで表示します。
+- **ゾーンにマウスを重ねると**(どの倍率でも)、名前・役割・種類・色・負荷と容量(着く予定の機)・いるドローンのIDをツールチップで表示します。
 - 操作: `Space` 一時停止 / 再開、`右矢印` 次のターンへ(一時停止中は1ターン送り)、`上矢印`/`+` 速く、`下矢印`/`-` 遅く
   (待ち時間を 0.05〜5 秒の範囲で半分 / 2倍にします)、`Esc`/`q` または窓の閉じるボタンで終了。
+- 拡大縮小と移動(大きなマップ向け): マウスホイールでマウスの位置を中心に拡大縮小、左ボタンのドラッグで移動、`f` で全体表示に戻ります。
+  ゾーン・文字・線の大きさは画面上で変わらず、拡大するとゾーンの間隔だけが広がって名前が読めるようになります。
+  密なマップを縮小すると、名前と数字を省き、ゾーンを小さな点で描きます。
 - `--delay SECONDS` で1ターンの時間を決めます(0〜60、既定 0.5)。`--step` では一時停止で始まり、右矢印で1ターンずつ進みます。
 - 最後のターンの後は、窓を閉じるまで最後の画面を残します(`finished - press esc to close`)。途中で窓を閉じても描画が止まるだけで、
   シミュレーションは最後まで進み、ターンログも最後まで出ます。
@@ -444,6 +451,44 @@ in flight: D4 s-b -> b, D5 s-a -> a
   その機が必要とする席が分かります。
 - `--step` と一時停止で、1ターンずつ規則どおりかを手で確かめられます。大きなマップでも、ゾーンのツールチップで正確な数が分かります。
 - マップの色をそのまま使うので、表示がマップの作者の意図と一致します。まとめの行では、実行ごとに得点(総ターン数)と副次指標が分かります。
+
+## 追加機能
+
+課題の要件にはないオプションです。処理の流れのうち1つの段階だけを単体で動かし、次の段階へ渡すものを JSON のファイルにするので、
+段階の間で中身を読む(書き換える)ことができます。
+
+| オプション | 何をするか |
+|---|---|
+| `--parse-only FILE` | `MAP` を読み、`World`(全ゾーン・全接続のすべての値と `nb_drones`)を `FILE` に書いて、シミュレーションせずに終える |
+| `--from-world` | `MAP` を `--parse-only` が書いた World のファイルとして読み、パーサーを通さずにシミュレーションする |
+| `--save-run FILE` | 各ターンを `FILE` に書く。そのターンの移動(`drone_id`、`destination`、使った `connection`)と、その後の配達前の各ドローンの位置(ゾーン、または飛行中の接続と行き先)と配達済みの数。ターン0は初期状態 |
+
+`--parse-only` と `--save-run` は同時に使えません。ほかのオプション(`--visual`、`--delay`、`--step`)は `--from-world` でもそのまま使えるので、
+`--step` を付ければ移動を1ターンずつ見られます。
+
+```sh
+# 1. パーサーだけ: マップ -> world.json
+python fly_in.py maps/subject_example.txt --parse-only world.json
+# 2. シミュレーションだけ: world.json -> ターンログ(標準出力)と run.json
+python fly_in.py world.json --from-world --visual none --save-run run.json
+# 同じものを1ターンずつ(Enter で進む)
+python fly_in.py world.json --from-world --step
+```
+
+2 のターンログは、マップをふつうに実行したときと同じです。World のファイルは読み込むときにマップと同じように検査します
+(値の型、正の容量、ゾーン名、パーサーの規則、blocked でない start と end が1つずつ)。不正なら
+`error: invalid world file 'world.json': zones[2].max_drones: must be a positive integer` のような1行で終えます。
+シミュレーションが途中で失敗しても、`--save-run` はそこまでのターンを `"complete": false` で書きます。
+
+課題の例の `run.json` の抜粋(ターン2):
+
+```json
+{"turn": 2, "log": "D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1",
+ "moves": [{"drone_id": 4, "destination": "hub-roof1", "connection": "hub-roof1"}, ...],
+ "delivered_count": 0,
+ "drones": [{"drone_id": 4, "status": "in_transit", "zone": null,
+             "connection": "hub-roof1", "target": "roof1"}, ...]}
+```
 
 ## テストと品質
 

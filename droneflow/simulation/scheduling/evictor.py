@@ -2,8 +2,8 @@
 
 from collections.abc import Mapping
 
-from ..models.zone import Zone
-from ..pathfinding.pathfinder import Hop
+from ...models.zone import Zone
+from ...pathfinding.pathfinder import Hop
 from .positions import PositionBoard
 from .reservation_table import Reservation, ReservationTable
 from .turn_ledger import TurnLedger
