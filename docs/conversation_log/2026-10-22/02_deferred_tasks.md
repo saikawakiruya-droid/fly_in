@@ -172,3 +172,11 @@
 - 依頼: 2(docstring)を直す → `fix/docstrings_without_tests`(8a59812)。`labels.py` と `app.py` の docstring から tests への言及を外し、
   引数でできることの説明にした。pytest 878件・flake8・mypy 成功。
 - 未決: develop へのマージと main への反映・push(ユーザーの許可待ち)
+- docstring の修正の develop へのマージ・main への反映・push(develop a58ac33..ce56156、main 24ba8cb..85f4bea)。共有の作業ツリーで別セッションが
+  コミットした `9a1d855`(レビューガイド)が私の fix ブランチに載り、一緒に develop に入って push された。以後、共有の作業ツリーではブランチを切り替えず、
+  別の作業ツリーで作業する。fly_in の3セッションに状況を連絡。
+
+## 2026-10-23(日付変更)
+
+- 依頼: 再開。残りの 1(速さのキーのバグ)・3(CLAUDE.md の書き方)・4(`_tmp/` の整理)・5(作業ツリーとブランチの片付け)をすべて進める。
+- 方針: ブランチでの作業は `D:\WorkSpaceclaude_code\` の自分用の作業ツリーで行い、共有の作業ツリー(cc_space)は develop のまま触らない。
