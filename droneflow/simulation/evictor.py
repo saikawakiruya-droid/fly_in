@@ -71,7 +71,7 @@ class Evictor:
         """
         turn = first_turn
         while turn <= max(first_turn, self.ledger.horizon()):
-            while not self.ledger.has_seat(zone, turn, extra):
+            while not self.ledger.fits(zone, turn, extra):
                 if not self._evict_one(zone, turn):
                     return False
             turn += 1
@@ -103,7 +103,7 @@ class Evictor:
         no planned move after this turn (it is not already leaving). Trying
         one drone is enough: all of them would take the same hops.
         """
-        now = self.ledger.turn
+        now = self.ledger.planning_turn
         for drone_id in self.board.drones_in(zone_name):
             if self.board.where(drone_id).since_turn > turn - 1:
                 continue

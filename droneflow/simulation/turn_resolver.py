@@ -117,10 +117,10 @@ class TurnResolver:
     def _check_order(self, drone: Drone, order: MoveOrder) -> _Step:
         label = f"D{drone.drone_id}"
         try:
-            zone = self.network.get_zone(order.zone)
+            zone = self.network.get_zone(order.zone_name)
         except ZoneNotFoundError:
             raise SimulationError(
-                f"{label} ordered into unknown zone {order.zone!r}"
+                f"{label} ordered into unknown zone {order.zone_name!r}"
             ) from None
         if not zone.zone_type.is_traversable:
             raise SimulationError(

@@ -4,9 +4,13 @@ import argparse
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal, get_args
 
-VISUAL_MODES = ("terminal", "graphical", "both", "none")
-"""Accepted values of ``--visual``."""
+VisualMode = Literal["terminal", "graphical", "both", "none"]
+"""The accepted values of ``--visual``, as a type."""
+
+VISUAL_MODES: tuple[str, ...] = get_args(VisualMode)
+"""Accepted values of ``--visual``, in order (for argparse)."""
 
 DEFAULT_DELAY = 0.5
 """Default seconds per turn in the graphical view."""
@@ -32,7 +36,7 @@ class Args:
     """
 
     map_path: Path
-    visual: str = "terminal"
+    visual: VisualMode = "terminal"
     delay: float = DEFAULT_DELAY
     step: bool = False
     map_arg: str | None = field(default=None, compare=False)

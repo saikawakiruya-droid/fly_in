@@ -47,11 +47,11 @@ class MoveOrder:
 
     Attributes:
         drone_id: Which drone to move.
-        zone: Name of the adjacent zone the drone should enter.
+        zone_name: Name of the adjacent zone the drone should enter.
     """
 
     drone_id: int
-    zone: str
+    zone_name: str
 
 
 class SimulationState:

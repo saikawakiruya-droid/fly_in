@@ -8,12 +8,14 @@ LineSpec to turn a tokenized line into a model object.
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TypeVar
 
 from ..models.connection import Connection
 from ..models.zone import Zone, ZoneRole, ZoneType
 
-Converter = Callable[[str], Any]
+T = TypeVar("T")
+
+Converter = Callable[[str], object]
 """Turns one raw string into a typed value, or raises ValueError."""
 
 
@@ -64,12 +66,20 @@ def to_text(raw: str) -> str:
     return raw
 
 
-def to_endpoints(raw: str) -> tuple[str, str]:
+@dataclass(frozen=True)
+class Endpoints:
+    """The two zone names of a ``connection:`` line."""
+
+    zone_a: str
+    zone_b: str
+
+
+def to_endpoints(raw: str) -> Endpoints:
     """Split ``<name1>-<name2>`` into its two zone names."""
     parts = raw.split("-")
     if len(parts) != 2 or not all(parts):
         raise ValueError(f"must look like <name1>-<name2>, got {raw!r}")
-    return parts[0], parts[1]
+    return Endpoints(parts[0], parts[1])
 
 
 @dataclass(frozen=True)
@@ -84,9 +94,9 @@ class FieldSpec:
 
     name: str
     convert: Converter
-    default: Any = None
+    default: object = None
 
-    def read(self, raw: str | None) -> Any:
+    def read(self, raw: str | None) -> object:
         """Convert ``raw``, or return the default when it is absent.
 
         Raises:
@@ -110,10 +120,48 @@ class ForbiddenOption:
     """
 
     key: str
-    value: Any
+    value: object
 
 
-Builder = Callable[[Mapping[str, Any]], Entry]
+class FieldValues:
+    """The converted values of one line, read back with their types.
+
+    Values are stored as ``object``; a builder asks for each one with the
+    type it expects, and a mismatch (a field spec and its builder that do
+    not agree) is reported as a ``TypeError``, a programming error rather
+    than a map error.
+    """
+
+    def __init__(self, values: Mapping[str, object]) -> None:
+        """Keep the values by field name."""
+        self._values = dict(values)
+
+    def get(self, name: str, kind: type[T]) -> T:
+        """Return the value of ``name``, which must be a ``kind``.
+
+        Raises:
+            TypeError: If the value is missing or of another type.
+        """
+        value = self._values.get(name)
+        if not isinstance(value, kind):
+            raise TypeError(
+                f"field {name!r} is {type(value).__name__}, "
+                f"not {kind.__name__}"
+            )
+        return value
+
+    def get_optional(self, name: str, kind: type[T]) -> T | None:
+        """Return the value of ``name`` (a ``kind``), or None if unset.
+
+        Raises:
+            TypeError: If the value is set but of another type.
+        """
+        if self._values.get(name) is None:
+            return None
+        return self.get(name, kind)
+
+
+Builder = Callable[[FieldValues], Entry]
 
 
 @dataclass(frozen=True)
@@ -137,9 +185,9 @@ class LineSpec:
     forbidden: Sequence[ForbiddenOption] = ()
 
     @property
-    def metadata_keys(self) -> set[str]:
+    def metadata_keys(self) -> frozenset[str]:
         """Return the metadata keys this kind of line accepts."""
-        return {field.name for field in self.metadata}
+        return frozenset(field.name for field in self.metadata)
 
     def build(
         self, positional: Sequence[str], metadata: Mapping[str, str]
@@ -150,7 +198,7 @@ class LineSpec:
             ValueError: If any field fails to convert, or a metadata value
                 is one this kind of line forbids.
         """
-        values: dict[str, Any] = {}
+        values: dict[str, object] = {}
         for field, raw in zip(self.positional, positional):
             values[field.name] = field.read(raw)
         for field in self.metadata:
@@ -161,7 +209,7 @@ class LineSpec:
                     f"{self.keyword} cannot have "
                     f"{option.key}={metadata[option.key]}"
                 )
-        return self.builder(values)
+        return self.builder(FieldValues(values))
 
 
 class ZoneBuilder:
@@ -171,29 +219,33 @@ class ZoneBuilder:
         """Build zones with this role."""
         self._role = role
 
-    def __call__(self, values: Mapping[str, Any]) -> Zone:
+    def __call__(self, values: FieldValues) -> Zone:
         """Build the Zone; start_hub / end_hub ignore ``max_drones``."""
         is_hub = self._role is ZoneRole.HUB
         return Zone(
-            name=values["name"],
-            x=values["x"],
-            y=values["y"],
-            zone_type=values["zone"],
+            name=values.get("name", str),
+            x=values.get("x", int),
+            y=values.get("y", int),
+            zone_type=values.get("zone", ZoneType),
             role=self._role,
-            color=values["color"],
-            max_drones=values["max_drones"] if is_hub else None,
+            color=values.get_optional("color", str),
+            max_drones=values.get("max_drones", int) if is_hub else None,
         )
 
 
-def build_connection(values: Mapping[str, Any]) -> Connection:
+def build_connection(values: FieldValues) -> Connection:
     """Build a Connection from converted field values."""
-    zone_a, zone_b = values["endpoints"]
-    return Connection(zone_a, zone_b, values["max_link_capacity"])
+    endpoints = values.get("endpoints", Endpoints)
+    return Connection(
+        endpoints.zone_a,
+        endpoints.zone_b,
+        values.get("max_link_capacity", int),
+    )
 
 
-def build_drone_count(values: Mapping[str, Any]) -> DroneCount:
+def build_drone_count(values: FieldValues) -> DroneCount:
     """Build a DroneCount from converted field values."""
-    return DroneCount(values["n"])
+    return DroneCount(values.get("n", int))
 
 
 class MapFormat:
