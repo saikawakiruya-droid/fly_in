@@ -1487,3 +1487,13 @@ sequenceDiagram
   - `interchange/` を分けて `world_file` を読み込み側、`run_file` を `output/` に移す案。2026-10-22 の決定(段階の間で渡すものをファイルで
     見るための1つのパッケージ)と食い違い、共通の `json_file` の置き場所も問題になるため見送った。
   - 図をそのまま再現して `app/` の下に①読み込み〜④出力を置く案。import が全体に深くなり、変更が大きいわりに読みやすくならないため見送った。
+
+## 2026-10-22: README を見出しだけから書き直す
+
+- 決定内容(ユーザーの依頼「main からブランチを切り、サブエージェントに見出しだけ指定して README を書かせる。判断などが入っている今の README は見せない」):
+  1. `feature/readme_rewrite` を main から切り、README を削除してから、見出し(中身に触れない名前だけ)と1行目の固定文だけを渡した
+     サブエージェントに、コード・課題の PDF・実際の実行結果だけから日英の README を書かせた。今の README・履歴・docs は読ませていない。
+  2. main はこの README をそのまま使う。develop は同じ README に、tests があることの記述(要件の pytest、Makefile の `make test`、
+     「Testing and quality」の tests の説明)だけを足したものにする(これまでの「main 用の差分」の逆)。
+  3. これまでの README にあった判断の経緯(検討した代替案、トレードオフ、決定の日付など)は README から外れ、`docs/decisions.md` に残る。
+- 理由: ユーザー判断。提出物の README を、判断の経緯ではなくコードと動作の説明にするため。
