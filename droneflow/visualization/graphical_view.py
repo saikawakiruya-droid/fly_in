@@ -7,6 +7,7 @@ package works without it. Nothing is opened until the first ``begin`` or
 
 import math
 import os
+from typing import NamedTuple
 
 # pygame prints a banner to standard output on import, which would corrupt
 # the turn log; this must be set before the import below.
@@ -138,6 +139,14 @@ def zone_rgb(color_name: str | None) -> RGB:
     return DEFAULT_ZONE_RGB
 
 
+class _Frame(NamedTuple):
+    """The last frame drawn, kept so it can be drawn again."""
+
+    state: SimulationState
+    moves: list[Move]
+    note: str
+
+
 class _Window:
     """The pygame window: drawing one frame and waiting between turns."""
 
@@ -156,7 +165,7 @@ class _Window:
         }
         self.delay = delay
         self.paused = False
-        self._frame: tuple[SimulationState, list[Move], str] | None = None
+        self._frame: _Frame | None = None
         self._trails: list[tuple[Point, Point]] = []
         self._hover: tuple[str, Point] | None = None
 
@@ -177,7 +186,7 @@ class _Window:
         note: str = "",
     ) -> None:
         """Draw a frame and remember it, so it can be redrawn later."""
-        self._frame = (state, moves, note)
+        self._frame = _Frame(state, moves, note)
         self._trails = trails
         self.redraw()
 
@@ -186,7 +195,7 @@ class _Window:
         if self._frame is None:
             return
         if note is not None:
-            self._frame = (self._frame[0], self._frame[1], note)
+            self._frame = self._frame._replace(note=note)
         state, moves, shown_note = self._frame
         self.screen.fill(_BACKGROUND)
         self._draw_links(state)

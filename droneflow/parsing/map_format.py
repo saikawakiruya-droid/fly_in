@@ -185,9 +185,9 @@ class LineSpec:
     forbidden: Sequence[ForbiddenOption] = ()
 
     @property
-    def metadata_keys(self) -> set[str]:
+    def metadata_keys(self) -> frozenset[str]:
         """Return the metadata keys this kind of line accepts."""
-        return {field.name for field in self.metadata}
+        return frozenset(field.name for field in self.metadata)
 
     def build(
         self, positional: Sequence[str], metadata: Mapping[str, str]

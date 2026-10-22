@@ -1,6 +1,7 @@
 """LineTokenizer: splits a map line into raw string parts (syntax only)."""
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from ..errors import ParseError
@@ -23,8 +24,8 @@ class RawLine:
 
     number: int
     spec: LineSpec
-    positional: list[str]
-    metadata: dict[str, str]
+    positional: tuple[str, ...]
+    metadata: Mapping[str, str]
 
 
 class LineTokenizer:
@@ -69,7 +70,7 @@ class LineTokenizer:
         if len(tokens) != len(spec.positional):
             expected = f"{spec.keyword}: {spec.usage}"
             raise ParseError(number, f"expected '{expected}', got {text!r}")
-        return RawLine(number, spec, tokens, metadata)
+        return RawLine(number, spec, tuple(tokens), metadata)
 
     def _split_metadata(
         self, number: int, rest: str
