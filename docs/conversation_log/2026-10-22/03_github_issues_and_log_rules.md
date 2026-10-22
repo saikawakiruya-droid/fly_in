@@ -20,3 +20,5 @@
     `docs/conversation_log/YYYY-MM-DD/NN_<topic-slug>.md` に変え、日付をまたいだら記録して `## YYYY-MM-DD(日付変更)` の見出しを立てる規則を足した。
   - fly_in の 2026-10-22.md を、このフォルダの3ファイル(セッションごと)に分けた。2026-10-21 以前のログはそのまま。
   - 変更ファイル: `cc_space/CLAUDE.md`(git 管理外)、`docs/conversation_log/2026-10-22/`、`docs/decisions.md`
+- 依頼5: cc_space を git 管理にする。→ cc_space 直下に git リポジトリ(main、リモートなし)を作り、`.gitignore` の許可リストで
+  `CLAUDE.md` と `works/CLAUDE.md` だけを管理対象にした(ユーザー選択)。ほかのフォルダや入れ子のリポジトリは無視するので影響しない。
