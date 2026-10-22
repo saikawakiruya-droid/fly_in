@@ -484,3 +484,55 @@ def test_metadata_blocks_without_duplicates_still_parse(
     assert hub.max_drones == 2
     (connection,) = world.network.connections
     assert connection.max_link_capacity == 3
+
+
+# --- byte order mark (utf-8-sig) --------------------------------------
+
+
+BOM = b"\xef\xbb\xbf"
+
+
+def write_bytes(tmp_path: Path, data: bytes) -> Path:
+    """Write raw bytes to a map file under tmp_path and return its path."""
+    path = tmp_path / "map.txt"
+    path.write_bytes(data)
+    return path
+
+
+def test_leading_bom_is_skipped(tmp_path: Path) -> None:
+    """BM01: a map saved with a byte order mark parses as without one."""
+    path = write_bytes(tmp_path, BOM + SUBJECT_SAMPLE_MAP.encode())
+
+    world = MapParser(path).parse()
+
+    assert world.nb_drones == 5
+    assert next(iter(world.network.zones)) == "hub"
+
+
+def test_bom_with_crlf_line_ends(tmp_path: Path) -> None:
+    """BM02: a byte order mark and CRLF line ends together still parse."""
+    text = SUBJECT_SAMPLE_MAP.replace("\n", "\r\n")
+    path = write_bytes(tmp_path, BOM + text.encode())
+
+    assert MapParser(path).parse().nb_drones == 5
+
+
+def test_only_one_leading_bom_is_skipped(tmp_path: Path) -> None:
+    """BM03: a second byte order mark, or one at the start of another line,
+    is an error as before."""
+    twice = write_bytes(tmp_path, BOM + BOM + SUBJECT_SAMPLE_MAP.encode())
+    with pytest.raises(ParseError) as first:
+        MapParser(twice).parse()
+    assert str(first.value) == (
+        "line 1: the first line must be 'nb_drones: <n>'"
+    )
+
+    lines = SUBJECT_SAMPLE_MAP.splitlines(keepends=True)
+    lines[5] = "\ufeff" + lines[5]
+    inside = write_bytes(tmp_path, "".join(lines).encode())
+    with pytest.raises(ParseError) as sixth:
+        MapParser(inside).parse()
+    assert str(sixth.value) == (
+        "line 6: unrecognized line: "
+        "'\\ufeffhub: roof2 6 2 [zone=normal color=blue]'"
+    )

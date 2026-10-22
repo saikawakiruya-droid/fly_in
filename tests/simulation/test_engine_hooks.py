@@ -162,3 +162,70 @@ def test_close_after_render_fails(
     assert names(view.calls) == [
         "begin", "render", "close"
     ]
+
+
+# --- observer keyword and constructor names ---------------------------
+
+
+class TurnCounter:
+    """Record ``(name, turn, number of moves)`` for each call."""
+
+    def __init__(self) -> None:
+        """Start with no call."""
+        self.calls: list[Call] = []
+
+    def begin(self, state: SimulationState) -> None:
+        """Record begin and the turn."""
+        self.calls.append(("begin", state.turn_number))
+
+    def render(self, state: SimulationState, moves: list[Move]) -> None:
+        """Record render, the turn and how many moves it had."""
+        self.calls.append(("render", state.turn_number, len(moves)))
+
+    def close(self) -> None:
+        """Record close."""
+        self.calls.append(("close",))
+
+
+def test_run_takes_the_observer_by_keyword(
+    load_world: Callable[[str], World],
+    subject_map: str,
+    real_scheduler: Callable[[Network], MoveDecider],
+) -> None:
+    """EO01: ``run(observer=...)`` on the subject's example map."""
+    world = load_world(subject_map)
+    observer = TurnCounter()
+
+    turns = SimulationEngine(world, real_scheduler(world.network)).run(
+        observer=observer
+    )
+
+    assert observer.calls == [
+        ("begin", 0),
+        ("render", 1, 2),
+        ("render", 2, 4),
+        ("render", 3, 5),
+        ("render", 4, 4),
+        ("render", 5, 2),
+        ("close",),
+    ]
+    assert len(turns) == 5
+
+
+def test_no_observer_and_keyword_construction(
+    load_world: Callable[[str], World],
+    subject_map: str,
+    real_scheduler: Callable[[Network], MoveDecider],
+) -> None:
+    """EO02: ``run()`` needs no observer; the constructor takes ``world``,
+    ``decider`` and ``max_turns`` by name (70 turns by default here)."""
+    world = load_world(subject_map)
+    engine = SimulationEngine(world, real_scheduler(world.network))
+
+    assert len(engine.run()) == 5
+    assert engine.max_turns == 70
+
+    decider = real_scheduler(world.network)
+    named = SimulationEngine(world=world, decider=decider, max_turns=9)
+    assert named.decider is decider
+    assert named.max_turns == 9

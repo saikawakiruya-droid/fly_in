@@ -33,7 +33,7 @@ from droneflow.output.turn_log_view import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.scheduler import Scheduler
-from droneflow.simulation.state import Move, SimulationState
+from droneflow.simulation.state import Move, MoveOrder, SimulationState
 from droneflow.visualization.terminal_view import TerminalVisualizer
 
 WriteMap = Callable[[str], Path]
@@ -435,3 +435,65 @@ def test_map_path_shown_as_typed(
     assert str(info.value).startswith(
         "cannot read map file './no_such//map.txt': "
     )
+
+
+# --- byte order mark, injected schedulers -----------------------------
+
+
+def test_map_with_bom_runs(
+    tmp_path: Path, subject_map: str, scheduler_output: list[str]
+) -> None:
+    """BM04: a map saved with a byte order mark runs end to end."""
+    path = tmp_path / "map.txt"
+    path.write_bytes(b"\xef\xbb\xbf" + subject_map.encode())
+
+    out, err = run_app(Args(path, visual="none"))
+
+    assert out.splitlines() == scheduler_output
+    assert err == SUMMARY + "\n"
+
+
+def test_make_scheduler_builds_the_decider(sample_path: Path) -> None:
+    """AI01: the application calls ``make_scheduler(network, pathfinder)``
+    once and runs the engine with what it returns."""
+    made: list[tuple[Network, Pathfinder]] = []
+
+    class Recording:
+        """Record how it was built; move D1 on turn 1 only."""
+
+        def __init__(self, network: Network, pathfinder: Pathfinder) -> None:
+            """Record the arguments."""
+            made.append((network, pathfinder))
+            self.turn = 0
+
+        def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
+            """Order D1 to corridorA on the first turn, then nothing."""
+            self.turn += 1
+            return [MoveOrder(1, "corridorA")] if self.turn == 1 else []
+
+    info, out, err = run_failing(
+        Args(sample_path, visual="none"), SimulationError, Recording
+    )
+
+    assert len(made) == 1
+    network, pathfinder = made[0]
+    assert pathfinder.network is network
+    assert str(info.value) == (
+        "turn 2: no drone moved, so the simulation cannot progress"
+    )
+    assert out == "D1-corridorA\n"
+    assert err == ""
+
+
+def test_shared_stuck_scheduler(
+    sample_path: Path, scheduler_output: list[str], stuck_after: StuckAfter
+) -> None:
+    """AI02: the conftest's ``stuck_after`` stops a real run part-way."""
+    info, out, _ = run_failing(
+        Args(sample_path, visual="none"), SimulationError, stuck_after(2)
+    )
+
+    assert str(info.value) == (
+        "turn 3: D4 is stuck on connection 'hub-roof1': zone 'roof1' is full"
+    )
+    assert out.splitlines() == scheduler_output[:2]
