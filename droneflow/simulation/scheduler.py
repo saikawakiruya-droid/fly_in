@@ -104,9 +104,9 @@ class Scheduler:
         self._start_turn(state)
         ledger = TurnLedger(state, self._table)
         board = PositionBoard.from_state(state)
-        self._detour_policy.remember(ledger.turn, board)
+        self._detour_policy.remember(ledger.planning_turn, board)
         orders: list[MoveOrder] = []
-        for move in self._table.due(ledger.turn):
+        for move in self._table.due(ledger.planning_turn):
             orders.append(MoveOrder(move.drone_id, move.to_zone))
             board.place(move.drone_id, move.to_zone, move.arrive_turn)
         ordered = {order.drone_id for order in orders}
@@ -116,7 +116,7 @@ class Scheduler:
             board,
         )
         for drone in self._decision_order(state, ordered):
-            order = self._decide(drone, ledger.turn, taker, board)
+            order = self._decide(drone, ledger.planning_turn, taker, board)
             if order is not None:
                 orders.append(order)
         return orders
