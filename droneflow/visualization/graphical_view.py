@@ -21,6 +21,7 @@ from ..models.drone import Drone  # noqa: E402
 from ..models.network import Network  # noqa: E402
 from ..models.zone import Zone, ZoneRole, ZoneType  # noqa: E402
 from ..simulation.state import Move, SimulationState  # noqa: E402
+from .camera import ZOOM_STEP, Camera, visible  # noqa: E402
 from .geometry import (  # noqa: E402
     Path,
     PointGrid,
@@ -61,7 +62,14 @@ _MAX_DELAY = 5.0
 _MAX_INITIAL_DELAY = 60.0
 _MAX_STRETCH = 2.0
 _LABEL_ROOM = 72
-_HELP = "space: pause  right: step  up/down: speed  esc: quit"
+_HELP = (
+    "space: pause  right: step  up/down: speed  "
+    "wheel: zoom  drag: move  f: fit  esc: quit"
+)
+_READABLE_SPACING = 120
+"""Screen pixels between the closest zones at the deepest zoom."""
+_LABEL_SPACING = 40
+"""Screen pixels between the closest zones below which labels are left out."""
 
 
 class _Layout:
@@ -138,11 +146,20 @@ class _Layout:
         """Return the pixel middle of a connection, along its path."""
         return middle(self.path(connection))
 
-    def zone_at(self, point: Point) -> str | None:
-        """Return the zone drawn under a pixel, if any."""
+    def zone_at(
+        self, point: tuple[float, float], reach: float | None = None
+    ) -> str | None:
+        """Return the zone under a map point, if any.
+
+        Args:
+            point: The point, in map pixels.
+            reach: How far from a zone's center still counts, in map
+                pixels; defaults to the zone radius (zoom 1).
+        """
         px, py = point
+        limit = self.radius if reach is None else reach
         for name, (x, y) in self._points.items():
-            if math.hypot(px - x, py - y) <= self.radius:
+            if math.hypot(px - x, py - y) <= limit:
                 return name
         return None
 
@@ -193,9 +210,13 @@ class _Window:
         self._frame: _Frame | None = None
         self._trails: list[Path] = []
         self._hover: tuple[str, Point] | None = None
+        self.camera = Camera(
+            _READABLE_SPACING / max(self.layout.spacing, 1.0)
+        )
+        self._drag: Point | None = None
 
     def drone_point(self, drone: Drone) -> Point | None:
-        """Return where a drone is drawn, or None once delivered."""
+        """Return where a drone is, in map pixels, or None once delivered."""
         if drone.in_transit_connection is not None:
             link = self.links.get(drone.in_transit_connection)
             return None if link is None else self.layout.midpoint(link)
@@ -225,9 +246,12 @@ class _Window:
         self.screen.fill(_BACKGROUND)
         self._draw_links(state)
         for trail in self._trails:
-            pygame.draw.lines(self.screen, _TRAIL, False, trail, 3)
+            self._polyline(_TRAIL, [self._at(p) for p in trail], 3)
+        radius, labels = self._detail()
         for zone in state.network.zones.values():
-            self._draw_zone(state, zone)
+            center = self._at(self.layout.position(zone.name))
+            if visible(center, self._size(), radius + _LABEL_ROOM):
+                self._draw_zone(state, zone, center, radius, labels)
         self._draw_drones(state, {m.drone_id for m in moves})
         self._draw_status(state, moves, shown_note)
         if self._hover is not None:
@@ -245,8 +269,8 @@ class _Window:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return False
-                if event.type == pygame.MOUSEMOTION:
-                    self._track_mouse(event.pos)
+                if self._view_event(event):
+                    continue
                 if event.type != pygame.KEYDOWN:
                     continue
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
@@ -278,8 +302,7 @@ class _Window:
                     and event.key in (pygame.K_ESCAPE, pygame.K_q)
                 ):
                     return
-                if event.type == pygame.MOUSEMOTION:
-                    self._track_mouse(event.pos)
+                self._view_event(event)
             self.clock.tick(_FPS)
 
     @staticmethod
@@ -288,9 +311,69 @@ class _Window:
         pygame.display.quit()
         pygame.font.quit()
 
+    def _view_event(self, event: pygame.event.Event) -> bool:
+        """Handle the mouse and the ``f`` key; return whether it did.
+
+        The wheel zooms around the mouse, dragging with the left button
+        moves the map, ``f`` shows the whole map again, and moving the
+        mouse shows the details of the zone under it.
+        """
+        if event.type == pygame.MOUSEWHEEL:
+            factor = ZOOM_STEP if event.y > 0 else 1 / ZOOM_STEP
+            self.camera.zoom_at(pygame.mouse.get_pos(), factor)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self._drag = event.pos
+            return True
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self._drag = None
+            return True
+        elif event.type == pygame.MOUSEMOTION:
+            if self._drag is not None:
+                self.camera.pan(
+                    event.pos[0] - self._drag[0],
+                    event.pos[1] - self._drag[1],
+                )
+                self._drag = event.pos
+            self._track_mouse(event.pos)
+            return True
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_f:
+            self.camera.fit()
+        else:
+            return False
+        self.redraw()
+        return True
+
+    def _at(self, point: Point) -> Point:
+        """Return where a map point is drawn on screen."""
+        return self.camera.to_screen(point)
+
+    def _size(self) -> Point:
+        size: Point = self.screen.get_size()
+        return size
+
+    def _detail(self) -> tuple[int, bool]:
+        """Return the zone radius to draw and whether labels fit.
+
+        Zones keep their size on screen at every zoom. Zoomed out so far
+        that they would overlap, they shrink to small dots, and the names
+        and counts are left out once there is no room for them.
+        """
+        spacing = self.layout.spacing * self.camera.zoom
+        radius = self.layout.radius
+        if spacing < radius * 2.2:
+            radius = max(3, int(spacing * 0.35))
+        return radius, spacing >= _LABEL_SPACING
+
+    def _polyline(self, color: RGB, points: list[Point], width: int) -> None:
+        """Draw a line through the points, with smoothed edges."""
+        pygame.draw.lines(self.screen, color, False, points, width)
+        pygame.draw.aalines(self.screen, color, False, points)
+
     def _track_mouse(self, position: Point) -> None:
         """Show details of the zone under the mouse, if it changed."""
-        name = self.layout.zone_at(position)
+        mx, my = self.camera.to_map(position)
+        reach = self._detail()[0] / self.camera.zoom
+        name = self.layout.zone_at((mx, my), reach)
         hover = None if name is None else (name, position)
         old = None if self._hover is None else self._hover[0]
         self._hover = hover
@@ -298,23 +381,32 @@ class _Window:
             self.redraw()
 
     def _draw_links(self, state: SimulationState) -> None:
+        labels = self._detail()[1]
         for link in state.network.connections:
             busy = state.link_load(link) > 0
             width = 1 + min(link.max_link_capacity, 4)
             color = _LINK_BUSY if busy else _LINK
-            path = self.layout.path(link)
-            pygame.draw.lines(self.screen, color, False, path, width)
-            if link.max_link_capacity > 1:
-                mid_x, mid_y = self.layout.midpoint(link)
+            path = [self._at(p) for p in self.layout.path(link)]
+            if not _on_screen(path, self._size()):
+                continue
+            self._polyline(color, path, width)
+            if labels and link.max_link_capacity > 1:
+                mid_x, mid_y = self._at(self.layout.midpoint(link))
                 self._text(
                     f"x{link.max_link_capacity}",
                     (mid_x + 6, mid_y - 14),
                     _TEXT_DIM,
                 )
 
-    def _draw_zone(self, state: SimulationState, zone: Zone) -> None:
-        center = self.layout.position(zone.name)
-        radius = self.layout.radius
+    def _draw_zone(
+        self,
+        state: SimulationState,
+        zone: Zone,
+        center: Point,
+        radius: int,
+        labels: bool,
+    ) -> None:
+        """Draw one zone at a screen point; its labels only if they fit."""
         fill = zone_rgb(zone.color)
         if zone.zone_type is ZoneType.BLOCKED:
             fill = _BLOCKED_FILL
@@ -322,20 +414,28 @@ class _Window:
             rect = pygame.Rect(0, 0, radius * 2, radius * 2)
             rect.center = center
             pygame.draw.rect(self.screen, fill, rect)
-            pygame.draw.rect(self.screen, _RESTRICTED_RING, rect, 3)
+            pygame.draw.rect(
+                self.screen, _RESTRICTED_RING, rect, min(3, radius // 2)
+            )
         else:
-            pygame.draw.circle(self.screen, fill, center, radius)
+            pygame.draw.aacircle(self.screen, fill, center, radius)
             ring = _OUTLINE
             if zone.zone_type is ZoneType.PRIORITY:
                 ring = _PRIORITY_RING
             if zone.role in (ZoneRole.START, ZoneRole.END):
                 ring = _ENDPOINT_RING
-            pygame.draw.circle(self.screen, ring, center, radius, 3)
+            pygame.draw.aacircle(
+                self.screen, ring, center, radius, min(3, radius // 2)
+            )
         if zone.zone_type is ZoneType.BLOCKED:
             self._draw_cross(center, radius)
+        if not labels:
+            return
         self._draw_fill_bar(state, zone, center, radius)
         label = zone_title(
-            zone, self._width, max(int(self.layout.spacing) - 8, 24)
+            zone,
+            self._width,
+            max(int(self.layout.spacing * self.camera.zoom) - 8, 24),
         )
         self._text(label, (center[0], center[1] + radius + 16), _TEXT, True)
 
@@ -346,6 +446,10 @@ class _Window:
             pygame.draw.line(
                 self.screen, _RESTRICTED_RING,
                 (cx - dx, cy - size), (cx + dx, cy + size), 3,
+            )
+            pygame.draw.aaline(
+                self.screen, _RESTRICTED_RING,
+                (cx - dx, cy - size), (cx + dx, cy + size),
             )
 
     def _draw_fill_bar(
@@ -386,8 +490,11 @@ class _Window:
             point = self.drone_point(drone)
             if point is not None:
                 groups.setdefault(point, []).append(drone)
+        size = self._size()
         for point, drones in groups.items():
-            self._draw_group(point, drones, moved)
+            center = self._at(point)
+            if visible(center, size, 20):
+                self._draw_group(center, drones, moved)
 
     def _draw_group(
         self, center: Point, drones: list[Drone], moved: set[int]
@@ -406,8 +513,8 @@ class _Window:
         if any(d.drone_id in moved for d in drones):
             ring = _DRONE_MOVED
         if len(drones) == 1:
-            pygame.draw.circle(self.screen, ring, center, 5)
-            pygame.draw.circle(self.screen, color, center, 3)
+            pygame.draw.aacircle(self.screen, ring, center, 5)
+            pygame.draw.aacircle(self.screen, color, center, 3)
             return
         label = self.font.render(str(len(drones)), True, _OUTLINE)
         badge = pygame.Rect(0, 0, label.get_width() + 10, 16)
@@ -498,6 +605,16 @@ class _Window:
             self.screen.blit(surface, rect)
         else:
             self.screen.blit(surface, at)
+
+
+def _on_screen(path: list[Point], size: Point) -> bool:
+    """Return whether any part of a path's box is on screen."""
+    xs = [x for x, _ in path]
+    ys = [y for _, y in path]
+    return (
+        max(xs) >= 0 and min(xs) <= size[0]
+        and max(ys) >= 0 and min(ys) <= size[1]
+    )
 
 
 def _load_color(fraction: float) -> RGB:
