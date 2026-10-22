@@ -53,7 +53,11 @@ class ZoneRanking:
         Returns:
             0 for the zone decided first, and so on; None if the zone
             cannot reach the end zone.
+
+        Raises:
+            ZoneNotFoundError: If no zone with this name exists.
         """
+        self.network.get_zone(zone_name)
         return self._rank.get(zone_name)
 
     def is_on_priority_route(self, zone_name: str) -> bool:
