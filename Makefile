@@ -15,15 +15,8 @@ VENV := .venv
 MAP ?= maps/subject_example.txt
 ARGS ?=
 
-ifeq ($(OS),Windows_NT)
-    PYTHON_SYS ?= python
-    VENV_BIN := $(VENV)/Scripts
-else
-    PYTHON_SYS ?= python3
-    VENV_BIN := $(VENV)/bin
-endif
-
-PYTHON := $(VENV_BIN)/python
+PYTHON_SYS ?= python3
+PYTHON := $(VENV)/bin/python
 STAMP := $(VENV)/.installed
 MYPY_FLAGS := --warn-return-any --warn-unused-ignores \
     --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs

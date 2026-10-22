@@ -113,8 +113,7 @@ drone id order:
 | `make test` | Run the unit tests (`pytest tests -q`) |
 
 `run`, `debug`, `lint`, `lint-strict` and `test` run `install` first when the
-virtual environment is missing or older than `requirements.txt`. The Makefile
-uses `.venv/bin` on Linux/macOS and `.venv/Scripts` on Windows.
+virtual environment is missing or older than `requirements.txt`.
 
 `make debug` sets `FLYIN_DEBUG=1` and starts the program with
 `python -m pdb`. Normally an unexpected exception (a bug) is reported as a

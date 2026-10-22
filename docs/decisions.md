@@ -1462,3 +1462,15 @@ sequenceDiagram
      太い線は通常の線の上に `aalines` を重ねる。restricted の四角は軸に沿うので通常の描き方のまま。
 - 理由: ユーザー判断。超巨大マップ(1万〜4万ゾーン)では全体を1画面に収めるとゾーンが重なって読めない。小さな点がひし形に見え、弧や輪がカクカクしていた。
 - 検討した代替案: マップの大きさに合わせて窓を大きくする(画面に収まらない)、ゾーンの大きさを倍率に合わせて変える(拡大しても重なりが解けない)。
+
+## 2026-10-22: Windows 対応を消す
+
+- 決定内容(ユーザーの依頼「Windows 対応はなくしたほうがコードが減るなら減らしてほしい」):
+  1. `fly_in.py`: パイプが閉じたときの判定 `_is_closed_pipe`(Windows の `OSError(EINVAL)` も閉じたパイプとみなす)を消し、
+     `except BrokenPipeError` だけにする。2026-10-18「エラーの扱い」の Windows の部分を改める。
+  2. `Makefile`: `ifeq ($(OS),Windows_NT)` の分岐(`.venv/Scripts`・`python`)を消し、`.venv/bin/python`・`python3` だけにする。
+  3. README 両版の「Windows では `.venv/Scripts`」の一文を消す。テストの EINVAL のケース(AM06 の einval・AM07)を消す。
+  4. 端末表示の文字を ASCII にしているのは元は Windows の文字コード対策(2026-10-17)だが、外してもコードは減らないので残す。
+- 理由: ユーザー判断。採点は Linux で行う(記憶「検証は課題と Linux に絞る」と同じ方針)。差し引き 22 行減る(テストを除く)。
+- 影響: Windows で `| head` のように標準出力を途中で閉じると、`error: internal error: OSError: ...` の1行で終了コード 1 になる
+  (これまでは何も出さずに 1)。開発で Windows の `.venv/Scripts/python` を直接使うのは引き続きできるが、`make` は Linux/WSL で使う。

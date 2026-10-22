@@ -93,7 +93,6 @@ $ python fly_in.py linear_path.txt
 | `make test` | 単体テストを実行する(`pytest tests -q`) |
 
 `run`・`debug`・`lint`・`lint-strict`・`test` は、仮想環境がないか `requirements.txt` より古いとき、先に `install` を実行します。
-Makefile は Linux/macOS では `.venv/bin`、Windows では `.venv/Scripts` を使います。
 
 `make debug` は `FLYIN_DEBUG=1` を設定し、`python -m pdb` でプログラムを起動します。ふだん予期しない例外(バグ)は
 `error: internal error: ...` の1行で報告しますが、`FLYIN_DEBUG=1` のときはそのまま送出されるので、pdb がその場で止まり、
