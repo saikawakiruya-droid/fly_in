@@ -232,16 +232,7 @@ class BrokenStdout(io.StringIO):
 
 @pytest.mark.parametrize(
     "case",
-    [
-        "broken-pipe",
-        pytest.param(
-            "einval",
-            marks=pytest.mark.skipif(
-                os.name != "nt", reason="EINVAL means a closed pipe on Windows"
-            ),
-        ),
-        "real-path",
-    ],
+    ["broken-pipe", "real-path"],
 )
 def test_closed_pipe(
     case: str,
@@ -253,8 +244,6 @@ def test_closed_pipe(
     """AM06: a closed stdout pipe: nothing printed, exit status 1."""
     if case == "broken-pipe":
         raising_app(monkeypatch, BrokenPipeError())
-    elif case == "einval":
-        raising_app(monkeypatch, OSError(errno.EINVAL, "Invalid argument"))
     else:
         monkeypatch.setattr(sys, "stdout", BrokenStdout())
 
@@ -262,34 +251,6 @@ def test_closed_pipe(
 
     assert capsys.readouterr().err == ""
     assert silenced == [None]
-
-
-@pytest.mark.parametrize(
-    ("exc", "on_nt", "on_posix"),
-    [
-        (BrokenPipeError(), True, True),
-        (OSError(errno.EINVAL, "Invalid argument"), True, False),
-        (OSError(errno.ENOENT, "No such file"), False, False),
-        (PermissionError(), False, False),
-        (OSError("x"), False, False),
-    ],
-    ids=["broken-pipe", "einval", "enoent", "permission", "no-errno"],
-)
-def test_is_closed_pipe(
-    exc: OSError,
-    on_nt: bool,
-    on_posix: bool,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AM07: EINVAL counts as a closed pipe only on Windows.
-
-    fly_in reads ``os.name`` from the standard ``os`` module, so the
-    value is swapped there (monkeypatch restores it after the test).
-    """
-    monkeypatch.setattr(os, "name", "nt")
-    assert fly_in._is_closed_pipe(exc) is on_nt
-    monkeypatch.setattr(os, "name", "posix")
-    assert fly_in._is_closed_pipe(exc) is on_posix
 
 
 @pytest.mark.parametrize("case", ["bug", "other-os-error", "import"])

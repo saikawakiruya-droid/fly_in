@@ -107,9 +107,9 @@ python -m pytest tests/
   `--delay 0` 相当・`_Window.wait_for_quit` のスパイ・番犬(QUIT)で動かし、pygame が無ければファイルごと skip:
   graphical / both でも stdout が同じで最後の画面を待つ配線があること、ビューの組み立て(both ではグラフィカルだけが
   ステップ実行)、窓が開けない(存在しないドライバ)の `VisualizationError` と both でのターミナルの後始末、main での1行のエラー
-- `tests/test_fly_in.py` — エントリポイント(AM01〜AM10・AE01〜AE02): `main(argv)` の例外表(正常 0、`FlyInError` 1、
+- `tests/test_fly_in.py` — エントリポイント(AM01〜AM06・AM08〜AM10・AE01〜AE02。AM07 は Windows 対応を消したときに削除): `main(argv)` の例外表(正常 0、`FlyInError` 1、
   引数の誤り 2 で `Application` を作らない、Ctrl+C 130(実行中の割り込みでもログとビューの後始末が残る)、閉じたパイプは
-  何も出さず 1(Windows の EINVAL を含む。`_is_closed_pipe` の判定表は `os.name` を切り替えて両方)、予期しない例外は
+  何も出さず 1(`BrokenPipeError` だけ。ほかの `OSError` は最後の砦の1行)、予期しない例外は
   `internal error` の1行、`FLYIN_DEBUG=1` のときだけ送出、close の失敗と終了コード・行の順序)。`_silence_stdout` は
   常にスパイに差し替える。サブプロセスは2回だけ(課題の例の正常終了と、存在しないマップのエラー)。
   追加機能(SM01〜SM03): 書けない `--parse-only`・JSON でない World のファイルは終了コード 1 の1行、パーサー → ファイル → シミュレーションの通し
