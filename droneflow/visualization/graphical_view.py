@@ -21,6 +21,7 @@ from ..models.drone import Drone  # noqa: E402
 from ..models.network import Network  # noqa: E402
 from ..models.zone import Zone, ZoneRole, ZoneType  # noqa: E402
 from ..simulation.state import Move, SimulationState  # noqa: E402
+from .labels import fit_items, load_label, zone_title  # noqa: E402
 from .palette import DEFAULT_ZONE_RGB, RGB, rgb  # noqa: E402
 
 Point = tuple[int, int]
@@ -40,6 +41,7 @@ _RESTRICTED_RING: RGB = (255, 90, 60)
 _ENDPOINT_RING: RGB = (245, 245, 245)
 _BLOCKED_FILL: RGB = (60, 60, 66)
 _BAR_EMPTY: RGB = (55, 60, 72)
+_BAR_ARRIVING: RGB = (110, 170, 200)
 
 _HUD_HEIGHT = 34
 _FOOTER_HEIGHT = 26
@@ -310,7 +312,9 @@ class _Window:
         if zone.zone_type is ZoneType.BLOCKED:
             self._draw_cross(center, radius)
         self._draw_fill_bar(state, zone, center, radius)
-        label = self._fit(zone.name, max(int(self.layout.spacing) - 8, 24))
+        label = zone_title(
+            zone, self._width, max(int(self.layout.spacing) - 8, 24)
+        )
         self._text(label, (center[0], center[1] + radius + 16), _TEXT, True)
 
     def _draw_cross(self, center: Point, radius: int) -> None:
@@ -325,25 +329,34 @@ class _Window:
     def _draw_fill_bar(
         self, state: SimulationState, zone: Zone, center: Point, radius: int
     ) -> None:
-        """Draw the zone's load against its capacity under the zone."""
-        top = center[1] + radius + 3
-        if zone.zone_type is ZoneType.BLOCKED:
+        """Draw the zone's occupancy against its capacity under the zone.
+
+        The bar shows the drones in the zone in a color that turns red
+        when full, then the drones arriving next turn in a pale color.
+        """
+        label = load_label(state, zone)
+        if label is None:
             return
-        if zone.role is ZoneRole.END:
-            label = f"{state.delivered_count} in"
-        elif (capacity := zone.capacity) is None:
-            label = str(state.occupancy(zone.name))
-        else:
-            load = state.load(zone.name)
-            fraction = min(load / capacity, 1.0)
+        top = center[1] + radius + 3
+        if (capacity := zone.capacity) is not None:
             bar = pygame.Rect(center[0] - radius, top, radius * 2, 6)
             pygame.draw.rect(self.screen, _BAR_EMPTY, bar)
-            if fraction > 0:
-                filled = bar.copy()
-                filled.width = max(1, round(bar.width * fraction))
-                pygame.draw.rect(self.screen, _load_color(fraction), filled)
-            label = f"{load}/{capacity}"
+            here = min(state.occupancy(zone.name) / capacity, 1.0)
+            ahead = min(state.load(zone.name) / capacity, 1.0)
+            self._fill(bar, 0.0, ahead, _BAR_ARRIVING)
+            self._fill(bar, 0.0, here, _load_color(here))
         self._text(label, (center[0], top + 26), _TEXT_DIM, True)
+
+    def _fill(
+        self, bar: pygame.Rect, start: float, end: float, color: RGB
+    ) -> None:
+        """Fill the part of the bar between two fractions of its width."""
+        if end <= start:
+            return
+        part = bar.copy()
+        part.left = bar.left + round(bar.width * start)
+        part.width = max(1, round(bar.width * (end - start)))
+        pygame.draw.rect(self.screen, color, part)
 
     def _draw_drones(self, state: SimulationState, moved: set[int]) -> None:
         groups: dict[Point, list[Drone]] = {}
@@ -403,9 +416,11 @@ class _Window:
             controls = f"{note}   {controls}"
         surface = self.font.render(controls, True, _TEXT_DIM)
         self.screen.blit(surface, (width - surface.get_width() - 10, 11))
-        move_text = " ".join(move.text for move in moves)
+        move_text = fit_items(
+            [move.text for move in moves], self._width, width - 20
+        )
         self.screen.blit(
-            self.font.render(move_text or "-", True, _TEXT_DIM),
+            self.font.render(move_text, True, _TEXT_DIM),
             (10, height - _FOOTER_HEIGHT + 6),
         )
 
@@ -447,13 +462,10 @@ class _Window:
             self.screen.blit(surface, (box.left + 8, y))
             y += surface.get_height()
 
-    def _fit(self, text: str, max_width: int) -> str:
-        """Shorten text with a trailing ``~`` until it fits the width."""
-        if self.font.size(text)[0] <= max_width:
-            return text
-        while len(text) > 1 and self.font.size(text + "~")[0] > max_width:
-            text = text[:-1]
-        return text + "~"
+    def _width(self, text: str) -> int:
+        """Return the width of text in the small font, in pixels."""
+        width: int = self.font.size(text)[0]
+        return width
 
     def _text(
         self, text: str, at: Point, color: RGB, centered: bool = False
