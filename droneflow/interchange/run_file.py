@@ -2,8 +2,7 @@
 
 ``--save-run`` writes one entry per turn: the moves of the turn and the
 ``SimulationState`` after it. Turn 0 is the initial state. The state lists
-the drones not delivered yet, the zones that hold or expect drones, and
-the connections with drones in flight; delivered drones are only counted,
+where each drone not delivered yet is; delivered drones are only counted,
 so that the file stays small on maps with thousands of drones:
 
     {"format": "fly_in.run", "version": 1, "nb_drones": 5,
@@ -14,9 +13,7 @@ so that the file stays small on maps with thousands of drones:
                 "delivered_count": 0,
                 "drones": [{"drone_id": 1, "status": "at_zone",
                             "zone": "roof1", "connection": null,
-                            "target": null}, ...],
-                "zones": {"roof1": {"occupancy": 1, "reserved": 0}, ...},
-                "connections": {}}, ...]}
+                            "target": null}, ...]}, ...]}
 """
 
 from ..models.drone import Drone
@@ -52,29 +49,10 @@ def drone_to_json(drone: Drone) -> dict[str, object]:
 
 
 def state_to_json(state: SimulationState) -> dict[str, object]:
-    """Return what the state holds between turns, as plain JSON values.
-
-    Zones appear only when they hold drones or expect drones in flight,
-    and connections only when drones are in flight on them, in
-    declaration order.
-    """
-    network = state.network
+    """Return where the drones are between turns, as plain JSON values."""
     return {
         "delivered_count": state.delivered_count,
         "drones": [drone_to_json(d) for d in state.active_drones()],
-        "zones": {
-            name: {
-                "occupancy": state.occupancy(name),
-                "reserved": state.reserved(name),
-            }
-            for name in network.zones
-            if state.load(name)
-        },
-        "connections": {
-            connection.name: state.link_load(connection)
-            for connection in network.connections
-            if state.link_load(connection)
-        },
     }
 
 

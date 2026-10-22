@@ -82,7 +82,7 @@ def test_move_to_json() -> None:
 
 
 def test_state_to_json(mixed_state: SimulationState) -> None:
-    """RR02: drones not delivered, non-empty zones, links in use."""
+    """RR02: the drones not delivered, and only them, with a count."""
     data: dict[str, Any] = state_to_json(mixed_state)
 
     assert data["delivered_count"] == 1
@@ -94,13 +94,7 @@ def test_state_to_json(mixed_state: SimulationState) -> None:
         {"drone_id": 4, "status": "at_zone", "zone": "s",
          "connection": None, "target": None},
     ]
-    assert data["zones"] == {
-        "s": {"occupancy": 1, "reserved": 0},
-        "a": {"occupancy": 1, "reserved": 0},
-        "r": {"occupancy": 0, "reserved": 1},
-    }
-    assert list(data["zones"]) == ["s", "a", "r"]
-    assert data["connections"] == {"s-r": 1}
+    assert list(data) == ["delivered_count", "drones"]
 
 
 def test_initial_state(make_network: MakeNetwork, place: Place) -> None:
@@ -109,8 +103,6 @@ def test_initial_state(make_network: MakeNetwork, place: Place) -> None:
 
     data = state_to_json(state)
 
-    assert data["zones"] == {"s": {"occupancy": 2, "reserved": 0}}
-    assert data["connections"] == {}
     assert data["drones"] == [
         {"drone_id": n, "status": "at_zone", "zone": "s",
          "connection": None, "target": None}
@@ -135,7 +127,6 @@ def test_whole_run(
     assert [turn["log"] for turn in turns[1:]] == scheduler_output
     assert turns[-1]["drones"] == []
     assert turns[-1]["delivered_count"] == 5
-    assert turns[-1]["zones"] == {}
 
 
 def test_turn_in_flight(example_run: dict[str, Any]) -> None:
@@ -149,8 +140,6 @@ def test_turn_in_flight(example_run: dict[str, Any]) -> None:
                   "connection": "hub-roof1", "target": "roof1"}
     assert m4 == {"drone_id": 4, "destination": "hub-roof1",
                   "connection": "hub-roof1"}
-    assert turn["zones"]["roof1"] == {"occupancy": 1, "reserved": 1}
-    assert turn["connections"] == {"hub-roof1": 1}
 
 
 def test_stopped_run(

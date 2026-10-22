@@ -503,12 +503,6 @@ Inheritance is used only for "is a" relations: the exception hierarchy
 cross-line rules (`ZoneRule`, `ConnectionRule`), whose subclasses each check
 one constraint. Enums, a NamedTuple and protocols are used for the rest.
 
-To show something new each turn (for example connection usage), write a class
-with `begin`, `render` and `close` and add it in `Application._make_views`.
-Each `Move` carries the connection a departing drone used (`Move.connection`,
-`None` for a landing), and `SimulationState` gives zone occupancy and capacity
-(`Zone.capacity`).
-
 ## Visual representation
 
 Both views follow the simulation turn by turn and never change the turn log:
@@ -601,7 +595,7 @@ JSON file, so it can be read (or edited) between the stages.
 |---|---|
 | `--parse-only FILE` | Parse `MAP`, write the `World` (every zone and connection with all its fields, and `nb_drones`) to `FILE`, and stop without simulating |
 | `--from-world` | Read `MAP` as a world file written by `--parse-only` and simulate it without the parser |
-| `--save-run FILE` | Write each turn to `FILE`: its moves (`drone_id`, `destination`, the `connection` used) and the `SimulationState` after it (drones not delivered yet, zone occupancy and drones in flight toward each zone, connections with drones in flight). Turn 0 is the initial state |
+| `--save-run FILE` | Write each turn to `FILE`: its moves (`drone_id`, `destination`, the `connection` used) and where each drone not delivered yet is after it (its zone, or the connection it flies along and its target), with the number delivered. Turn 0 is the initial state |
 
 `--parse-only` and `--save-run` cannot be used together. The other options
 (`--visual`, `--delay`, `--step`) work as usual with `--from-world`, so
@@ -631,9 +625,7 @@ An excerpt of `run.json` for the subject's example (turn 2):
  "moves": [{"drone_id": 4, "destination": "hub-roof1", "connection": "hub-roof1"}, ...],
  "delivered_count": 0,
  "drones": [{"drone_id": 4, "status": "in_transit", "zone": null,
-             "connection": "hub-roof1", "target": "roof1"}, ...],
- "zones": {"roof1": {"occupancy": 1, "reserved": 1}, ...},
- "connections": {"hub-roof1": 1}}
+             "connection": "hub-roof1", "target": "roof1"}, ...]}
 ```
 
 ## Testing and quality

@@ -133,3 +133,10 @@ connections: 0 hub-roof1, 1 hub-corridorA, 2 roof1-roof2, 3 roof2-goal, 4 corrid
   (`docs/bugs.md` 2026-10-22)。`feature/stage_files` で直し(`WorldFile(path, name)`・`write_json(..., name)`)、テストのブランチにマージした。
   これに合わせて JO11 を足した。
 - SA08 は `OutputFileError.path` ではなくメッセージで確かめる(`run_failing` が返すのは `BaseException` の情報のため)。
+
+## 追記(2026-10-22): ゾーン・接続の数を外したことに合わせた変更(`test/trim_run_file`)
+
+- 決定 `docs/decisions.md` 2026-10-22「ライブコーディング(`--capacity-info`)と重なる内容を外す」により、状態の JSON は
+  `delivered_count` と `drones` だけになった。
+- RR02: `zones`・`connections` の期待をやめ、キーが `["delivered_count", "drones"]` だけであることを確かめる。
+- RR03・RR04・RR05: `zones`・`connections` の期待を削除(ドローンの位置と移動の期待はそのまま)。

@@ -81,8 +81,8 @@ python -m pytest tests/
   課題の例を1か所だけ書き換えた不正な World 19件(型・正の整数・ゾーン名の `-`・パーサーの規則・blocked の start/end・
   end の欠落。メッセージまで)、start/end の `max_drones` は無視、`WorldFile` の往復、JSON でない・不正なファイルの
   `WorldFileError`、開けない・UTF-8 でないものは呼び出し側に任せる
-- `tests/interchange/test_run_file.py` — 実行の記録(RR01〜RR10): 移動と状態の形(配達済みは数だけ、空のゾーン・接続は出さない、
-  飛行中の機)、課題の例を通しで記録(ターン0〜5、ログが `scheduler_output`)、README の抜粋と同じターン2、
+- `tests/interchange/test_run_file.py` — 実行の記録(RR01〜RR10): 移動と状態の形(配達前の機の位置だけ。配達済みは数だけ、
+  飛行中の機。ゾーン・接続の数は出さない)、課題の例を通しで記録(ターン0〜5、ログが `scheduler_output`)、README の抜粋と同じターン2、
   途中で止まった実行は `complete: false`、状態を変えない、`to_json` は写し、`write`、`close` は何も書かない
 
 - `tests/test_cli.py` — 引数(AC01〜AC09): 既定値(terminal・0.5秒・ステップなし)、`--visual` の4つの値と誤った値

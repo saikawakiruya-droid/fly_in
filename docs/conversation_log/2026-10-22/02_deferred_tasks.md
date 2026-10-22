@@ -60,3 +60,20 @@
 - 確認(develop、cd4d1ed 以降): ボーナス(課題 IX)は「配布マップ全部で目標以下」と「challenger を45ターン未満」。配布マップ10枚を実行し、
   easy 4/4/4(目標 6/8/6)、medium 8/10/6(12/15/12)、hard 13/16/26(30/35/45)、challenger 44(45未満)で、両方とも達成。
 - 決定事項: なし。変更ファイル: 本ログのみ。
+
+## ビジュアライズの改善 1回目(ラベル)と、ライブコーディングとの重なりの整理
+
+- 依頼: `2/1` の紛らわしさと下の行のはみ出しを直す、start/end の名前に () を付ける。線が黄色い理由(overlap_t1 でターン1なのに2回動いて見える)。
+  - 作業(`feature/visual_labels`): ゾーンの数字を「在室数/容量 +到着予定」(`1/1 +1`)に、下の行は `... +K more`、名前に ` (start)`/` (end)`。
+    文字の部品を `droneflow/visualization/labels.py`(pygame 不要)に分けた。テストは `test/visual_labels`(VL01〜VL14、834件成功)。
+    テスト設計の VL11 は設計の誤り(全体が幅に収まっていた)を作成時に訂正。
+  - 回答: 黄色の線はそのターンの移動の軌跡。overlap_demo の D2・D3 は s-c を通ったが、s-c が b の下を通る直線なので s→b→c と2回動いたように見える
+    (重なる接続の問題。改善の候補2)。
+- 質問: ライブコーディングの内容を含めていないか(表記の数が気になる)。
+  - 回答: 評価シートの `--capacity-info` と、`--save-run` の `zones`・`connections`(今日の実装)がほぼ同じデータ。README と docstring にもヒントがあった。
+    表示のゾーンの数字は Stage 7 から。
+  - ユーザー判断(案2): `run.json` から `zones`・`connections` を外し、README と docstring のヒントも消す(`Move.connection` は残す)。
+    `feature/trim_run_file`(実装)・`test/trim_run_file`(RR02〜RR05 の変更、818件成功)。決定は `docs/decisions.md`。
+  - 手順書 `docs/research/2026-10-22_live-coding-capacity-info.md`(答えのコードは書かない)。練習用ブランチ `feature/capacity_info` に
+    `LIVE CODING (--capacity-info)` の印を5か所(`git grep -n "LIVE CODING"`)。**このブランチはマージしない。**
+- 未決: `test/visual_labels`・`test/trim_run_file` の develop へのマージ(ユーザーの許可待ち)。重なる接続(弧にするなど)・同じ座標のゾーン・透明度の改善をするか。
