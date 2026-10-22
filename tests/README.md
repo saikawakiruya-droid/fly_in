@@ -275,6 +275,8 @@ python -m pytest tests/
 - `tests/visualization/test_geometry.py` — 表示の幾何(GE01〜GE19。pygame 不要): 同じ座標のゾーンを円周上に離す(2つは左右・間は直径の 1.1 倍)、
   最近接距離(x で並べて打ち切る。乱数の300点で全組み合わせと一致)、2次ベジェの弧(両端・真ん中・向き)、経路の一部(真ん中まで・逆順)、
   点と折れ線の距離、格子での近くの検索、接続の経路(邪魔がなければ直線・途中のゾーンは弧で避ける・両端は避けない・避けきれなければ最も離れるもの)
+- `tests/visualization/test_camera.py` — 表示の倍率と位置(CA01〜CA08。pygame 不要): 最初は全体表示、画面と地図の座標の往復、
+  カーソルの下の点を動かさない拡大、倍率の上下限、移動、全体表示に戻す、画面の中かの判定
 - `tests/visualization/test_graphical_view.py` — `GraphicalVisualizer` をヘッドレス(`SDL_VIDEODRIVER=dummy`)で:
   構築では窓を開かない、begin で開き close で閉じる、`_Layout` の座標変換(y は上向き・縮退した配置)、`zone_rgb` の
   色の引き方、課題のサンプルマップ・restricted だけのマップを最後まで描いて閉じる、途中で閉じても(×・Esc・q)計算は続く、
@@ -283,7 +285,9 @@ python -m pytest tests/
   詳細表示、import で stdout に何も出ないこと(サブプロセス)。pygame が無ければファイルごと skip。入力イベントは
   呼び出しの前に積み、番犬のタイマー(QUIT)でハングを防ぐ。実時間の sleep や経過時間のアサーションは使わない。
   重なりの改善(VO01〜VO05): 同じ座標のゾーンがどちらも見えてマウスで見つかる(VG04 の同じ点も3点に分かれる)、他のゾーンの上を通る接続は弧、
-  飛行中の機は弧の真ん中、移動の軌跡は使った接続の弧に沿い、着陸は弧の真ん中から先
+  飛行中の機は弧の真ん中、移動の軌跡は使った接続の弧に沿い、着陸は弧の真ん中から先。自己接続の輪(VO06)、同じ点のドローンは件数の札(VO07)。
+  拡大縮小(VZ01〜VZ08): ホイールで拡大縮小、ドラッグで移動、`f` で全体表示、ほかのキーは扱わない、縮小で名前を省き点にする、
+  拡大してもマウスの下のゾーンが分かる、拡大で名前の幅が広がる、画面外は描かない
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
 Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization)と、CLI / Application / エントリポイント
