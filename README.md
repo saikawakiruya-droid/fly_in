@@ -548,29 +548,41 @@ in flight: D4 s-b -> b, D5 s-a -> a
 ### Graphical view (`--visual graphical`)
 
 - The map is drawn with its own coordinates, scaled to fit the window, with
-  the y axis pointing up (as on graph paper).
+  the y axis pointing up (as on graph paper). Zones declared at the same
+  position are spread around it so that each one can be seen.
 - Zones are filled with their `color=`. Restricted zones are squares with a
   red outline, priority zones have a gold ring, the start and end zones a white
   ring, and blocked zones are gray with a cross.
-- Under each zone, a bar shows its load against its capacity (green, orange,
-  then red when full) with `load/capacity`; the end zone shows how many drones
-  have been delivered.
+- Each zone is labeled with its name; the start and end zones get
+  ` (start)` / ` (end)` after it. Long names are cut with `~` (hover to read
+  them, or zoom in).
+- Under each zone, a bar shows its occupancy against its capacity (green,
+  orange, then red when full) with `occupancy/capacity`, followed by `+N` for
+  the drones flying toward it (they land next turn), e.g. `1/1 +1`; the end
+  zone shows how many drones have been delivered.
 - Connections are drawn thicker when their capacity is larger, labeled `xN`
   when the capacity is above 1, and highlighted while a drone is flying on
-  them.
+  them. A connection whose straight line would run over another zone is drawn
+  as an arc round it (arcs keep apart from each other), and a connection from
+  a zone to itself is a small loop above the zone.
 - Drones are dots: white in a zone, cyan in flight (drawn at the middle of
   their connection); the drones that moved this turn have a gold ring, and a
-  gold trail shows each move of the turn. Crowded zones show up to 12 dots and
-  a `+N` count.
+  gold trail shows each move of the turn, along the connection it used.
+  Several drones at the same point are one badge with their number.
 - A status bar shows the turn, the number of moves, delivered drones and
   drones in flight; the bottom line shows the turn's moves in the output
   format.
-- **Hovering over a zone** shows a tooltip with its name, role, type, color,
+- **Hovering over a zone** (at any zoom) shows a tooltip with its name, role, type, color,
   load and capacity (and drones arriving), and the ids of the drones in it.
 - Controls: `Space` pause/resume, `Right` next turn (one turn at a time while
   paused), `Up`/`+` faster, `Down`/`-` slower (the speed keys halve or double
   the delay between 0.05 and 5 seconds), `Esc`/`q` or the window's close button
   quit.
+- Zoom and pan (for large maps): the mouse wheel zooms in and out around the
+  mouse, dragging with the left button moves the map, and `f` shows the whole
+  map again. Zones, text and lines keep their size on screen; zooming in only
+  spreads the zones apart, so their names can be read. Zoomed out on a dense
+  map, names and counts are left out and zones become small dots.
 - `--delay SECONDS` sets the time per turn (0 to 60, default 0.5). `--step`
   starts paused, and the right arrow advances one turn.
 - After the last turn the window keeps the final frame (`finished - press esc
