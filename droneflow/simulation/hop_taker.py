@@ -40,7 +40,8 @@ class HopTaker:
         self, drone_id: int, here: str, hop: Hop, may_evict: bool
     ) -> bool:
         """Take ``hop`` if it can be made; return whether it was taken."""
-        if not self.ledger.link_free(hop.connection, self.ledger.planning_turn):
+        turn = self.ledger.planning_turn
+        if not self.ledger.link_free(hop.connection, turn):
             return False
         arrive = self.ledger.arrival_turn(hop.zone)
         if self.ledger.has_seat_from(hop.zone, arrive):
