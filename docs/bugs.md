@@ -236,5 +236,9 @@
   `GraphicalVisualizer.begin` / `is_open`
 - 症状: WSL で `assert view.is_open is (not step)` が `False is not False` で落ちる(ステップモードでないのに、`begin` の後で窓が閉じている)。
   develop(1b3aa4e)で4回中3回、`feature/scheduling_package` で3回中2回失敗。Windows の pytest では失敗しない。
-- 原因: 未調査。`headless.watchdog(200)` の終了の合図が、`step=False` の `begin` が戻る前に届いている可能性がある(時間に依存)。
-- 対応状況: 未対応。`simulation/scheduling/` への移動の検証中に見つけた(移動とは無関係。develop でも再現)。
+- 原因(2026-10-22 に確認): テストの作り。テストは `step` に関係なく 200ms 後に QUIT を送るタイマーを仕掛けていた。`step=False` の `begin` は
+  窓を開いてすぐ最初の待ち(`wait`)に入るが、窓を開くのに 200ms 以上かかると、その時点で QUIT がもう届いていて窓を閉じる。
+  再現: WSL で単独 20 回・全体 10 回では失敗しなかったが、窓を開く処理に 0.3 秒の待ちを入れると `step=False` だけが同じ
+  `assert False is not False` で必ず失敗した。本体(`GraphicalVisualizer`)の不具合ではない。
+- 対応状況: 対応済み(`test/vg08_watchdog`)。200ms のタイマーは、待ちを終わらせるのに必要な `step=True` のときだけ仕掛ける。
+  `step=False` はフィクスチャの 3 秒の番犬だけ(止まらなくなるのは防ぐ)。0.3 秒の待ちを入れても両方とも通ることを確認。

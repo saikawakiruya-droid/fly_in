@@ -244,8 +244,16 @@ def test_closing_early_keeps_simulating(
 def test_step_mode_starts_paused(
     step: bool, headless: Headless, line: Network
 ) -> None:
-    """VG08: in step mode begin only returns when the watchdog quits."""
-    headless.watchdog(200)
+    """VG08: in step mode begin only returns when the watchdog quits.
+
+    The short watchdog is armed only in step mode, where it is what ends
+    the wait. Without step mode begin returns at once; a 200 ms watchdog
+    there could fire while a slow machine is still opening the window,
+    and close it before the first wait (bugs.md 2026-10-22, VG08). The
+    fixture's 3 s watchdog still guards against a hang.
+    """
+    if step:
+        headless.watchdog(200)
     view = GraphicalVisualizer(delay=0, step=step, hold_final=False)
 
     view.begin(SimulationState(line, 1))
