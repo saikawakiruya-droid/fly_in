@@ -17,3 +17,7 @@ Thumbs.db
 
 # Subject reference material (not part of the deliverable)
 fly_in.pdf
+
+# Local working folders (never committed)
+_tmp/
+revie_case/
