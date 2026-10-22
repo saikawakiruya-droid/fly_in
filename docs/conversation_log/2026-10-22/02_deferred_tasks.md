@@ -131,3 +131,4 @@
 - 検証(`git archive main` で取り出した状態): Windows で flake8・mypy(両方)問題なし。WSL で make install/lint/lint-strict/run 成功、
   `make test` は無い(想定どおり)。配布マップを検証用に置いて全体・部分実行 197/197 成功、ターンログは develop の結果(`_tmp/partial_runs`)と80枚すべて一致。
 - push はしていない(main・develop とも origin より進んでいる)。
+- ユーザーの許可(「やって」)を得て origin に push(develop: eea68cf..cacf9f4、main: 1de8625..0901dd5)。どちらも通常の push(強制なし)。push 前にコミットと差分の個人情報・ローカルパスを点検(問題なし)。
