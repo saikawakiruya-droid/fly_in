@@ -120,3 +120,109 @@ key: S=start E=end .=normal P=priority R=restricted X=blocked | in/max: -=no lim
   hub       S 5/-        goal      E 0/-        roof1     R 0/1        roof2     . 0/1
 == graphical view, headless, delay 0 (window closed by the watchdog-free path: --visual graphical is covered by pytest)
 ```
+
+## 2回目: develop へのマージ前の検証(ラベル・重なり・拡大縮小・run.json の整理をすべて合わせたもの)
+
+- 対象: develop に `test/trim_run_file` と `test/visual_zoom` をマージした状態(5922314。scratchpad の作業ツリーでマージして検証し、
+  同じコミットまで develop を進めた)。マップに `_tmp/visual_review/arc_stress.txt`(一直線の5ゾーン・弧10本・自己接続)を追加。
+- 結果: Windows で flake8・mypy(両方)・pytest 884 passed。WSL で make lint/lint-strict 問題なし、make test 883 passed・1 skipped
+  (Windows だけのテスト)、部分実行の検査 197/197 成功。配布マップのターン数は1回目と同じ(challenger 44)。
+
+```text
+== make install / lint / test
+install OK
+.venv/bin/python -m mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+Success: no issues found in 94 source files
+Success: no issues found in 94 source files
+883 passed, 1 skipped in 3.26s
+== make run (subject example)
+D4-goal D5-goal
+summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
+map                                            full  turns  parse via
+challenger_01_the_impossible_dream                0     44      0 0
+easy_01_linear_path                               0      4      0 0
+easy_02_simple_fork                               0      4      0 0
+easy_03_basic_capacity                            0      4      0 0
+hard_01_maze_nightmare                            0     13      0 0
+hard_02_capacity_hell                             0     16      0 0
+hard_03_ultimate_challenge                        0     26      0 0
+medium_01_dead_end_trap                           0      8      0 0
+medium_02_circular_loop                           0     10      0 0
+medium_03_priority_puzzle                         0      6      0 0
+arc_stress                                        0      6      0 0
+overlap_demo                                      0      3      0 0
+X01_single_drone_start_to_end                     0      1      0 0
+X02_disconnected_goal                             1      -      0 1
+X03_only_path_blocked                             1      -      0 1
+X04_isolated_zone_but_solvable                    0      3      0 0
+X05_no_connections                                1      -      0 1
+X06_huge_capacity                                 0      1      0 0
+X07_huge_nb_drones                                0      1      0 0
+X08_many_drones_narrow                            0    201      0 0
+X09_dead_end_branch                               0      4      0 0
+X10_cycle                                         0      5      0 0
+X11_large_grid                                    0     71      0 0
+E01_missing_nb_drones                             1      -      1 -
+E02_nb_drones_after_zone                          1      -      1 -
+E03_nb_drones_zero                                1      -      1 -
+E04_nb_drones_negative                            1      -      1 -
+E05_nb_drones_not_integer                         1      -      1 -
+E06_nb_drones_missing_value                       1      -      1 -
+E07_invalid_zone_type                             1      -      1 -
+E08_missing_start_hub                             1      -      1 -
+E09_missing_end_hub                               1      -      1 -
+E10_two_start_hubs                                1      -      1 -
+E11_two_end_hubs                                  1      -      1 -
+E12_max_drones_zero                               1      -      1 -
+E13_max_drones_negative                           1      -      1 -
+E14_max_drones_not_integer                        1      -      1 -
+E15_link_capacity_zero                            1      -      1 -
+E16_link_capacity_float                           1      -      1 -
+E17_duplicate_zone_name                           1      -      1 -
+E18_duplicate_connection_same_order               1      -      1 -
+E19_duplicate_connection_reversed                 1      -      1 -
+E20_connection_unknown_zone                       1      -      1 -
+E21_connection_before_zone                        1      -      1 -
+E22_zone_name_with_dash                           1      -      1 -
+E23_coordinate_not_integer                        1      -      1 -
+E24_missing_coordinate                            1      -      1 -
+E25_metadata_unclosed_bracket                     1      -      1 -
+E26_metadata_not_key_value                        1      -      1 -
+E27_unknown_metadata_key                          1      -      1 -
+E28_link_metadata_on_zone                         1      -      1 -
+E29_unknown_keyword                               1      -      1 -
+E30_keyword_without_colon                         1      -      1 -
+E31_connection_malformed                          1      -      1 -
+E32_empty_file                                    1      -      1 -
+E33_comments_only                                 1      -      1 -
+E34_trailing_garbage                              1      -      1 -
+E35_comment_first_line                            1      -      1 -
+E36_blocked_start_hub                             1      -      1 -
+E37_blocked_end_hub                               1      -      1 -
+E38_duplicate_metadata_key                        1      -      1 -
+E39_duplicate_key_hides_blocked                   1      -      1 -
+E40_blank_first_line                              1      -      1 -
+P01_subject_example                               0      5      0 0
+P02_defaults                                      0      4      0 0
+P04_metadata_variants                             0      5      0 0
+P05_start_end_max_drones_ignored                  0      2      0 0
+P06_allowed_oddities                              0      3      0 0
+S01_single_drone_linear                           0      3      0 0
+S02_zone_capacity_default                         0      4      0 0
+S03_zone_capacity_two                             0      3      0 0
+S04_link_capacity_bottleneck                      0      4      0 0
+S05_link_capacity_wide                            0      1      0 0
+S06_restricted_transit                            0      3      0 0
+S07_restricted_no_wait_on_link                    0      4      0 0
+S08_priority_preferred                            0      2      0 0
+S09_restricted_vs_detour                          0      3      0 0
+S10_blocked_avoided                               0      4      0 0
+S11_split_two_paths                               0      3      0 0
+S12_link_narrower_than_zone                       0      3      0 0
+== partial-run checks: 197/197 passed, 0 failed
+== terminal view on a pipe (no colors expected)
+=== Turn 0 (start) | 5 drones | 7 zones, 6 connections ===
+key: S=start E=end .=normal P=priority R=restricted X=blocked | in/max: -=no limit +N=arriving *=full
+  hub       S 5/-        goal      E 0/-        roof1     R 0/1        roof2     . 0/1
+== graphical view, headless, delay 0 (window closed by the watchdog-free path: --visual graphical is covered by pytest)
+```
