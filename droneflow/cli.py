@@ -49,6 +49,7 @@ class Args:
     parse_only: str | None = None
     from_world: bool = False
     save_run: str | None = None
+    # LIVE CODING (--capacity-info) 1/5: add the flag's field here.
 
     @property
     def map_name(self) -> str:
@@ -122,6 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
             "JSON"
         ),
     )
+    # LIVE CODING (--capacity-info) 2/5: add the option here.
     return parser
 
 
@@ -149,6 +151,7 @@ def parse_args(argv: list[str] | None = None) -> Args:
         parse_only=namespace.parse_only,
         from_world=namespace.from_world,
         save_run=namespace.save_run,
+        # LIVE CODING (--capacity-info) 3/5: pass the flag on here.
     )
 
 

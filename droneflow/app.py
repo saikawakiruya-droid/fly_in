@@ -123,6 +123,8 @@ class Application:
         observers: list[TurnObserver] = [printer, *views]
         if recorder is not None:
             observers.append(recorder)
+        # LIVE CODING (--capacity-info) 4/5: add the report here, writing
+        # to self.err (stdout holds only the turn log).
         failed = True
         try:
             turns = engine.run(ObserverGroup(observers))
