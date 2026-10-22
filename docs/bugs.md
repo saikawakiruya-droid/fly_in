@@ -216,3 +216,15 @@
 - 対応状況: 対応済み(cccd0c8、ブランチ `feature/detour_hops`)。記録をターンごとの位置の控えとして持ち、`remember(turn, positions)` は
   そのターン以降の控えを捨ててから記録する(`forget` は廃止)。同じターンの呼び直しで新しいスケジューラと同じ指示になることを確認。
   配布マップ・revie_case・ランダムなマップの合計ターン数は変わらない。
+
+## 2026-10-22: `--from-world` が、入力どおりの表示名(`map_arg`)でファイルを開く
+
+- 箇所: `droneflow/app.py` `Application._load_world`(`WorldFile(name).read()`)、`droneflow/interchange/world_file.py` `WorldFile`
+  (`write` も同じ。1つの `path` を、開くのにもメッセージにも使っていた)
+- 症状: `Args(map_path, map_arg=...)` の `map_arg` が `map_path` と違うと、`map_path` ではなく `map_arg` のファイルを開く。
+  テスト SA05(`Args(path, from_world=True, map_arg="./binary.json")`)で、UTF-8 でないはずのファイルが「No such file or directory」になった。
+  コマンドラインからは `map_arg` と `map_path` が同じファイルを指すので表には出ない。
+- 原因: `MapParser` は `map_path` で開き、`map_name` はメッセージにだけ使う(2026-10-18 の「マップのパスがエラーメッセージで書かれたとおりに出ない」の
+  対応)。`WorldFile` は表示名と開くパスを分けていなかった。
+- 対応状況: 対応済み(`feature/stage_files`)。`WorldFile(path, name=None)` で開くパス(`Path`)と表示名を分け、`write_json` にも表示名の引数を足した。
+  `Application` は `WorldFile(self.args.map_path, name)` で開く。

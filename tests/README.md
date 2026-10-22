@@ -74,11 +74,23 @@ python -m pytest tests/
   整形は `formatter` 属性に委譲(同じ `moves` を渡す)
 - `tests/output/test_summary.py` — `RunSummary`(AS01〜AS03): 課題の例の数値と文言(7ターン・5.00・2.14)、
   配達ターン=最後に出たターン(接続名の項目も1手)、ターンなし・ドローンなしでゼロ除算しないこと
+- `tests/interchange/test_json_file.py` — `JsonObject` と `write_json`(JO01〜JO11): 場所つきのエラー(`zones[1].name: ...`)、
+  整数は bool・小数・文字列を拒否、正の整数、null を許すもの、列挙値(許される値の一覧)、オブジェクトのリスト、
+  書き出しの形(UTF-8・インデント2・最後に改行・ASCII 以外をそのまま)、書けないパスの `OutputFileError`(入力どおりの表示名)
+- `tests/interchange/test_world_file.py` — World の JSON(WF01〜WF09): 往復で同じ World(宣言順)、JSON の形、
+  課題の例を1か所だけ書き換えた不正な World 19件(型・正の整数・ゾーン名の `-`・パーサーの規則・blocked の start/end・
+  end の欠落。メッセージまで)、start/end の `max_drones` は無視、`WorldFile` の往復、JSON でない・不正なファイルの
+  `WorldFileError`、開けない・UTF-8 でないものは呼び出し側に任せる
+- `tests/interchange/test_run_file.py` — 実行の記録(RR01〜RR10): 移動と状態の形(配達済みは数だけ、空のゾーン・接続は出さない、
+  飛行中の機)、課題の例を通しで記録(ターン0〜5、ログが `scheduler_output`)、README の抜粋と同じターン2、
+  途中で止まった実行は `complete: false`、状態を変えない、`to_json` は写し、`write`、`close` は何も書かない
 
 - `tests/test_cli.py` — 引数(AC01〜AC09): 既定値(terminal・0.5秒・ステップなし)、`--visual` の4つの値と誤った値
   (大文字小文字を区別)、`--delay` の受理(0 ちょうど・`-0`・`=` の書き方)と拒否(負・nan・inf・数でない・60 秒超、
   文言まで)、MAP なし・`--debug`・余分な引数の終了コード2、関係のないモードでの `--step`、`--help`(stdout・終了コード0・既定値)、
-  入力どおりのパス(`map_name`。比較には使わない)、`VISUAL_MODES` が `VisualMode` の値と同じ順(NT10)
+  入力どおりのパス(`map_name`。比較には使わない)、`VISUAL_MODES` が `VisualMode` の値と同じ順(NT10)。
+  追加機能のオプション(SC01〜SC05): 既定は無効、JSON のパスは入力どおりの文字列、`--parse-only` と `--save-run` は排他、
+  `--from-world` と `--parse-only` は併用できる、ヘルプの見出し
 - `tests/test_app.py` — `Application`(pygame 不要。AA01〜AA15): none / terminal で stdout が本物のスケジューラの出力
   (課題の例の5行。`scheduler_output`)と完全一致し、
   stderr はターミナル表示とまとめの1行、ターンの行がそのフレームより先に出ること、ステップ実行のビューの組み立て
@@ -87,7 +99,10 @@ python -m pytest tests/
   `VisualizationError` とマップのエラーが先なこと、pygame 以外の import の失敗は包まない、close の失敗は警告だけ・
   元のエラーを隠さない、途中のエラーでもそれまでのログとビューの後始末が残る、ターンログ側の失敗は包まない、
   エラーのパスは入力どおり。`make_scheduler` の注入(AI01: `(network, pathfinder)` で1回作りエンジンに渡す、
-  AI02: 共有の `stuck_after` で本物の実行を途中で止める)、BOM つきのマップが入口から通ること(BM04)
+  AI02: 共有の `stuck_after` で本物の実行を途中で止める)、BOM つきのマップが入口から通ること(BM04)。
+  追加機能(SA01〜SA11): `--parse-only` はパーサーだけ(stdout は空・表示を作らない)、`--from-world` はふつうの実行と同じ出力、
+  不正・読めない World のファイル、World の書き直し、`--save-run` の記録とターンログの一致、成功後の書き込みの失敗はエラー、
+  途中の失敗でもそこまでを書き、書けなくても元のエラーのまま(警告)
 - `tests/test_app_graphical.py` — `Application` のグラフィカル(AG01〜AG04)。ヘッドレス(`SDL_VIDEODRIVER=dummy`)・
   `--delay 0` 相当・`_Window.wait_for_quit` のスパイ・番犬(QUIT)で動かし、pygame が無ければファイルごと skip:
   graphical / both でも stdout が同じで最後の画面を待つ配線があること、ビューの組み立て(both ではグラフィカルだけが
@@ -96,7 +111,8 @@ python -m pytest tests/
   引数の誤り 2 で `Application` を作らない、Ctrl+C 130(実行中の割り込みでもログとビューの後始末が残る)、閉じたパイプは
   何も出さず 1(Windows の EINVAL を含む。`_is_closed_pipe` の判定表は `os.name` を切り替えて両方)、予期しない例外は
   `internal error` の1行、`FLYIN_DEBUG=1` のときだけ送出、close の失敗と終了コード・行の順序)。`_silence_stdout` は
-  常にスパイに差し替える。サブプロセスは2回だけ(課題の例の正常終了と、存在しないマップのエラー)
+  常にスパイに差し替える。サブプロセスは2回だけ(課題の例の正常終了と、存在しないマップのエラー)。
+  追加機能(SM01〜SM03): 書けない `--parse-only`・JSON でない World のファイルは終了コード 1 の1行、パーサー → ファイル → シミュレーションの通し
 
 - `tests/conftest.py` — 全テスト共通のフィクスチャ: `make_network`(`"s-a a-g"` のような記述から
   `Network` をコード内で組む。記述順=接続の宣言順=接続名。hub の `max_drones` は既定 1(パーサーと同じ)で

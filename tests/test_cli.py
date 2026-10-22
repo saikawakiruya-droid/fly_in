@@ -17,6 +17,7 @@ from droneflow.cli import (
     VISUAL_MODES,
     Args,
     VisualMode,
+    build_parser,
     parse_args,
 )
 
@@ -187,3 +188,60 @@ def test_visual_modes_come_from_the_literal() -> None:
     """NT10: VISUAL_MODES is the Literal's values, in the same order."""
     assert VISUAL_MODES == get_args(VisualMode)
     assert VISUAL_MODES == ("terminal", "graphical", "both", "none")
+
+
+def test_stage_options_default_off() -> None:
+    """SC01: without the stage options nothing is written or read."""
+    args = parse_args(["m.txt"])
+
+    assert args.parse_only is None
+    assert args.from_world is False
+    assert args.save_run is None
+    assert args == Args(Path("m.txt"))
+
+
+def test_stage_paths_are_kept_as_typed() -> None:
+    """SC02: the JSON paths are the strings typed, not Path objects."""
+    parse_only = parse_args(["m.txt", "--parse-only", "./out/w.json"])
+    from_world = parse_args(
+        ["w.json", "--from-world", "--save-run", "./r.json"]
+    )
+
+    assert parse_only.parse_only == "./out/w.json"
+    assert from_world.from_world is True
+    assert from_world.save_run == "./r.json"
+
+
+def test_parse_only_excludes_save_run(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """SC03: --parse-only does not simulate, so --save-run is an error."""
+    lines = usage_error(
+        capsys, ["m.txt", "--parse-only", "w.json", "--save-run", "r.json"]
+    )
+
+    assert lines[-1] == (
+        "fly_in.py: error: argument --save-run: "
+        "not allowed with argument --parse-only"
+    )
+
+
+def test_from_world_with_parse_only() -> None:
+    """SC04: a world file can be read and written again."""
+    args = parse_args(["w.json", "--from-world", "--parse-only", "x.json"])
+
+    assert args.from_world is True
+    assert args.parse_only == "x.json"
+
+
+def test_help_lists_the_additional_features() -> None:
+    """SC05: the stage options have their own group in --help."""
+    text = build_parser().format_help()
+
+    for part in [
+        "stages on their own (additional features)",
+        "--parse-only FILE",
+        "--from-world",
+        "--save-run FILE",
+    ]:
+        assert part in text
