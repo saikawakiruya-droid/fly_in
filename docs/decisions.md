@@ -1497,3 +1497,12 @@ sequenceDiagram
      「Testing and quality」の tests の説明)だけを足したものにする(これまでの「main 用の差分」の逆)。
   3. これまでの README にあった判断の経緯(検討した代替案、トレードオフ、決定の日付など)は README から外れ、`docs/decisions.md` に残る。
 - 理由: ユーザー判断。提出物の README を、判断の経緯ではなくコードと動作の説明にするため。
+
+## 2026-10-23: CLAUDE.md の「main 用の差分」を、README の今の作り方に合わせる
+
+- 決定内容: CLAUDE.md の「ブランチごとの責任分化」で、README については「main の README が元で、develop 版は tests の記述だけを足したもの。
+  README を直すときは両方に同じ変更を入れる」と書く。Makefile・requirements・setup.cfg は今までどおり main で tests の分を取り除く。
+- 理由: 2026-10-22 に README を見出しだけから書き直し、main 版を元に develop 版を作った(「README を見出しだけから書き直す」)。
+  CLAUDE.md は「main では README から tests の記述を取り除く」と、逆向きの書き方のままだった。結果は同じだが、手順が実態と違って読める。
+- 検討した代替案: そのままにする(結果は同じなので害はないが、次に README を直すとき、どちらを元にするかで迷う)。
+- 関連: `../cordection/CLAUDE.md` には main/develop の差分の節がないので、同じ変更は不要。

@@ -37,8 +37,11 @@
   - 含めるもの: ソースコード(`fly_in.py`, `droneflow/`)、`Makefile`、`.gitignore`、`.gitattributes`、`README.md`、`README.ja.md`、
     `requirements.txt`、`setup.cfg`、`maps/subject_example.txt`(`make run` の既定のマップ)、`CLAUDE.md`。
   - 含めないもの: `docs/`、`tests/`(2026-10-19 の決定)、`maps.tar.gz`(配布資料。2026-10-22 の決定)。
-  - main 用の差分: `tests/` が無いので、main では `Makefile` の `test` ターゲット、README の `make test` と「Testing and quality」の
-    tests の記述、`requirements.txt` の pytest、`setup.cfg` の `[mypy-tests.*]` を取り除く(develop には残す)。
+  - main 用の差分: `tests/` が無いので、main では `Makefile` の `test` ターゲット、`requirements.txt` の pytest、
+    `setup.cfg` の `[mypy-tests.*]` を取り除く(develop には残す)。
+  - README: main の README(2026-10-22 に見出しだけから書き直したもの)が元。develop の README は、それに tests の記述
+    (要件の pytest、Makefile の表の `make test`、`install` を先に実行する規則の一覧の `test`、「Testing and quality」の tests の説明)
+    だけを足したもの。README を直すときは両方に同じ変更を入れ、二つの違いが tests の記述だけになるようにする。
   - `CLAUDE.md` はAI協業のための運用ルールであり「ドキュメント」(調査記録等)には含めない。`main` に残す。
 - **`develop`**: `main` の内容に加えて `docs/` 配下(調査記録・意思決定記録・バグ記録)一式を含む、開発用の完全な履歴。
   - 上記「ドキュメント化ルール」で記録するものは、原則として `develop` 側にのみコミットする。
