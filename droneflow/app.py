@@ -86,8 +86,8 @@ class Application:
             err: Where the terminal view, warnings and the summary go;
                 defaults to ``sys.stderr``.
             make_scheduler: Builds what decides each turn's moves from the
-                network and its pathfinder; defaults to ``Scheduler``. Tests
-                pass another decider here instead of patching the module.
+                network and its pathfinder; defaults to ``Scheduler``. Any
+                other ``MoveDecider`` can be plugged in here.
         """
         self.args = args
         self.out: TextIO = sys.stdout if out is None else out
