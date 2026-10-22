@@ -181,15 +181,20 @@ def route(
     ends: Iterable[str],
     grid: PointGrid,
     radius: int,
+    spacing: float,
 ) -> Path:
     """Return the line of a connection, bent round the zones in its way.
 
     The straight line is kept when every zone but its two ``ends`` is at
-    least ``1.2 * radius`` away from it. Otherwise arcs of growing height
-    are tried, left then right, and the first that clears every zone is
-    used; if none does, the one that keeps furthest from them.
+    least ``clearance`` away from it: ``1.2 * radius``, but never more
+    than half the distance between the closest two zones (``spacing``).
+    On a dense map the zones are drawn bigger than that distance, and
+    without the cap every neighbour would count as in the way. Otherwise
+    arcs of growing height are tried, left then right, and the first that
+    clears every zone is used; if none does, the one that keeps furthest
+    from them.
     """
-    clearance = radius * 1.2
+    clearance = min(radius * 1.2, spacing / 2)
     skip = set(ends)
     best: Path = [start, end]
     best_gap = _gap(best, grid, skip, clearance)
