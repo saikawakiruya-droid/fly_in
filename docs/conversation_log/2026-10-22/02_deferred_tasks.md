@@ -13,3 +13,24 @@
   - 本ファイル(2026-10-22.md)が未追跡のまま
 - 決定事項: なし。変更ファイル: 本ログのみ
 
+
+## パーサーと移動ロジックの単体実行(feature/stage_files・test/stage_files)
+
+- 依頼: 「2,3,4 を行う」。段階の間で渡すオブジェクトの中身が見えるようファイルを経由し、移動は1ターンごとに実行できるように。
+  オプションとして用意し、追加機能として README に加える。
+- 確認(質問への回答): 2・3 はロードマップの 2・3、4 は前回の一覧の 4(会話ログのコミット)。形式は JSON(標準ライブラリ)。
+  1回の起動で1ターンだけ進める形は「難しそうなのでしなくていい」。
+- 4 は、別のセッションがログを新しい形式(このフォルダ)に分けてコミット済みだったので、作業なし。
+- 作業(`feature/stage_files`): `--parse-only FILE`・`--from-world`・`--save-run FILE` を追加(`droneflow/interchange/`)。
+  README 両版に「追加機能」の節。1ターンずつ見るのは `--from-world --step` と `--save-run` の各ターンの記録で代える。
+- 確認: 正常に終わる配布マップ・課題の例・revie_case の 25 枚で、直接の実行と `--parse-only` → `--from-world` のターンログが一致。
+- テスト(設計 `docs/research/2026-10-22_test-design-stage-files.md`、作成 `test/stage_files`): JO・WF・RR・SC・SA・SM の 73 件を追加。
+  pytest 818件成功、flake8・mypy(両方)問題なし。
+- バグ: SA05 で `--from-world` が表示名(`map_arg`)でファイルを開く不具合を発見し、`feature/stage_files` で修正(`docs/bugs.md` 2026-10-22)。
+- 決定: `docs/decisions.md` 2026-10-22「パーサーと移動ロジックを、JSON ファイルを経由して単体で動かせるようにする」。
+  `docs/roadmap.md` の 2・3 を実装済み、4 を実質完了に更新。
+- 未決: `test/stage_files`(`feature/stage_files` を含む)の `develop` へのマージ(ユーザーの許可待ち)。
+  main への反映(README の追加機能と `droneflow/interchange/` を含む)は別作業。
+- 作成・変更したファイル: `droneflow/errors.py`、`droneflow/cli.py`、`droneflow/app.py`、`droneflow/interchange/`(新規)、
+  `README.md`、`README.ja.md`、`tests/interchange/`(新規)、`tests/test_cli.py`・`test_app.py`・`test_fly_in.py`、`tests/README.md`、
+  `docs/decisions.md`、`docs/bugs.md`、`docs/roadmap.md`、`docs/research/2026-10-22_workflow-stage-files.md`・`2026-10-22_test-design-stage-files.md`
