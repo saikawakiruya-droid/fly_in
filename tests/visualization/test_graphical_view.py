@@ -561,3 +561,32 @@ def test_self_loop_is_drawn(coord_network: CoordNetwork) -> None:
     assert len(path) > 3
     assert path[0] == path[-1] == (ax, ay)
     assert middle(path)[1] < ay - layout.radius
+
+
+@pytest.mark.parametrize(("count", "badges"), [(1, 0), (5, 1)])
+def test_drones_at_one_point_are_a_badge(
+    count: int,
+    badges: int,
+    headless: Headless,
+    line: Network,
+    place: Place,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """VO07: one drone is a dot; several at one point are one badge."""
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+    view.begin(place(line, count))
+    window = view._window
+    assert window is not None
+    rects: list[object] = []
+    original = pygame.draw.rect
+
+    def spy(*args: object, **kwargs: object) -> object:
+        if kwargs.get("border_radius"):
+            rects.append(args)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pygame.draw, "rect", spy)
+    window._draw_drones(place(line, count), set())
+    view.close()
+
+    assert len(rects) == badges * 2  # the fill and its ring
