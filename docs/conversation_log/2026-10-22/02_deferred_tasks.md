@@ -71,3 +71,8 @@
 - 性能: 1万ゾーンのメッシュで配置に225秒かかった。原因は既存の最近接距離の全組み合わせ(O(n²))を2回呼んだこと。x で並べて打ち切る方法に置き換えた。
 - テスト(`test/visual_overlaps`): GE01〜GE19・VO01〜VO05、VG04・VL03 を変更。pytest 858件成功、flake8・mypy 問題なし。
 - 決定: `docs/decisions.md` 2026-10-22「重なる接続を弧にし、同じ座標のゾーンをずらす」
+- WSL での全体・部分実行: 配布マップ・revie_case・課題の例・overlap_demo で、部分実行の検査 194/194 成功、make lint/test も成功
+  (`docs/research/2026-10-22_wsl-full-partial-runs.md`)。途中で、1万ゾーンの配置が遅い問題(避ける距離に上限)を直し、GE20 を追加(859件成功)。
+- 説明: 黄色の線はそのターンに動いた機の軌跡(接続は灰色)。overlap_t1 の D2・D3 は s→c を1回で動いたが、s-c が b の真下を通る直線だったため
+  s→b→c に見えた。弧にしたことで解消。
+- 未決: `test/visual_labels`・`test/trim_run_file`・`test/visual_overlaps` の develop へのマージ(ユーザーの許可待ち。overlaps は labels を含む)。
