@@ -56,7 +56,6 @@ _HUD_HEIGHT = 34
 _FOOTER_HEIGHT = 26
 _MARGIN = 60
 _FPS = 60
-_MAX_DOTS = 12
 _MIN_DELAY = 0.05
 _MAX_DELAY = 5.0
 _MAX_INITIAL_DELAY = 60.0
@@ -393,29 +392,29 @@ class _Window:
     def _draw_group(
         self, center: Point, drones: list[Drone], moved: set[int]
     ) -> None:
-        """Draw up to ``_MAX_DOTS`` dots in a small grid around a point."""
-        shown = drones[:_MAX_DOTS]
-        columns = min(len(shown), 4)
-        rows = math.ceil(len(shown) / columns)
-        step = 9
-        left = center[0] - (columns - 1) * step // 2
-        top = center[1] - (rows - 1) * step // 2
-        for index, drone in enumerate(shown):
-            point = (left + index % columns * step,
-                     top + index // columns * step)
-            color = _DRONE
-            if drone.in_transit_connection is not None:
-                color = _DRONE_FLYING
-            ring = _DRONE_MOVED if drone.drone_id in moved else _OUTLINE
-            pygame.draw.circle(self.screen, ring, point, 5)
-            pygame.draw.circle(self.screen, color, point, 3)
-        if len(drones) > len(shown):
-            self._text(
-                f"+{len(drones) - len(shown)}",
-                (center[0] + columns * step // 2 + 14, center[1]),
-                _TEXT,
-                True,
-            )
+        """Draw the drones at one point: a dot, or a badge with the count.
+
+        One drone is a dot. Several drones at the same point are one
+        badge holding their number, not one dot each. The fill is the
+        in-flight color if they are on a connection, and the ring is the
+        moved color if any of them moved this turn.
+        """
+        color = _DRONE
+        if any(d.in_transit_connection is not None for d in drones):
+            color = _DRONE_FLYING
+        ring = _OUTLINE
+        if any(d.drone_id in moved for d in drones):
+            ring = _DRONE_MOVED
+        if len(drones) == 1:
+            pygame.draw.circle(self.screen, ring, center, 5)
+            pygame.draw.circle(self.screen, color, center, 3)
+            return
+        label = self.font.render(str(len(drones)), True, _OUTLINE)
+        badge = pygame.Rect(0, 0, label.get_width() + 10, 16)
+        badge.center = center
+        pygame.draw.rect(self.screen, color, badge, border_radius=8)
+        pygame.draw.rect(self.screen, ring, badge, 2, border_radius=8)
+        self.screen.blit(label, label.get_rect(center=badge.center))
 
     def _draw_status(
         self, state: SimulationState, moves: list[Move], note: str
