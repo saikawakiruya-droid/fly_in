@@ -22,12 +22,12 @@ ROLE_SUFFIX: dict[ZoneRole, str] = {
 def zone_title(zone: Zone, measure: Measure, max_width: int) -> str:
     """Return the zone's name, cut with ``~`` to fit ``max_width``.
 
-    The start and end zones get `` (start)`` / `` (end)`` after the name;
-    only the name is cut, never that suffix.
+    The start and end zones get `` (start)`` / `` (end)`` after the name.
+    The suffix is never cut and does not count toward ``max_width``, so
+    their names get as much room as any other zone's.
     """
     suffix = ROLE_SUFFIX.get(zone.role, "")
-    room = max_width - measure(suffix)
-    return fit_text(zone.name, measure, room) + suffix
+    return fit_text(zone.name, measure, max_width) + suffix
 
 
 def fit_text(text: str, measure: Measure, max_width: int) -> str:

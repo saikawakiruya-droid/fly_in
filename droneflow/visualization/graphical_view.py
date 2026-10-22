@@ -21,6 +21,15 @@ from ..models.drone import Drone  # noqa: E402
 from ..models.network import Network  # noqa: E402
 from ..models.zone import Zone, ZoneRole, ZoneType  # noqa: E402
 from ..simulation.state import Move, SimulationState  # noqa: E402
+from .geometry import (  # noqa: E402
+    Path,
+    PointGrid,
+    closest_distance,
+    middle,
+    route,
+    spread_duplicates,
+    sub_path,
+)
 from .labels import fit_items, load_label, zone_title  # noqa: E402
 from .palette import DEFAULT_ZONE_RGB, RGB, rgb  # noqa: E402
 
@@ -65,6 +74,10 @@ class _Layout:
     Each axis is scaled to fill the window, but one axis is never
     stretched more than ``_MAX_STRETCH`` times the other, so long flat
     maps get room for their labels without losing their shape entirely.
+
+    Zones declared at the same position are spread around it, and each
+    connection gets a path: a straight line, or an arc where the line
+    would run over another zone (see ``geometry``).
     """
 
     def __init__(self, network: Network, size: Point) -> None:
@@ -93,18 +106,35 @@ class _Layout:
             )
             for z in zones
         }
-        self.spacing = self._closest_distance()
-        self.radius = int(max(9, min(28, self.spacing * 0.3)))
+        # The size comes from the declared positions, so that spreading
+        # zones that share one does not shrink every zone on the map.
+        nearest = closest_distance(self._points.values(), 100.0)
+        self.radius = int(max(9, min(28, nearest * 0.3)))
+        self._points = spread_duplicates(self._points, self.radius)
+        self.spacing = closest_distance(self._points.values(), 100.0)
+        grid = PointGrid(self._points, self.radius * 4)
+        self._paths: dict[str, Path] = {
+            link.name: route(
+                self.position(link.zone_a),
+                self.position(link.zone_b),
+                (link.zone_a, link.zone_b),
+                grid,
+                self.radius,
+            )
+            for link in network.connections
+        }
 
     def position(self, zone_name: str) -> Point:
         """Return the pixel center of a zone."""
         return self._points[zone_name]
 
+    def path(self, connection: Connection) -> Path:
+        """Return the connection's line, from zone_a to zone_b."""
+        return self._paths[connection.name]
+
     def midpoint(self, connection: Connection) -> Point:
-        """Return the pixel middle of a connection."""
-        ax, ay = self.position(connection.zone_a)
-        bx, by = self.position(connection.zone_b)
-        return (ax + bx) // 2, (ay + by) // 2
+        """Return the pixel middle of a connection, along its path."""
+        return middle(self.path(connection))
 
     def zone_at(self, point: Point) -> str | None:
         """Return the zone drawn under a pixel, if any."""
@@ -113,15 +143,6 @@ class _Layout:
             if math.hypot(px - x, py - y) <= self.radius:
                 return name
         return None
-
-    def _closest_distance(self) -> float:
-        """Return the distance between the closest two distinct points."""
-        points = list(set(self._points.values()))
-        closest = 100.0
-        for index, (ax, ay) in enumerate(points):
-            for bx, by in points[index + 1:]:
-                closest = min(closest, math.hypot(ax - bx, ay - by))
-        return closest
 
 
 def zone_rgb(color_name: str | None) -> RGB:
@@ -168,7 +189,7 @@ class _Window:
         self.delay = delay
         self.paused = False
         self._frame: _Frame | None = None
-        self._trails: list[tuple[Point, Point]] = []
+        self._trails: list[Path] = []
         self._hover: tuple[str, Point] | None = None
 
     def drone_point(self, drone: Drone) -> Point | None:
@@ -184,7 +205,7 @@ class _Window:
         self,
         state: SimulationState,
         moves: list[Move],
-        trails: list[tuple[Point, Point]],
+        trails: list[Path],
         note: str = "",
     ) -> None:
         """Draw a frame and remember it, so it can be redrawn later."""
@@ -201,8 +222,8 @@ class _Window:
         state, moves, shown_note = self._frame
         self.screen.fill(_BACKGROUND)
         self._draw_links(state)
-        for start, end in self._trails:
-            pygame.draw.line(self.screen, _TRAIL, start, end, 3)
+        for trail in self._trails:
+            pygame.draw.lines(self.screen, _TRAIL, False, trail, 3)
         for zone in state.network.zones.values():
             self._draw_zone(state, zone)
         self._draw_drones(state, {m.drone_id for m in moves})
@@ -281,7 +302,10 @@ class _Window:
             busy = state.link_load(link) > 0
             width = 1 + min(link.max_link_capacity, 4)
             color = _LINK_BUSY if busy else _LINK
-            pygame.draw.line(self.screen, color, start, end, width)
+            path = self.layout.path(link)
+            if start == end:
+                continue
+            pygame.draw.lines(self.screen, color, False, path, width)
             if link.max_link_capacity > 1:
                 mid_x, mid_y = self.layout.midpoint(link)
                 self._text(
@@ -530,6 +554,7 @@ class GraphicalVisualizer:
         self._closed = False
         self._finished = False
         self._previous: dict[int, Point] = {}
+        self._flying: dict[int, str] = {}
 
     @property
     def is_open(self) -> bool:
@@ -571,17 +596,22 @@ class GraphicalVisualizer:
         window = self._open(state.network)
         if window is None:
             return
-        trails: list[tuple[Point, Point]] = []
+        trails: list[Path] = []
         for move in moves:
             start = self._previous.get(move.drone_id)
             end = self._point_after(window, state, move)
             if start is not None and end is not None and start != end:
-                trails.append((start, end))
+                trails.append(self._trail(window, move, start, end))
         window.show(state, moves, trails)
         self._previous = {
             drone.drone_id: point
             for drone in state.drones.values()
             if (point := window.drone_point(drone)) is not None
+        }
+        self._flying = {
+            drone.drone_id: drone.in_transit_connection
+            for drone in state.drones_in_transit()
+            if drone.in_transit_connection is not None
         }
         self._finished = state.is_complete
         if self._finished and (window.paused or self.hold_final):
@@ -590,6 +620,23 @@ class GraphicalVisualizer:
             return
         if not window.wait():
             self._shut()
+
+    def _trail(
+        self, window: _Window, move: Move, start: Point, end: Point
+    ) -> Path:
+        """Return the move's trail along the connection it used.
+
+        A departure names its connection; a landing uses the connection
+        the drone was flying along. The trail is straight only if the
+        connection is unknown.
+        """
+        name = move.connection_name or self._flying.get(move.drone_id)
+        link = None if name is None else window.links.get(name)
+        if link is not None:
+            part = sub_path(window.layout.path(link), start, end)
+            if part is not None:
+                return part
+        return [start, end]
 
     @staticmethod
     def _point_after(
