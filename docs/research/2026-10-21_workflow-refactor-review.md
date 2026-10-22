@@ -127,3 +127,18 @@ sequenceDiagram
 
 グラフィカル表示(約600行)とターミナル表示の分割、状態の読み取り専用のビュー(Protocol)、`map_format` の型の Generic 化、
 `--visual` の Literal 化、ターン番号の語彙の統一。パーサーの厳格化と出力の安全策は、ユーザーの判断で入れない(決定記録 2026-10-21 の4・8)。
+
+## 追記(2026-10-22): 名前と型の一致を優先した追加の整理
+
+ユーザーの指示(`docs/decisions.md` 2026-10-22 の3)で、見送っていた「命名と型」の指摘を直した。どれも挙動は変わらない(6,079 枚のターンログが一致)。
+
+| 内容 | 指摘 |
+|---|---|
+| `--visual` を `VisualMode = Literal[...]` に。`VISUAL_MODES` はそこから作る(`Args(visual="termnal")` は mypy が拒否) | R8-2 |
+| パーサーの値の受け渡しから `Any` をなくす: 値は `object` で持ち、builder は `FieldValues.get(name, 型)` / `get_optional` で型を確かめて読む(食い違いは `TypeError`)。接続の両端は `Endpoints` | R8-1 |
+| 文字列のゾーン名の名前: `Reservation.zone` → `to_zone`、`MoveOrder.zone` → `zone_name`、`ReservationTable.entering/leaving` の引数 → `zone_name` | R8-5 |
+| `TurnLedger.turn` → `planning_turn`、`has_seats` → `has_seat_from`、`has_seat` → `fits`、`projected` → `projected_load`、`table` は非公開に | R8-8, R8-9, X8-11 |
+| `RawLine` は tuple と Mapping、`metadata_keys` は frozenset、グラフィカル表示の最後のフレームは `_Frame`(NamedTuple) | R8-11 |
+| `output/turn_log_view.py` → `output/turn_log_printer.py`(クラス名に合わせる) | R8-12 |
+
+`cli.py` の argparse の `Namespace` の値は、標準ライブラリの型が `Any` なので残る(読み出す限り避けられない)。
