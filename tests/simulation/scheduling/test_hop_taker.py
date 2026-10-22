@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.hop_taker (HopTaker).
+"""Tests for droneflow.simulation.scheduling.hop_taker (HopTaker).
 
 ``taker_for(state, table=None)`` builds the table, the ledger, the board
 and the taker for the state's next turn (moves reserved in ``table``
@@ -17,14 +17,14 @@ from droneflow.models.connection import Connection
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Hop, Pathfinder
-from droneflow.simulation.hop_taker import HopTaker
-from droneflow.simulation.positions import PositionBoard
-from droneflow.simulation.reservation_table import (
+from droneflow.simulation.scheduling.hop_taker import HopTaker
+from droneflow.simulation.scheduling.positions import PositionBoard
+from droneflow.simulation.scheduling.reservation_table import (
     Reservation,
     ReservationTable,
 )
 from droneflow.simulation.state import SimulationState
-from droneflow.simulation.turn_ledger import TurnLedger
+from droneflow.simulation.scheduling.turn_ledger import TurnLedger
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

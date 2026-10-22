@@ -31,7 +31,7 @@ from droneflow.models.zone import Zone, ZoneRole, ZoneType
 from droneflow.parsing.map_parser import MapParser
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import MoveDecider
-from droneflow.simulation.scheduler import Scheduler
+from droneflow.simulation.scheduling.scheduler import Scheduler
 from droneflow.simulation.state import MoveOrder, SimulationState
 
 Snapshot = dict[str, object]

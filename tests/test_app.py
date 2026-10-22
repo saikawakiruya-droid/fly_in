@@ -37,7 +37,7 @@ from droneflow.models.world import World
 from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import MoveDecider
-from droneflow.simulation.scheduler import Scheduler
+from droneflow.simulation.scheduling.scheduler import Scheduler
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
 from droneflow.visualization.terminal_view import TerminalVisualizer
 

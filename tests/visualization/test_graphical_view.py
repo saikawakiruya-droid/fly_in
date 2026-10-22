@@ -31,7 +31,7 @@ from droneflow.models.zone import Zone, ZoneType  # noqa: E402
 from droneflow.models.world import World  # noqa: E402
 from droneflow.pathfinding.pathfinder import Pathfinder  # noqa: E402
 from droneflow.simulation.engine import SimulationEngine  # noqa: E402
-from droneflow.simulation.scheduler import Scheduler  # noqa: E402
+from droneflow.simulation.scheduling.scheduler import Scheduler  # noqa: E402
 from droneflow.simulation.state import Move, SimulationState  # noqa: E402
 from droneflow.visualization import graphical_view  # noqa: E402
 from droneflow.visualization.graphical_view import (  # noqa: E402

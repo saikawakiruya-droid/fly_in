@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping
 
-from ..pathfinding.pathfinder import Hop, Pathfinder
+from ...pathfinding.pathfinder import Hop, Pathfinder
 from .positions import PositionBoard
 
 

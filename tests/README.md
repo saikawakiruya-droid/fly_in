@@ -127,7 +127,7 @@ python -m pytest tests/
   フェーズで `tests/visualization/conftest.py` から移した(visualization と Application のテストで共有)。
   `provided_map`(配布マップ `maps.tar.gz` の1枚を展開せずに読み、先頭のコメント行・空行だけを取り除いた文字列)と
   `maps_archive`(アーカイブを開く。無ければ分かりやすいメッセージで失敗する)は、詰まる場所の発見のテストフェーズで
-  `tests/simulation/test_scheduler_maps.py` から移した(Scheduler と詰まる場所の発見の E2E で共有)。
+  `tests/simulation/scheduling/test_scheduler_maps.py` から移した(Scheduler と詰まる場所の発見の E2E で共有)。
   `StuckScheduler` / `stuck_after`(本物の `Scheduler` に指定ターンだけ委譲し、その後は何も指示しない。
   `stuck_after(n)` を `Application(..., make_scheduler=...)` に渡す)は、全体レビューを受けたリファクタリングで
   `test_app.py` と `test_fly_in.py` から移した
@@ -146,7 +146,7 @@ python -m pytest tests/
   `ZoneNotFoundError`、end に隣接しない遠回り、課題の例の全ゾーンの遠回りと配布マップ10枚の遠回りの個数。
   `route_cost`(RC01〜RC03): 進入コスト + 距離(後ろ向きの一手でも)、届かないゾーンへの一手の `ValueError`、
   課題の例と配布マップ10枚の全ゾーンで最短の一手は距離と等しく、遠回りは距離より大きく昇順なこと
-- `tests/simulation/test_detour_policy.py` — `DetourPolicy`(DP01〜DP18。`Scheduler.__init__` と同じ作り方で組む):
+- `tests/simulation/scheduling/test_detour_policy.py` — `DetourPolicy`(DP01〜DP18。`Scheduler.__init__` と同じ作り方で組む):
   `detours` が `detour_hops` と一致、条件 `総コスト(v) + queue(v) ≤ 距離(u) + ahead(u)` の境界(等しければ許す・
   遠回り先に1機多いと断る)、着陸先の機もゾーンで数えること、共通の下流(end・合流先)は両辺で打ち消すこと、
   自分のゾーン・別の枝の機は数えないこと、2手以上先・最短の枝が複数・遠回りが複数(遠回りごとの行列)、許された遠回りを
@@ -184,7 +184,7 @@ python -m pytest tests/
   ターンでは render しないこと、構築直後の状態、パーサー経由の E2E(課題のサンプルマップの出力7行、corridorA を
   blocked にして restricted の roof1 を通る出力12行。これは貪欲なスタブ `FollowerScheduler` の結果)、
   「接続上で詰まった」がエンジンからそのまま伝わり、詰まったターンでは render しないこと(G12)
-- `tests/simulation/test_turn_ledger.py` — `TurnLedger`: ゾーン・接続の両方の空き、ゾーン容量の境界(上限ちょうどまで)、
+- `tests/simulation/scheduling/test_turn_ledger.py` — `TurnLedger`: ゾーン・接続の両方の空き、ゾーン容量の境界(上限ちょうどまで)、
   記録した退出だけが同じターンの空きになること(記録前の退出は数えない=保守的)、start/end は無制限、
   restricted の予約で満杯になること、着陸する機は接続を使わないこと(接続の使用数は出発だけ)、
   接続は両方向で共有、記録が他の接続・ゾーンに漏れないこと、台帳が状態を変えないこと。
@@ -193,17 +193,17 @@ python -m pytest tests/
   restricted への記録は着陸のターンに数えること、将来の予約された席は使わないこと(規則6、台帳は立ち退きをしない)、
   `horizon` の下限と `arrival_turn`(restricted な end も2ターン)、`cancel` が `record` を打ち消すこと、表を渡さないと
   着陸だけの表を作ること(公開の `projected_load` / `horizon` で確かめる)
-- `tests/simulation/test_reservation_table.py` — `ReservationTable`(Q01〜Q10): `entering` / `leaving` / `due`(ID 順)/
+- `tests/simulation/scheduling/test_reservation_table.py` — `ReservationTable`(Q01〜Q10): `entering` / `leaving` / `due`(ID 順)/
   `last_turn` の数え方(restricted は depart_turn に出て arrive_turn に入る)、1機2行と `remove`(索引がすべて消える)、
   `mark` / `rollback` の入れ子と `remove` の取り消し、`clear`(取り消しの記録も消える)、`start_turn`(着陸の読み込み・
   2回呼んでも1行・済んだ予約と出発元にいない機の予約を捨てる・このターンに出る予約は残す・飛行中の機の立ち退きは残る)、
   `leaves_after`(LA01〜LA03: 出発のターンより厳密に前だけ True・ほかの機に漏れない・`remove` / `rollback` に追従・
   restricted は到着でなく出発のターンで見る)
-- `tests/simulation/test_evictor.py` — `Evictor.make_room`(X01〜X09): end への立ち退き、空いている normal への立ち退き、
+- `tests/simulation/scheduling/test_evictor.py` — `Evictor.make_room`(X01〜X09): end への立ち退き、空いている normal への立ち退き、
   normal・restricted を通る再帰(restricted の席は t+2)、長い連鎖が終わること(距離が真に減る)、失敗したら内側の接続・
   席まで全部取り消すこと、立ち退かせる機がいない(先に出る予約がある・着いたばかり)、席がすでにある・end では何もしない、
   最初の候補の接続が埋まったら次の候補
-- `tests/simulation/test_scheduler.py` — `Scheduler`: 判断の順序(ゾーン単位: 距離 → 優先ルート → 出口(最短+遠回り)が
+- `tests/simulation/scheduling/test_scheduler.py` — `Scheduler`: 判断の順序(ゾーン単位: 距離 → 優先ルート → 出口(最短+遠回り)が
   少ない → 宣言順。同じゾーンの中は `active_drones` の順で、drone_id は使わない。並びをリストの順序ごと検査)、
   退出で空いたゾーンを同じターンに後ろの機が使うこと、
   待つことになる機は許された遠回り(横・後ろを含む。いたゾーンには戻らない、遠回り先が混んでいれば断る)をすること
@@ -219,7 +219,7 @@ python -m pytest tests/
   ならない)、新しい実行は表を空にして始める、同じターンに別の状態を渡すとその状態から計画し直す。
   このターンに立ち退きが決まった機も判断する(RV01〜RV03、レビューの反例マップ: 予約を外して今動く・最後まで予約が
   残らない・同じターンを2回判断しても同じ指示)
-- `tests/simulation/test_scheduler_maps.py` — 本物の `Scheduler` の E2E: 課題のサンプルマップで本物のスケジューラの出力5行
+- `tests/simulation/scheduling/test_scheduler_maps.py` — 本物の `Scheduler` の E2E: 課題のサンプルマップで本物のスケジューラの出力5行
   (`scheduler_output`)と完全一致、
   restricted だけの経路の出力8行(roof1 に着陸した機を次のターンに立ち退かせ、毎ターン1機ずつ出発する)、
   毎ターンの不変条件(1機1指示・指示は `AT_ZONE` の機だけ・最短の一手で距離が減る、または一度もいたことのないゾーンへの
@@ -241,7 +241,7 @@ python -m pytest tests/
   (誰も動かない・ターン数の上限・不正な指示)、`begin` の失敗、`render` の失敗のどれでも `close` を呼び、例外はそのまま伝わること。
   `run(observer=...)` のキーワード(EO01)、観測者なしの `run()` とコンストラクタのキーワード `world` / `decider` /
   `max_turns`・既定の上限(EO02)
-- `tests/simulation/test_positions.py` — `PositionBoard`(PB01〜PB07): 空の盤面(`where` は `KeyError`)、ゾーンの機は
+- `tests/simulation/scheduling/test_positions.py` — `PositionBoard`(PB01〜PB07): 空の盤面(`where` は `KeyError`)、ゾーンの機は
   番号の昇順、`Position` は NamedTuple、ゾーン間の移動で前のゾーンから外れる、同じゾーンに置き直すとターンだけ変わる、
   `count_in` はゾーンの集合の合計、返す値は複製、`from_state`(立っている機は今のターンから、飛行中の機は着陸先に
   次のターンから、配達済みは置かない)
@@ -249,11 +249,11 @@ python -m pytest tests/
   呼び出しを観測者の順に配る(同じ `state` / `moves`)、1つの close が失敗しても残りを閉じる、複数の失敗は最後を送出し
   前の失敗を `__context__` でつなぐ、観測者なし、render の失敗はそのまま伝わる、受け取った列の複製(タプルからも
   `list`)、エンジンからは1つの観測者に見え各観測者に順に届くこと
-- `tests/simulation/test_hop_taker.py` — `HopTaker.take_first`(HT01〜HT08): 空いている一手を台帳と盤面に記録する、
+- `tests/simulation/scheduling/test_hop_taker.py` — `HopTaker.take_first`(HT01〜HT08): 空いている一手を台帳と盤面に記録する、
   restricted へは在室機を立ち退かせて着陸する(`extra=1`)、立ち退きの連鎖、立ち退かせられなければ何も変わらない、
   後で予約された席に先に入って自分を立ち退かせる(`extra=0`)とその失敗時の取り消し(台帳・盤面・表が戻る)、
   すべての一手を立ち退きなしで試してから立ち退きありを試す順、一手が無いときの `None`
-- `tests/simulation/test_zone_ranking.py` — `ZoneRanking`(ZR01〜ZR08。ZR07・ZR08 は旧 `test_scheduler.py` の D07・D08):
+- `tests/simulation/scheduling/test_zone_ranking.py` — `ZoneRanking`(ZR01〜ZR08。ZR07・ZR08 は旧 `test_scheduler.py` の D07・D08):
   判断の順の4つの鍵(距離 → 優先ルート(ゾーン自身・次の一手)→ 出口(最短 + 遠回り)が少ない → 宣言順)、
   ゴールに届かないゾーンは順位なし・存在しない名前の `rank` は `ZoneNotFoundError`、`is_on_priority_route`
   (今いるゾーン・次の一手が priority なら True、2手先・遠回りの priority・end は False、存在しない名前の

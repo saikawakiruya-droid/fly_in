@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.turn_ledger (TurnLedger)."""
+"""Tests for droneflow.simulation.scheduling.turn_ledger (TurnLedger)."""
 
 from typing import Callable
 
@@ -8,12 +8,12 @@ from droneflow.models.connection import Connection
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Hop
-from droneflow.simulation.reservation_table import (
+from droneflow.simulation.scheduling.reservation_table import (
     Reservation,
     ReservationTable,
 )
 from droneflow.simulation.state import SimulationState
-from droneflow.simulation.turn_ledger import TurnLedger
+from droneflow.simulation.scheduling.turn_ledger import TurnLedger
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]
