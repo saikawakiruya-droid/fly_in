@@ -132,3 +132,11 @@
   `make test` は無い(想定どおり)。配布マップを検証用に置いて全体・部分実行 197/197 成功、ターンログは develop の結果(`_tmp/partial_runs`)と80枚すべて一致。
 - push はしていない(main・develop とも origin より進んでいる)。
 - ユーザーの許可(「やって」)を得て origin に push(develop: eea68cf..cacf9f4、main: 1de8625..0901dd5)。どちらも通常の push(強制なし)。push 前にコミットと差分の個人情報・ローカルパスを点検(問題なし)。
+
+## README の書き直し(見出しだけを渡したサブエージェント)
+
+- 依頼: main からブランチを切り、サブエージェントに見出し(綱目)だけを指定して README を書かせる。判断などが入っている今の README は見せない。
+- 作業: `feature/readme_rewrite` を main(0901dd5)から切り、作業ツリーを `D:\WorkSpaceclaude_code\fly_in_readme` に作成。README.md・README.ja.md を
+  削除してコミット(9f9f339)。サブエージェントには、見出し(中身に触れない名前だけ。アルゴリズムの番号付きの小見出しは渡していない)、
+  1行目の固定文、main に tests/docs/maps.tar.gz がないこと、読んでよいもの(作業ツリーのコードと課題の PDF、実行用の Python)だけを渡し、
+  README の履歴・他のブランチ・開発用のフォルダ(docs を含む)は読まないよう指示。
