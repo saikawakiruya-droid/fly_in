@@ -9,7 +9,7 @@ from .errors import MapFileError, VisualizationError
 from .models.network import Network
 from .models.world import World
 from .output.summary import RunSummary
-from .output.turn_log_view import TurnLogPrinter
+from .output.turn_log_printer import TurnLogPrinter
 from .parsing.map_parser import MapParser
 from .pathfinding.pathfinder import Pathfinder
 from .simulation.engine import MoveDecider, SimulationEngine
