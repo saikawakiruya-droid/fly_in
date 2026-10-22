@@ -113,6 +113,7 @@ class _Layout:
         self._points = spread_duplicates(self._points, self.radius)
         self.spacing = closest_distance(self._points.values(), 100.0)
         grid = PointGrid(self._points, self.radius * 4)
+        placed: list[Path] = []
         self._paths: dict[str, Path] = {
             link.name: route(
                 self.position(link.zone_a),
@@ -121,6 +122,7 @@ class _Layout:
                 grid,
                 self.radius,
                 nearest,
+                placed,
             )
             for link in network.connections
         }
@@ -298,14 +300,10 @@ class _Window:
 
     def _draw_links(self, state: SimulationState) -> None:
         for link in state.network.connections:
-            start = self.layout.position(link.zone_a)
-            end = self.layout.position(link.zone_b)
             busy = state.link_load(link) > 0
             width = 1 + min(link.max_link_capacity, 4)
             color = _LINK_BUSY if busy else _LINK
             path = self.layout.path(link)
-            if start == end:
-                continue
             pygame.draw.lines(self.screen, color, False, path, width)
             if link.max_link_capacity > 1:
                 mid_x, mid_y = self.layout.midpoint(link)

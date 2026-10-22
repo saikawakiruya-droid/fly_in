@@ -18,7 +18,7 @@ ARC_SAMPLES = 24
 _SPREAD_GAP = 1.1
 """Spread zones keep this many zone diameters between their centers."""
 
-_BULGES = (2, 3, 4, 6, 8, 11)
+_BULGES = (2, 3, 4, 5, 6, 7, 8, 10, 12)
 """Arc heights tried, in zone radii, each on both sides in turn."""
 
 
@@ -182,6 +182,7 @@ def route(
     grid: PointGrid,
     radius: int,
     spacing: float,
+    placed: list[Path],
 ) -> Path:
     """Return the line of a connection, bent round the zones in its way.
 
@@ -189,11 +190,20 @@ def route(
     least ``clearance`` away from it: ``1.2 * radius``, but never more
     than half the distance between the closest two zones (``spacing``).
     On a dense map the zones are drawn bigger than that distance, and
-    without the cap every neighbour would count as in the way. Otherwise
-    arcs of growing height are tried, left then right, and the first that
-    clears every zone is used; if none does, the one that keeps furthest
-    from them.
+    without the cap every neighbour would count as in the way.
+
+    Otherwise arcs of growing height are tried, first on the side that
+    bends upwards on screen (zone labels are drawn below the zones), and
+    the first that clears every zone and does not run along an arc in
+    ``placed`` is used; if none does, the one that keeps furthest from
+    the zones. The arc chosen is added to ``placed``, so connections
+    routed later keep away from it.
+
+    A connection from a zone to itself is drawn as a small loop above the
+    zone (see ``loop``).
     """
+    if start == end:
+        return loop(start, radius)
     clearance = min(radius * 1.2, spacing / 2)
     skip = set(ends)
     best: Path = [start, end]
@@ -201,14 +211,74 @@ def route(
     if best_gap >= clearance:
         return best
     for height in _BULGES:
-        for side in (1, -1):
+        for side in _sides(start, end):
             path = arc(start, end, side * height * radius)
             gap = _gap(path, grid, skip, clearance)
-            if gap >= clearance:
+            if gap >= clearance and _apart(path, placed, radius * 0.6):
+                placed.append(path)
                 return path
             if gap > best_gap:
                 best, best_gap = path, gap
+    placed.append(best)
     return best
+
+
+def loop(center: Point, radius: int) -> Path:
+    """Return a small closed loop sitting on top of a zone.
+
+    The loop starts and ends at the zone's center (hidden under the zone)
+    and its middle is the top of the loop, where a capacity label goes.
+    """
+    cx, cy = center
+    size = radius * 0.6
+    middle_y = cy - radius - size
+    path: Path = [center]
+    for step in range(ARC_SAMPLES + 1):
+        angle = 2 * math.pi * step / ARC_SAMPLES
+        path.append((
+            round(cx + size * math.sin(angle)),
+            round(middle_y + size * math.cos(angle)),
+        ))
+    path.append(center)
+    return path
+
+
+def _sides(start: Point, end: Point) -> tuple[int, int]:
+    """Return the bulge signs to try, the one bending upwards first.
+
+    A positive bulge goes towards ``(ay - by, bx - ax)``; on a vertical
+    line, the side bending left is tried first.
+    """
+    (ax, ay), (bx, by) = start, end
+    nx, ny = ay - by, bx - ax
+    if ny < 0 or (ny == 0 and nx < 0):
+        return 1, -1
+    return -1, 1
+
+
+def _apart(path: Path, placed: list[Path], gap: float) -> bool:
+    """Return whether the arc keeps away from every arc already placed.
+
+    Arcs that share an end always meet there, so two arcs only count as
+    running together when more than a third of this arc's points are
+    within ``gap`` of the other one.
+    """
+    xs = [x for x, _ in path]
+    ys = [y for _, y in path]
+    for other in placed:
+        if (
+            max(x for x, _ in other) < min(xs) - gap
+            or min(x for x, _ in other) > max(xs) + gap
+            or max(y for _, y in other) < min(ys) - gap
+            or min(y for _, y in other) > max(ys) + gap
+        ):
+            continue
+        close = sum(
+            1 for point in path if distance_to_path(point, other) < gap
+        )
+        if close * 3 > len(path):
+            return False
+    return True
 
 
 def _gap(
