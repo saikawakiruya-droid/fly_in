@@ -2,146 +2,178 @@
 
 # Fly-in
 
-ゾーンのネットワークの中で、ドローンの群れを start のゾーンから end のゾーンまで、できるだけ少ないターン数で運ぶ
-ターン制のシミュレーションです。ゾーンの容量、接続の容量、restricted のゾーンへの2ターンかかる移動を守ります。
+(このファイルは `README.md`(英語版)の日本語版です。課題の要件により、正式な README は英語版です。)
 
-英語版: [README.md](README.md)(課題の要件では README は英語。こちらは同じ内容の日本語版です)
+## Description
 
-## 概要(Description)
+Fly-in は、Python で書いたドローン群のルーティングシミュレーションです。マップファイルには、
+ゾーン(ノード)と、それらを結ぶ双方向のコネクション(エッジ)からなるネットワークが書かれています。
+すべてのドローンはスタートゾーンから出発し、課題の移動ルールを守りながら、全機を**できるだけ少ない
+シミュレーションターン数で**エンドゾーンへ運ぶことが目標です。
 
-マップファイルから、ゾーン(座標・種類・色・容量)とゾーン同士の接続からなるグラフを読み込み、`nb_drones` 機のドローンを
-start のゾーンに置いて、全機が end のゾーンに配達されるまで1ターンずつシミュレーションします。各ターンは、そのターンに動いた
-ドローンを並べた1行として、課題の指定どおりの形式で出力します。
+- ゾーンに同時にいられるドローンは `max_drones` 機まで(既定は 1)。スタートとエンドは無制限。
+- コネクションを同じターンに通れるドローンは `max_link_capacity` 機まで(既定は 1)。
+- `normal` / `priority` ゾーンへの移動は 1 ターン、`restricted` ゾーンへの移動は 2 ターン
+  (1 ターンをコネクション上で過ごし、次のターンに必ず着地する)。`blocked` ゾーンには入れない。
+- 同じ長さの経路が複数あるときは `priority` ゾーンを優先する。
 
-Python で書いており、完全にオブジェクト指向で、型注釈を付けています(`flake8` と `mypy --strict` を通ります)。
-グラフの処理はすべて自前で実装しており、グラフ系のライブラリ(networkx、graphlib など)は使っていません。
+プログラムはマップを解析・検証し、ゴールまでの距離を計算し、ドローンの移動をターンごとに決め、
+各ターンをルールに照らして検査したうえで、決められた形式でターンログを出力します。実行の様子は
+ターミナル表示とグラフィカル表示(pygame-ce)の一方または両方で見られます。課題の指定どおりグラフ系
+ライブラリは使っておらず、グラフ、最短経路探索、スケジューラはすべて自作です。コードはオブジェクト指向で
+型注釈付きで書かれており、`flake8` と `mypy --strict` を通ります。
 
-主な機能:
+### Input format
 
-- 入力形式全体を検査するパーサー。誤りがあれば、行番号と原因を書いた1行のエラーで止まります。
-- ゴールを起点にしたダイクストラ法の距離表(1回だけ計算)。各ドローンが最短経路に留まる移動を教えます。
-- 毎ターンのスケジューラ。容量の許すかぎり多くのドローンを動かし、restricted のゾーンには予約表と立ち退きの仕組みを使います。
-- 適用前に毎ターンを検査する、スケジューラとは独立した規則の検査。
-- 2つの表示: 色付きのターミナル表示と、グラフィカルな窓(pygame-ce)。両方を同時にも使えます。
-
-### 入力形式
-
-```text
-nb_drones: <正の整数>
-start_hub: <名前> <x> <y> [メタデータ]
-end_hub: <名前> <x> <y> [メタデータ]
-hub: <名前> <x> <y> [メタデータ]
-connection: <ゾーン1>-<ゾーン2> [メタデータ]
-```
-
-- ゾーンのメタデータ: `zone=normal|blocked|restricted|priority`(既定は `normal`)、`color=<1語>`(任意の1語)、
-  `max_drones=<正の整数>`(既定は1。start と end のゾーンでは無視され、上限はありません)。
-- 接続のメタデータ: `max_link_capacity=<正の整数>`(既定は1)。
-- `#` で始まる行はコメント、空行は無視します。
-- ゾーンに入るのにかかるターン数は、`normal`・`priority` が1、`restricted` が2。`blocked` のゾーンには入れません。
-
-**入力の制約: `nb_drones: <n>` はファイルの物理的な1行目に書いてください。** 課題の「the first line must define the number
-of drones」を文字どおりに読んでおり、`nb_drones:` より前にコメントや空行があるとパースエラーになります。
+マップは UTF-8 のテキストファイルです(先頭の BOM は読み飛ばします)。
 
 ```text
-$ python fly_in.py map_with_a_comment_first.txt
-error: line 1: the first line must be 'nb_drones: <n>'
+nb_drones: 5
+
+start_hub: hub 0 0 [color=green]
+end_hub: goal 10 10 [color=yellow]
+hub: roof1 3 4 [zone=restricted color=red]
+hub: corridorA 4 3 [zone=priority color=green max_drones=2]
+connection: hub-roof1
+connection: corridorA-tunnelB [max_link_capacity=2]
 ```
 
-2行目以降なら、コメントと空行はどこにあっても構いません。コメントは1行全体でなければならず、
-`hub: a 1 0 # メモ` のような行末のコメントはパースエラーです。
+| 行 | 意味 |
+| --- | --- |
+| `nb_drones: <n>` | ドローン数(正の整数)。**ファイルの物理的な 1 行目でなければならない。** |
+| `start_hub: <name> <x> <y> [metadata]` | スタートゾーン(ちょうど 1 つ)。 |
+| `end_hub: <name> <x> <y> [metadata]` | エンドゾーン(ちょうど 1 つ)。 |
+| `hub: <name> <x> <y> [metadata]` | 通常のゾーン。 |
+| `connection: <name1>-<name2> [metadata]` | それより前に宣言された 2 つのゾーンを結ぶ双方向のコネクション。 |
+| `# ...` | コメント行(行全体のみ。宣言の後ろに `#` を書くとエラー)。空行も無視する。 |
 
-課題に付いている配布マップ(課題ページから入手する `maps.tar.gz`。このリポジトリには含めていません)は先頭がコメント行なので、そのままでは読み込めません。
-実行するときは、先に `nb_drones:` より前の行を取り除きます。例:
+ゾーンのメタデータ(省略可、順不同): `zone=normal|blocked|restricted|priority`(既定 `normal`)、
+`color=<単語>`(既定なし)、`max_drones=<n>`(既定 1)。
+コネクションのメタデータ: `max_link_capacity=<n>`(既定 1)。
+
+パーサは最初に見つけた問題で止まり、行番号と原因を表示します。主に次のものを拒否します: 1 行目が
+`nb_drones:` でない、ドローン数や容量が正でない、座標が整数でない、未知のゾーン種別、未知または重複した
+メタデータのキー、`[...]` ブロックの書式誤り、`-` を含むゾーン名、ゾーン名の重複、2 つ目の `start_hub` /
+`end_hub`、未宣言のゾーンへのコネクション、コネクションの重複(`a-b` と `b-a` は同じもの)、
+`start_hub` / `end_hub` の欠落。スタートとエンドには `zone=blocked` を指定できません。課題のとおり、
+スタートとエンドの `max_drones` は受け付けたうえで無視します。スタートからエンドへ到達できないマップは、
+解析の後にエラーとして報告します。
+
+### Output format
+
+標準出力には**ターンログだけ**を出します。1 ターン 1 行で、そのターンの移動をドローン番号順に空白区切りで並べます。
+
+- `D<ID>-<zone>`: ドローン `<ID>` がこのターンに `<zone>` に入った(restricted ゾーンへ、
+  コネクション上の 1 ターンを経て着地した場合も含む)。
+- `D<ID>-<connection>`: ドローン `<ID>` が restricted ゾーンへ向けて飛び立ち、このターンはコネクション上にいる。
+  コネクション名はマップでの宣言どおり(`zone_a-zone_b`)。
+- 動かなかったドローンは書かれず、配送済みのドローンはもう出てきません。全機がエンドゾーンに着いたら終了します。
+
+それ以外はすべて標準エラー出力に出ます: ターミナル表示、警告、エラー、そして最後の要約行です。要約には
+総ターン数と、課題の副次的な指標のうち 2 つ(1 機あたりの平均配送ターン、1 ターンあたりの平均移動数)が入ります。
 
 ```text
-$ tar xzf /path/to/maps.tar.gz
-$ sed '/^nb_drones:/,$!d' maps/easy/01_linear_path.txt > linear_path.txt
-$ python fly_in.py linear_path.txt
+summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 ```
 
-### 出力形式
+したがって `python3 fly_in.py map.txt 2>/dev/null` は、求められている出力だけを表示します。
 
-1ターン1行で、そのターンに動いたドローンだけをドローンIDの順に並べます。
+## Instructions
 
-- `D<id>-<ゾーン>`: ドローンが `<ゾーン>` に入った(配達済みのドローンは以後の行に出ません)。
-- `D<id>-<ゾーン1>-<ゾーン2>`: ドローンが restricted のゾーンへ向けて出発し、その接続(マップで宣言した名前)の上にいる。
-  次のターンに着陸します。
+### Requirements
 
-## 使い方(Instructions)
+- Python 3.10 以上(課題の要件。下記の確認は Python 3.14 で行った)。
+- グラフィカル表示にのみ `pygame-ce`(2.5 以上)。pygame のそのまま置き換えられるフォークで、`pygame` として
+  import される。無くても `--visual terminal` または `--visual none` なら動く。
+- `make lint` / `make lint-strict` 用に `flake8` と `mypy`。
+- `make test`(`tests/` の単体テスト)用に `pytest`。
 
-### 必要なもの
+すべて `requirements.txt` に書かれています。Makefile は Linux 向けです(`.venv/bin/python` を使う)。
 
-- Python 3.10 以降(課題の要件)。開発とテストは Python 3.14 で行いました。
-- `make` と、`requirements.txt` のパッケージ:
-  - グラフィカル表示用の `pygame-ce`。pygame-ce は pygame の保守が続いているフォークで、`pygame` として import します。
-    pygame 本体には Python 3.14 用の wheel が公開されていないため、こちらを使っています。ターミナル表示とシミュレーションには不要です。
-  - `flake8`・`mypy`(lint)と `pytest`(単体テスト)。
+課題と一緒に配布されるマップ(`maps.tar.gz`)はこのリポジトリに含まれていません。課題のページから
+アーカイブを入手し、例えば `tar -xzf maps.tar.gz` で展開してください。リポジトリに入っているのは
+`maps/subject_example.txt`(課題の例)だけです。
 
 ### Makefile
 
-| コマンド | 内容 |
-|---|---|
-| `make install` | `.venv` を作り(なければ、または壊れていれば作り直す)、`requirements.txt` を入れる |
-| `make run` | 既定のマップ(`maps/subject_example.txt`)を実行する |
-| `make run MAP=path/to/map.txt ARGS="--visual both"` | 別のマップを、追加のオプション付きで実行する |
-| `make debug` | `run` と同じものを `pdb` の下で実行する(下記) |
-| `make clean` | キャッシュ(`__pycache__`、`.mypy_cache`、`.pytest_cache`、`*.pyc`)を消す |
-| `make fclean` | `clean` に加えて `.venv` も消す |
-| `make lint` | `flake8 .` と、課題が指定するフラグ付きの `mypy .` |
-| `make lint-strict` | `flake8 .` と `mypy . --strict` |
-| `make test` | 単体テストを実行する(`pytest tests -q`) |
+| ルール | 内容 |
+| --- | --- |
+| `make install` | `.venv` を作り(無い場合、または pip が使えない場合)、`requirements.txt` をインストールする。 |
+| `make run` | `maps/subject_example.txt` を実行する。マップは `MAP=`、オプションは `ARGS=` で指定する。例: `make run MAP=path/to/map.txt ARGS="--visual both"`。 |
+| `make debug` | 同じ実行を `pdb` の下で行う。`FLYIN_DEBUG=1` が設定され、想定外の例外が 1 行のエラーに変換されずデバッガに届く。 |
+| `make lint` | `flake8 .` と、課題指定のフラグ付きの `mypy .`(`--warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs`)。 |
+| `make lint-strict` | `flake8 .` と `mypy . --strict`。 |
+| `make test` | `tests/` の単体テストを実行する(`pytest tests -q`)。 |
+| `make clean` | `__pycache__`、`.mypy_cache`、`.pytest_cache` と `*.pyc` / `*.pyo` を消す(`.venv` の外)。 |
+| `make fclean` | `clean` の後、`.venv` も消す。 |
 
-`run`・`debug`・`lint`・`lint-strict`・`test` は、仮想環境がないか `requirements.txt` より古いとき、先に `install` を実行します。
+`run`、`debug`、`lint`、`lint-strict`、`test` は、`.venv` がまだインストールされていないか `requirements.txt` が
+変わったときに、先に `make install` を実行します。
 
-`make debug` は `FLYIN_DEBUG=1` を設定し、`python -m pdb` でプログラムを起動します。ふだん予期しない例外(バグ)は
-`error: internal error: ...` の1行で報告しますが、`FLYIN_DEBUG=1` のときはそのまま送出されるので、pdb がその場で止まり、
-事後デバッグ(post mortem)で調べられます。
+### Running directly
 
-### 直接実行する
-
-```text
-python fly_in.py MAP [--visual {terminal,graphical,both,none}] [--delay SECONDS] [--step]
+```sh
+make install
+.venv/bin/python fly_in.py MAP [options]
 ```
 
-| オプション | 意味 |
-|---|---|
-| `MAP` | シミュレーションするマップファイル |
-| `--visual terminal` | 色付きのターミナル表示(既定) |
-| `--visual graphical` | グラフィカルな窓(pygame-ce が必要) |
-| `--visual both` | 両方を同時に表示 |
-| `--visual none` | 表示なし。ターンログとまとめだけ |
-| `--delay SECONDS` | グラフィカル表示で1ターンを見せる秒数。0〜60(既定 0.5) |
-| `--step` | 1ターンずつ進める。ターミナル表示では Enter、グラフィカル表示では右矢印(`both` では窓の側で進める) |
+| オプション | 効果 |
+| --- | --- |
+| `--visual {terminal,graphical,both,none}` | 実行の見せ方(既定 `terminal`)。`none` はターンログと要約だけを出す。 |
+| `--delay SECONDS` | グラフィカル表示で 1 ターンを表示する秒数。0 から 60(既定 0.5)。 |
+| `--step` | 1 ターンずつ進める。ターミナル表示では Enter、グラフィカル表示では右矢印キー。`both` のときはウィンドウ側で進める。ターミナル表示のステップ実行は標準入力が端末のときだけ有効なので、パイプ経由の実行が止まることはない。 |
+| `--parse-only FILE` | `MAP` を解析し、解析結果のワールドを JSON で `FILE` に書いて、シミュレーションせずに終わる。 |
+| `--from-world` | `MAP` をマップファイルではなく `--parse-only` が書いたワールド JSON として読み、シミュレーションする。 |
+| `--save-run FILE` | 各ターンの移動とその後の状態を JSON で `FILE` に書く。`--parse-only` とは併用できない。 |
+| `-h`, `--help` | ヘルプを表示して終わる。 |
 
-`--delay` はグラフィカル表示以外では、`--step` は `--visual none` では無視します。
-パーサーやシミュレーションを単体で動かすオプション(`--parse-only`、`--from-world`、`--save-run`)もあります。
-[追加機能](#追加機能)を参照してください。
-
-標準出力には、どのモードでも**ターンログだけ**が出るので、そのままリダイレクトやパイプで検査できます。
-それ以外(ターミナル表示、最後のまとめ、警告、エラー)はすべて標準エラー出力に出ます。
-
-### 終了コード
-
-| コード | いつ |
-|---|---|
-| 0 | 全機を配達した |
-| 1 | マップファイルが読めない・不正・ゴールに到達できない、World のファイル(`--from-world`)が不正、JSON のファイル(`--parse-only`、`--save-run`)が書けない、シミュレーションの失敗、グラフィカル表示が使えない、予期しない内部エラー、標準出力が途中で閉じられた(例: `\| head`) |
-| 2 | コマンドライン引数の誤り(argparse の usage エラー) |
-| 130 | Ctrl+C で中断した |
-
-エラーメッセージの例(標準エラー出力に1行。トレースバックは出しません):
+**コメントで始まるマップ。** パーサは物理的な 1 行目を `nb_drones:` のヘッダとして読みます(課題:
+"The first line must define the number of drones")。そのため 1 行目がコメントや空行のファイルは拒否されます。
 
 ```text
+$ .venv/bin/python fly_in.py comment_first.txt
+error: line 1: the first line must be 'nb_drones: <n>'
+```
+
+課題と一緒に配布されるマップはコメント行で始まります。実行するには、`nb_drones:` の行より前を取り除いた
+一時ファイルを作り、それを実行してください。
+
+```sh
+sed -n '/^nb_drones:/,$p' path/to/map.txt > /tmp/map.txt
+make run MAP=/tmp/map.txt
+```
+
+### Exit codes
+
+| コード | 条件 |
+| --- | --- |
+| `0` | 実行が完了した(または `--parse-only` がファイルを書いた)。 |
+| `1` | マップ/ワールドファイルが読めない・不正、ゴールに到達できない、グラフィカル表示が使えない(pygame が無い、ディスプレイが無い)、シミュレーションが失敗した、出力ファイルが書けない、標準出力が途中で閉じられた(例: `| head`)、または想定外の内部エラー。標準エラー出力に `error: ...` を 1 行出す。 |
+| `2` | コマンドライン引数が不正(`argparse` による)。 |
+| `130` | Ctrl+C で中断された。 |
+
+実際の実行で得たエラーメッセージの例:
+
+```text
+error: cannot read map file 'nope.txt': No such file or directory
+error: line 1: n must be a positive integer, got 0
+error: line 3: name must not contain '-', got 'a-b'
 error: line 4: zone must be one of normal, blocked, restricted, priority, got 'lava'
-error: goal 'g' is unreachable from 's'
-error: cannot read map file 'nofile.txt': No such file or directory
-fly_in.py: error: argument --delay: must be between 0 and 60 seconds: '61'
+error: line 4: unknown zone: x
+error: line 4: max_link_capacity must be a positive integer, got 0
+error: line 5: duplicate connection: e-s
+error: line 2: malformed metadata block
+error: line 2: missing end_hub
+error: goal 'e' is unreachable from 's'
+error: invalid world file 'bad.json': zones: missing start_hub
+fly_in.py: error: argument --delay: must be a finite number of seconds >= 0: '-1'
 ```
 
-## 実行例
+## Example
 
-### 入力: 課題の例のマップ(`maps/subject_example.txt`)
+### Input
+
+課題の例である `maps/subject_example.txt`:
 
 ```text
 nb_drones: 5
@@ -161,10 +193,12 @@ connection: corridorA-tunnelB [max_link_capacity=2]
 connection: tunnelB-goal
 ```
 
-### 出力
+### Output
+
+`make run ARGS="--visual none"`(または
+`.venv/bin/python fly_in.py maps/subject_example.txt --visual none`):
 
 ```text
-$ python fly_in.py maps/subject_example.txt --visual none
 D1-corridorA D2-hub-roof1
 D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1
 D1-goal D2-roof2 D3-tunnelB D4-roof1 D5-corridorA
@@ -173,360 +207,270 @@ D4-goal D5-goal
 summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 ```
 
-最後の行は標準エラー出力に出ます。総ターン数と、課題が勧める副次指標のうち2つ(ドローンが配達されたターンの平均と、
-1ターンあたりの移動数の平均)を示します。
+最初の 5 行がターンログ(標準出力)、最後の行が要約(標準エラー出力)です。経路はどちらも 3 ターンで、
+`hub -> corridorA -> tunnelB -> goal`(priority ゾーン経由)と `hub -> roof1 -> roof2 -> goal`
+(restricted の `roof1` に入るのに 2 ターンかかるため、`D2-hub-roof1` は D2 がコネクション上にいるターン)です。
+ドローンは両方の経路に振り分けられ、5 機すべてが 5 ターンで配送されます。
 
-`corridorA`(priority)を通る経路は3ターン、`roof1`(restricted)を通る経路は4ターンです。最短の経路は `tunnelB` に1機しか入れず、
-`hub-corridorA` の接続も1ターンに1機しか通さないので、後ろの機は最短の経路で順番を待つより、1ターン長い `roof1` の経路のほうが早く着きます。
-D2 と D4 は `roof1` を通り(下の[遠回り](#2-次の一手-最短と遠回り)を参照)、5ターンで全機が配達されます。
+## Algorithm and implementation strategy
 
-### 2つ目の例: restricted のゾーン
+### Pipeline
 
 ```text
-nb_drones: 6
-start_hub: s 0 0
-hub: a 1 0 [zone=restricted max_drones=2]
-hub: b 1 1 [zone=restricted max_drones=3]
-end_hub: g 2 0
-connection: s-a [max_link_capacity=2]
-connection: a-g
-connection: s-b
-connection: b-g
+map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
+                                                                 |
+         TurnLogPrinter, views, RunRecorder  <-  SimulationEngine + TurnResolver
 ```
 
-```text
-D1-s-a D2-s-a D3-s-b
-D1-a D2-a D3-b D4-s-b D5-s-a
-D1-g D3-g D4-b D5-a D6-s-b
-D2-g D4-g D6-b
-D5-g D6-g
-summary: 5 turns, 6 drones, 4.00 turns per drone on average, 3.60 moves per turn
-```
+1. **解析**(`droneflow/parsing`)。`MapReader` が行番号付きで行を渡します。`LineTokenizer` が各行の構文を
+   `MapFormat`(行の種類、フィールド、既定値、変換関数を宣言的にまとめた表)に照らして検査し、分割します。
+   `MapValidator` がフィールドを変換し、複数行にまたがる検査を `Rule` オブジェクトの列(名前の一意性、
+   スタートとエンドが 1 つずつ、既知の端点、コネクションの一意性)に任せます。結果は `World` で、自作の
+   `Network`(ゾーンと隣接リスト)とドローン数をまとめたものです。
 
-`D1-s-a` は、D1 が restricted のゾーン `a` へ向けて出発し、接続 `s-a` の上にいることを表します。次のターンに `a` に着陸します
-(`D1-a`)。2ターン目に D5 は、3ターン目の `a` が満員になるにもかかわらず `a` へ出発しています。D1 が3ターン目に `a` から `g` へ
-出ていく予定が立てられ、その空いた席に D5 が着陸します(下の[restricted のゾーン](#5-restricted-のゾーン-予約表と立ち退き)を参照)。
+2. **距離**(`droneflow/pathfinding`)。`DistanceMap` が、逆向きにたどったコネクション上で**エンドゾーンから
+   1 回だけ Dijkstra 探索**(`heapq` を使用)を行います。あるゾーンに入るコストはそのゾーンのターンコスト
+   (1、restricted なら 2)で、blocked ゾーンには入りません。これで各ゾーンからゴールまでの最小ターン数が
+   得られます。容量はここでは意図的に無視します。容量はターンごとに変わり、スケジューラが扱うものだからです。
+   `Pathfinder` はスタートからゴールに到達できることを確認し、ゾーンごとに 2 つの問いに答えます。
+   - `next_hops`: 最短経路上の隣接ゾーン(そこに入るコストとその先の距離の和が、このゾーンの距離に等しいもの)。
+     **priority ゾーンが先**、その後は宣言順。
+   - `detour_hops`: 最短経路から外れるが、まだゴールに到達できる隣接ゾーン。コストの小さい順。
 
-## アルゴリズムと実装の方針
+   距離と各ゾーンの次の一手は 1 回の実行につき 1 度だけ計算してキャッシュし、シミュレーション中に計算し直すことはありません。
 
-### 処理の流れ
+3. **スケジューリング**(`droneflow/simulation/scheduling`)。`Scheduler` は毎ターン、ゾーンにいる各ドローンに
+   最大 1 つの命令を出します(命令が無ければ待機)。
+   - restricted ゾーンへ飛行中のドローンには命令を出さない。自動的に着地する。
+   - 前のターンまでに計画され、このターンに実行すべき移動を最初に命令する。
+   - 残りのドローンは `ZoneRanking` の順にゾーンごとに決める: **ゴールに近いゾーンから**(先に出ていく
+     ドローンが、後ろのドローンが求める前に空きを作るため)、次に priority 経路上のゾーン、次に出口の少ない
+     ゾーン(選択肢のあるドローンが、他のドローンの唯一の出口をふさがないため)、最後に宣言順。
+   - ドローンは最短の一手のうち、`TurnLedger` で空きがある最初のものを取る: コネクションにこのターンの
+     容量があり、入るゾーンに、入るターンと、計画された移動のある以降のすべてのターンで席があること。
+   - どれにも空きがなければ、最後の手段として `Evictor` に場所を空けさせながら同じ一手を試し直す: 行き先
+     ゾーンにいるドローンを、指定したターンに自分の最短の一手で先へ進むよう計画する(その行き先も満杯なら
+     再帰的に)。満杯の restricted ゾーンへ飛べるのはこの仕組みによります。ドローンは次のターンに必ず着地
+     するので、そのターンに今いるドローンが出ていくよう計画します。計画した移動は mark/rollback を持つ
+     `ReservationTable` に保存されるので、失敗した試みは跡を残しません。
+   - それも失敗したら、`DetourPolicy` が許す迂回をとれる: すでに入ったことのあるゾーンには決して入らず、
+     待つより遅くならないと見込めるときだけ、つまり
+     `turn_cost(v) + distance(v) + queue(v) <= distance(u) + ahead(u)` のときだけ。`ahead(u)` は最短経路上で
+     先にいるドローンの数、`queue(v)` は迂回先ゾーン `v` とその先にいるドローンの数です。これにより、最短
+     経路が混んでいるときにドローンが複数の経路に分散します。
+   - それ以外の場合、ドローンは待機する。
 
-```text
-マップファイル -> MapParser -> World (Network + nb_drones)
-              -> Pathfinder (DistanceMap: ゴールからのダイクストラ、1回だけ)
-              -> SimulationEngine: 毎ターン
-                   Scheduler.decide_moves(state) -> 指示
-                   TurnResolver.resolve(state, orders) -> 検査済みの移動
-                   表示: ターンログ (stdout)、ターミナル / グラフィカル表示 (stderr / 窓)
-              -> まとめ (stderr)
-```
+   すべての実行が終わる理由は、スケジューラの docstring に書かれています: 最短の一手はゴールまでの距離を
+   必ず減らし、迂回は一度も入ったことのないゾーンにしか入らないので、各ドローンの移動回数は有限です。
+   さらに毎ターン少なくとも 1 機は動きます(計画された移動と着地は必ず起き、そうでなくてもゴールに最も
+   近いドローンは最短経路上に必ず空きがある)。
 
-スケジューラは**決めるだけ**、TurnResolver は規則を**検査して適用するだけ**です。別々のオブジェクトで、エンジンが合成して使います。
+4. **ルール検査**(`droneflow/simulation`)。`SimulationEngine` がターンのループを回します。毎ターン
+   `TurnResolver` が、飛行中のドローンを着地させ、各命令(存在する・blocked でない・隣接したゾーンへ、
+   1 機に 1 命令)を検査し、出発するドローンについてコネクション容量を、最終的な人数についてゾーン容量を
+   検査します(同じターンにゾーンを出るドローンは入るドローンのための空きを作る。restricted ゾーンへ
+   飛んだドローンは着地したターンからそこに数える)。ターン全体が合法でない限り何も反映しません。不正な
+   ターン、誰も動かないターン、安全上限(`2 * ゾーン数 * ドローン数`)を超えるターン数は、エラーで実行を止めます。
+   つまりスケジューラを無条件には信用しておらず、出力されたターンはすべて検査済みです。
 
-### 1. 距離表: ゴールからのダイクストラ法
+5. **出力**(`droneflow/output`)。エンジンは毎ターンの後にオブザーバを呼びます: `TurnLogPrinter` がその
+   ターンの行を標準出力に書いてフラッシュし、表示がその状態を描き、`--save-run` 指定時は `RunRecorder` が
+   ターンを保存します。最後に `RunSummary` が要約行を書きます。
 
-`DistanceMap` は、**end のゾーンを起点に**接続を逆向きにたどるダイクストラ法(`heapq` を使用)を1回だけ実行します。
-ゾーンに入るコストをそのゾーンのターン数(normal・priority は1、restricted は2)とするので、ゾーンの距離は、ドローンが1機だけなら
-そこからゴールまでにかかる最小のターン数になります。blocked のゾーンには距離が付かず、決して入りません。
+**コスト。** ゾーン数 Z、コネクション数 C、ドローン数 D として、Dijkstra 探索は O((Z + C) log Z) で 1 度だけ。
+毎ターン、ゾーンにいる各ドローンが少数の一手を試し、それぞれを計画済みの移動がある数ターン分だけ台帳で
+確認します。着地と追い出しの計画は数ターン先までしか見ません。メモリはネットワーク、距離、キャッシュした
+一手、ドローンの位置に O(Z + C + D)、それに計画済みの移動の分です。
 
-ゴールを起点にすると、1回の探索で**すべての**ゾーンの距離が得られます。これは、どこにいるドローンにも毎ターン必要な情報そのものです。
-ゴールに到達できないことも分かります。start のゾーンに距離が付かなければ、シミュレーションの前に
-`error: goal '...' is unreachable from '...'` で止まります。
-
-容量は意図して距離表に含めていません。容量の空きは毎ターン変わるので、スケジューラが扱います。
-
-### 2. 次の一手: 最短と遠回り
-
-`Pathfinder.next_hops` は、ゾーンごとに `cost(w) + distance(w) == distance(今いるゾーン)` となる隣接ゾーン `w`、つまり
-最短経路に留まる移動をすべて並べます。候補が複数あるのは同じ長さの経路が複数あるということで、これによってドローンを並行する経路に分散します。
-
-priority のゾーンは**同点のときのタイブレークとしてだけ**扱います。同じ長さの次の一手の中では priority のゾーンを先頭にし、
-それ以外は接続を宣言した順です。priority のゾーンを通るためだけに遠回りすることはありません。距離表で priority のゾーンの
-コストを下げると、そこを通る経路が実際より短く見えてしまい、採点の基準である総ターン数が増えうるためです。遠回り(下記)でも priority は見ません。
-
-**遠回り**: 最短の一手がどれも使えず待つことになるドローンだけ、`Pathfinder.detour_hops` の一手を試します。これは、ゴールに届く隣接ゾーン `w` のうち
-最短の一手でないもの(`cost(w) + distance(w)` が最短より長い)すべてで、横や後ろへの一手も含みます。`DetourPolicy` は次の2つを満たすときだけ遠回りを許します。
-
-- **逆流しない**: そのドローンが一度でもいたゾーンには入らない(ゾーンごとに、各ドローンがいたことを覚えています)。
-- **待つより遅くならない**: `cost(w) + distance(w) + w 側の行列 ≤ distance(今いるゾーン) + 先に出て行った台数`。
-  先に出て行った台数は、今いるゾーンから最短の一手をたどって行けるすべてのゾーン(直接の隣だけでなく、その先も)にいるドローンの数、
-  `w` 側の行列は、`w` と、`w` から同じようにたどって行けるすべてのゾーンにいるドローンの数です。どちらも着陸先を含み、
-  同じターンに先に判断した移動も数えます。
-
-最短の経路で順番を待つより遅くならない場合にだけ、長いが空いている経路に送るということです。遠回り先の行列も数えるので、
-混んだ経路から別の混んだ経路へ流れることはありません。前にいる1台を1ターンの遅れと数えるのは、1ターンに1台ずつ通ると仮定した見積もりで、
-容量の大きい経路では悲観的になります。経路の通過量で割る案も試しましたが、配布マップでは差がありませんでした。
-
-### 3. 1ターンの判断の順序
-
-スケジューラは毎ターン、次の順で指示を作ります。
-
-1. restricted のゾーンへ飛行中のドローンには指示を出しません。このターンに必ず着陸し、着陸は `TurnResolver` が行います。
-2. 前のターンまでに予定した移動(後述の立ち退き)のうち、このターンに行うものを最初に出します。
-3. ゾーンにいる残りのドローンを、**ゾーンごとに**判断します。ゾーンは次の順に並べます。
-   - ゴールまでの距離が近い順
-   - 同じ距離なら、優先ルート上のゾーン(priority のゾーンである、または最短の次の一手に priority のゾーンがある)を先
-   - その次は、出口(最短の一手と遠回りの一手)が少ないゾーンを先
-   - 最後はゾーンを宣言した順
-
-ゴールに近いドローンから判断するので、あるゾーンから出ていくドローンは、後ろのドローンがそのゾーンを求める時点で判断済みです。
-そのため、出ていくことで空いた席を同じターンに使えます。出口が少ないゾーンを先にするのは、出口を選べるドローンが、
-ほかのゾーンの唯一の出口を先に取ってしまわないようにするためです。同じゾーンのドローンは最短の次の一手が同じですが、
-遠回りは、ドローンごとにいたことのあるゾーンが違うので異なることがあります。ゾーンの中はドローンID順に判断します。
-各ドローンは、最短の次の一手のうち空きのある最初のものへ進み、なければ許された遠回りを試し、それもなければ待機します。
-
-前のターン、または同じターンの先の判断で立ち退きの予定が立てられた機(下記)も、ほかの機と同じように判断します。
-今動ければ予定を消し、動けなければ予定を残します。
-
-### 4. 容量の規則
-
-- ゾーンの容量は、そのターンの**最終的な負荷**で判定します。出ていくドローンの分は、同じターンに入ってくるドローンが使えます
-  (最終的な負荷が収まれば、玉突きや入れ替わりの移動もできます)。
-- 接続の容量は、そのターンにその接続を**出発する**ドローンを向きに関係なく数えます(接続は1本の共有の通り道です)。
-  restricted のゾーンに着陸するドローンは、そのターンに接続から出ていくので、着陸のターンには接続の容量を使いません。
-- start と end のゾーンには容量の上限がありません。end のゾーンに着いたドローンは配達済みになり、以後は追跡しません。
-
-### 5. restricted のゾーン: 予約表と立ち退き
-
-restricted のゾーンへの移動には2ターンかかり、ドローンは接続の上で待てません。次のターンに必ず着陸できなければなりません。
-そのため、ドローンがターン `t` に出発するときは、そのゾーンに `t+1` の席があり、**さらに、すでに移動が予定されているそれ以降のどのターンにも**
-席があることが必要です。
-
-スケジューラは `ReservationTable` を持ちます。予定した移動を (ゾーン, 入るターン) で引ける1つの表です。飛行中のドローンの着陸
-(毎ターン状態から作り直す)と、後述の立ち退きが載ります。将来のあるターンのゾーンの見込みの負荷は、「今いる機 + そのターンまでの
-入る予定 − そのターンまでの出る予定」です。出る予定のない機は、そのまま残るとみなします。
-
-ドローンが restricted のゾーンへ出発したいのに席がなければ、スケジューラは在室機の**立ち退き**を試みます。在室機の1機を、必要なターンに、
-その機自身の最短の次の一手に沿って先へ進める予定を立てます。その移動にも空き(そのターンの接続、次のゾーンの席)が要るので、
-次のゾーンが満員なら、そこにいる機を同じやり方で立ち退かせます(**再帰**)。立ち退きのたびにドローンは真にゴールへ近づくので、
-再帰は必ず終わります(end のゾーンには常に空きがあります)。途中で1か所でも失敗すれば、その試みで立てた予定をすべて
-**取り消し(ロールバック)**、ドローンは次の候補を試すか待機します。予定した立ち退きはふつうの移動で、そのターンに最初に行われます。
-立ち退きの予定がある機でも、それより前にふつうの判断で動ければ動いてよく、そのときは予定を消します。
-
-同じ仕組みで、もう1つの場面「**後で入る機に約束された席**」も扱います。normal や priority のゾーンへのふつうの移動で、今は空きがあるものの、
-その席が後で入る予定の機にすでに約束されている場合です。このとき、そのゾーンが後のターンに容量を超えないような立ち退き
-(入る機自身の立ち退きでもよい)の予定が立てられるときだけ、ドローンは入れます。
-
-**立ち退きは最後の手段です。** ドローンは移動先を選ぶとき、まず誰も立ち退かせずに最短の次の一手をすべて見ます。どれも使えないときだけ、
-もう一度、今度は在室機を立ち退かせて(先へ進む予定を立てて)席を作ることを許して試します。そうしないと、同じ長さの別の経路が
-単に空いているときでも、ドローンが立ち退きを使って先頭の候補の経路に集まってしまい、全体が遅くなることがあります。
-ランダムに作った 7,832 枚のマップで試したところ、この規則によって、立ち退きのないスケジューラより遅くなるマップが6枚から1枚に減りました。許された遠回りも、同じ2段階(立ち退きなし → あり)で試します。
-
-### 6. 安全性: 毎ターンの独立した検査
-
-`TurnResolver` はスケジューラを信用しません。ターンを適用する前に、すべての指示(存在する・配達済みでない・飛行中でない・
-1機に1つ・隣接する blocked でないゾーンへ)、接続の容量、ゾーンの最終的な負荷を検査し、飛行中のドローンをすべて着陸させます。
-**飛行中のドローンが、行き先のゾーンが満員で着陸できないときは、そのドローンは接続の上で詰まってしまい、これは規則違反です。
-このときターンはエラーで却下されます**(`... is stuck on connection ...`)。ターン全体が正しくなければ何も適用しません。
-エンジンは、誰も動かないターンがあったとき、またはターン数が十分に大きな上限(`2 x ゾーン数 x ドローン数`)を超えたときにも
-エラーで止まるので、スケジューラにバグがあっても、無限ループや不正なログにはなりません。
-
-実行は必ず終わります。最短の一手(予定した立ち退きを含む)は動いた機のゴールまでの距離を真に減らし、遠回りはその機がまだいたことのない
-ゾーンにしか入らないので、各ドローンの移動の回数は有限です。また、予定した移動と着陸は必ず行われ、そうでなくても、ゴールに最も近い
-ドローンの最短の経路の先には常に空きがある(end のゾーンは無制限)ので、毎ターン少なくとも1機は動きます。
-
-### 7. トレードオフ
-
-スケジューラは貪欲法です。各ドローンはそのターンに取れる一番よい手を取ります。単純で速く安全で、同じ長さの経路が複数あるときによく働き、
-最短の経路で待つより遅くならない遠回りも使います。限界は、判断がそのターンの局所的な見積もりだけによることです。
-経路ごとの台数を前もって配分するわけではないので、遠回りした機が合流点で後続の席を取るなどして、遠回りしない場合より遅くなるマップもあります
-(ランダムに作った 4,871 枚のマップで、遠回りしない場合より遅くなるのは約2%、速くなるのは約23%。合計ターン数は約5%減)。
-
-### 8. 計算量、キャッシュ、メモリ
-
-ゾーン数を `V`、接続数を `E`、ドローン数を `D` とします。
-
-- **パース**: ファイルの大きさに比例します。
-- **距離表**: 二分ヒープを使ったダイクストラ法1回で `O((V + E) log V)`。**1回だけ**計算します。各ゾーンの最短の次の一手も
-  1回だけ求め、スケジューラが**キャッシュ**します(メモリ `O(V + E)`)。遠回りの一手と、各ゾーンから最短の一手でたどれる先のゾーンの集合も
-  1回だけ求めます(`O(V x (V + E))`、メモリ `O(V^2)`)。シミュレーション中に経路を計算し直すことはなく、
-  毎ターン評価するのはゾーンと接続の空きだけです。
-- **1ターン**: ゾーンにいるドローンの並べ替えが `O(D log D)`(ゾーンの順位は事前に計算済み)。各ドローンは次の一手の候補を最大2回(立ち退きなし、立ち退きあり)試します。
-  `PositionBoard` がゾーンごとの機数を持っているので、待つことになるドローンは、遠回りの候補ごとに行列を `O(V)`(先のゾーンの数)で数え、
-  許された遠回りを同じ2段階で試します。席の確認は着陸のターンから最後の予定のターンまで(`H`。数ターン先まで)を見るので、
-  表の参照が `O(H^2)` 回です。立ち退きの試みでは、深さがゴールまでの距離以下の再帰が加わります。立ち退かせる機は、そのゾーンにいる機だけから探します。
-  失敗した立ち退きの試みの結果は覚えません(毎回試します)。
-- **実行全体**: ターン数はおおよそ `D` をマップの処理能力(1ターンにゴールへ届けられる機数)で割った数に比例して増えるので、
-  1つのマップについて全体の時間はおおよそ `D^2` で増えます(並べ替えの `log D` と、待つ機が行列を数える `V` が掛かります)。
-- **メモリ**: マップ・距離・キャッシュした次の一手で `O(V + E)`、各ゾーンから先のゾーンの集合で `O(V^2)`、ドローンと予約表で `O(D)`、
-  各ドローンがいたゾーンの記録で `O(T x D)`(`T` はターン数。同じターンを別の状態から計画し直せるように、ターンごとの位置を残します)、
-  それに実行のターンログ(移動1つにつき1項目)。
-
-3本の経路と32のゾーンからなり、容量がすべて1のマップでの計測(`--visual none`、Python 3.14、ノートPC、各1回): 100機で 0.14 秒、
-1,000機で 1.5 秒、3,000機で 13 秒でした。同じマップで、遠回りを入れる直前の版は 1,000機で 1.6 秒、3,000機で 33 秒でした。
-
-### コードの構成
+### Code structure
 
 ```text
-fly_in.py                  エントリポイント: 引数、終了コード、最後の砦のエラー処理
+fly_in.py                    エントリポイント: 引数、終了コード、エラー行
 droneflow/
-  cli.py, app.py           引数の解釈。Application が処理の流れを組み立てる
-  errors.py                FlyInError とその派生(1行のメッセージ)
-  models/                  Zone, Connection, Network(自前の隣接構造), Drone, World
-  parsing/                 MapReader -> LineTokenizer -> 規則の仕様表 (MapFormat) -> MapValidator
-  pathfinding/             DistanceMap(ダイクストラ法), Pathfinder(最短と遠回りの次の一手)
-  simulation/              SimulationEngine, TurnObserver, TurnResolver, SimulationState
-    scheduling/            Scheduler と ZoneRanking, HopTaker, DetourPolicy, Evictor,
-                           TurnLedger, ReservationTable, PositionBoard
-  output/                  ターンログの整形と出力、実行のまとめ
-  visualization/           ターミナル表示、グラフィカル表示、色の表
-  interchange/             World と実行の記録の JSON ファイル(追加機能)
+  cli.py                     コマンドラインオプション(argparse) -> Args
+  app.py                     Application: 各段階をつなぐ
+  errors.py                  FlyInError とそのサブクラス
+  models/                    Zone, ZoneType, ZoneRole, Connection, Drone,
+                             Network(自作のグラフ), World
+  parsing/                   MapReader, LineTokenizer, MapFormat(行の表),
+                             MapValidator, マップのルール, MapParser
+  pathfinding/               DistanceMap(ゴールからの Dijkstra), Pathfinder
+  simulation/                SimulationState, TurnResolver(ルール),
+                             SimulationEngine(ターンループ), TurnObserver
+    scheduling/              Scheduler, ZoneRanking, TurnLedger, HopTaker,
+                             Evictor, ReservationTable, DetourPolicy,
+                             PositionBoard
+  output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
+  visualization/             TerminalVisualizer, GraphicalVisualizer(pygame),
+                             camera, geometry, labels, palette
+  interchange/               ワールドの JSON ファイルと実行記録の JSON ファイル
 ```
 
-1機を判断するときの、スケジューラの部品のつながり:
+コードから読み取れる設計上の選択:
+
+- **継承より委譲(コンポジション)を優先。** `Application` が各段階を組み合わせ、エンジンは状態、
+  `TurnResolver`(ルール)、`MoveDecider`(`Scheduler`)を組み合わせ、スケジューラは小さなクラス
+  (台帳、追い出し、迂回方針、順位付け)に処理を任せます。
+- **接合部には Protocol。** `MoveDecider`、`TurnObserver`、`Rule` は `typing.Protocol` で、ターンログの
+  出力、各表示、実行記録はすべて同じエンジンのオブザーバです。`Application` には別の決定器を差し込めます。
+- **ルールと決定を分離。** スケジューラは計画し、リゾルバが検査して反映します。スケジューリングの不具合は、
+  不正なターンログではなく、はっきりした `SimulationError` になります。
+- **pygame を import するのは 1 モジュールだけ**(`visualization/graphical_view.py`)で、しかも遅延 import
+  なので、それ以外は pygame なしで動きます。
+
+## Visual representation
+
+課題は、色付きのターミナル出力、グラフィカルインターフェース、またはその両方による視覚的なフィードバックを
+求めています。両方を用意しており、`--visual` で選びます。
+
+### Terminal view
+
+既定の表示(`--visual terminal`)は、1 ターンごとに 1 フレームを標準エラー出力に書くので、標準出力の
+ターンログと混ざりません。各フレームの内容:
+
+- ターン番号、移動数、配送済み数を示すヘッダ。
+- そのターンの移動。
+- 全ゾーンの一覧。1 文字のタグ(`S` スタート、`E` エンド、`.` normal、`P` priority、`R` restricted、
+  `X` blocked)と、負荷 `中にいる数/容量`(`-` は無制限)、そこへ飛行中のドローン `+N`、満杯を示す `*`。
+- ドローンの居場所(連番は `D1..D5` のように短縮)と、飛行中のドローンがどのコネクション上でどのゾーンへ向かっているか。
+
+ゾーン名は `color=` メタデータの色(24 ビットの ANSI カラー)で塗られます。未知の色名は端末の既定色の
+ままで、満杯の数値は太字、blocked ゾーンは淡色になります。標準エラー出力が端末でないとき、または
+`NO_COLOR` が設定されているときは色を付けません。`--step` では各フレームで Enter を待ちます。1 行に並べる
+ゾーンの数は端末の幅で決まり、長い名前は `~` で短縮されます。
+
+例の初期状態と最初の 2 ターン(`NO_COLOR=1`、100 桁):
 
 ```text
-Scheduler: ZoneRanking の順にゾーン、ゾーンの中は ID 順
-  -> HopTaker.take_first(最短の一手)       席は TurnLedger が数える(予定の移動は
-       空きがなければ、Evictor に在室機を     ReservationTable)
-       先へ進めさせてもう一度
-  -> DetourPolicy.allowed(...)             行列は PositionBoard で数える
-  -> HopTaker.take_first(許された遠回り)
-  -> どれもだめなら待機
+=== Turn 0 (start) | 5 drones | 7 zones, 6 connections ===
+key: S=start E=end .=normal P=priority R=restricted X=blocked | in/max: -=no limit +N=arriving *=full
+  hub       S 5/-        goal      E 0/-        roof1     R 0/1        roof2     . 0/1
+  corridorA P 0/2        tunnelB   . 0/1        obstacleX X --
+drones: hub[D1..D5]
+=== Turn 1 | moved 2 | delivered 0/5 ===
+moves: D1-corridorA D2-hub-roof1
+  hub       S 3/-        goal      E 0/-        roof1     R 0/1+1*     roof2     . 0/1
+  corridorA P 1/2        tunnelB   . 0/1        obstacleX X --
+drones: corridorA[D1] hub[D3..D5]
+in flight: D2 hub-roof1 -> roof1
+=== Turn 2 | moved 4 | delivered 0/5 ===
+moves: D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1
+  hub       S 1/-        goal      E 0/-        roof1     R 1/1+1*     roof2     . 0/1
+  corridorA P 1/2        tunnelB   . 1/1*       obstacleX X --
+drones: tunnelB[D1] roof1[D2] corridorA[D3] hub[D5]
+in flight: D4 hub-roof1 -> roof1
 ```
 
-オブジェクトは継承よりも合成と委譲で組み合わせています(例: パーサーは読み取り・分解・検査をそれぞれの役に委譲し、
-エンジンはスケジューラと TurnResolver を合成し、スケジューラは判断順・一手の試行・遠回りの判断をそれぞれの役に委譲します)。
-エンジンが頼るのは2つの約束(Protocol)だけです。`decide_moves` を持つもの(スケジューラ)と、`TurnObserver`
-(`begin`・`render`・`close`)です。どの表示もターンログの出力役も observer なので、エンジンはどれがつながっているかを知りません。
+`roof1 R 1/1+1*` は、同じターンに D2 が出ていき D4 が入ってくる restricted ゾーンを示しています。これは
+合法で、表示は容量超過のように見せるのではなく、その状況が分かるようにしています。
 
-継承は「〜は〜の一種」の関係にだけ使っています。例外の階層(`FlyInError` とその派生)と、パーサーの行をまたぐ規則の
-抽象基底クラス(`ZoneRule`、`ConnectionRule`。派生クラスがそれぞれ1つの制約を検査します)です。それ以外は Enum、NamedTuple、Protocol です。
+### Graphical view
 
-## 可視化
+`--visual graphical`(またはターミナル表示と一緒に `both`)は 1200x800 の pygame ウィンドウを開き、
+ゾーンの座標どおり(y は上向き)にネットワークを描いて、`--delay` 秒ごとに 1 ターン再生します。
 
-どちらの表示もシミュレーションを1ターンずつ追い、ターンログには影響しません。ターミナル表示は標準エラー出力に書き、
-グラフィカル表示は窓に描きます。`--visual both` では両方を同時に表示します。
+描かれるもの:
 
-### ターミナル表示(`--visual terminal`、既定)
+- **ゾーン**は `color=` の色で塗る(パレット、次に pygame の色名、最後に既定の灰色)。normal は円、
+  priority は金色の縁、スタートとエンドは白い縁と名前の後ろの `(start)` / `(end)`、restricted は赤い縁の
+  四角、blocked は濃い灰色にバツ印。
+- 容量のあるゾーンの下の**負荷バー**: 埋まるにつれて緑、橙、赤と変わり、次のターンに到着するドローンの分は
+  淡い色で示す。ラベルは `中にいる数/容量 +N`。エンドゾーンには配送済みの数を表示。
+- **コネクション**は `max_link_capacity` に応じて太くなる線(1 より大きいと `xN` のラベル付き)で、ドローンが
+  飛行中のあいだは明るくなる。同じ位置に宣言されたゾーンはその周りに広げて配置し、別のゾーンの上を通って
+  しまうコネクションはそれを避ける弧として描く。
+- **ドローン**は点: ゾーン内では白、コネクション上(restricted ゾーンへ飛行中、コネクションの中央に描く)では
+  水色、このターンに動いたものは金色の縁。同じ点にいる複数のドローンは、数を書いた 1 つのバッジになる。
+  このターンの各移動は、使ったコネクションに沿って金色の**軌跡**を残す。
+- ターン、移動数、配送済み数、飛行中の数、操作方法と現在の待ち時間を示す**ステータスバー**、そのターンの
+  移動を示す**フッター**(入りきらないときは `... +K more`)、マウスの下のゾーンの詳細(役割、種別、色、
+  負荷、ドローン番号)を示す**ツールチップ**。
 
-```text
-=== Turn 2 | moved 5 | delivered 0/6 ===
-moves: D1-a D2-a D3-b D4-s-b D5-s-a
-  s S 1/-        a R 2/2+1*     b R 1/3+1      g E 0/-
-drones: a[D1 D2] b[D3] s[D6]
-in flight: D4 s-b -> b, D5 s-a -> a
-```
+操作:
 
-- 見出し(ターン数・動いた数・配達済みの数)と、そのターンの移動。
-- 全ゾーンの表: 役割または種類(`S` start、`E` end、`.` normal、`P` priority、`R` restricted、`X` blocked)と、容量に対する負荷
-  (`-` 上限なし、`+N` 次のターンに着く機、`*` 満員)。`2/2+1*` のような表示は容量違反ではありません。同じターンに出ていく機が空けた席に、
-  着く機が入ります(2つ目の例を参照)。端末の幅に合わせて複数列に並べるので、大きなマップでもまとまって見えます。
-- 各ドローンの居場所(`drones:`)と、restricted のゾーンへ飛行中のドローンの接続と行き先(`in flight:`)。
-- ゾーン名は、マップの `color=` の色で塗ります(24bit の ANSI カラーなので、似た名前の色も区別できます)。知らない色の名前は端末の既定色のままです。
-- `NO_COLOR` が空でない値のとき、または標準エラー出力が端末でないとき(ファイルにリダイレクトしたときなど)は色を出しません。文字はすべて ASCII です。
-- `--step` では、フレームごとに Enter を待ちます(`-- press Enter for the next turn --`)。標準入力が端末のときだけ待つので、
-  パイプでの実行が止まることはありません。
+| 入力 | 効果 |
+| --- | --- |
+| Space | 一時停止 / 再開。 |
+| 右矢印 | 待ち時間を待たずに次のターンへ(一時停止中とステップ実行中も)。 |
+| 上 / `+` | 速く(待ち時間を半分に。下限 0.05 秒)。 |
+| 下 / `-` | 遅く(待ち時間を 2 倍に。上限 5 秒)。 |
+| マウスホイール | マウス位置を中心に拡大縮小(0.5 倍から、最も近いゾーン同士が読める倍率まで)。ゾーンと文字の大きさは変わらず、間隔だけが広がる。 |
+| 左ドラッグ | マップを動かす。 |
+| `f` | マップ全体を表示し直す。 |
+| Esc、`q`、閉じるボタン | ウィンドウを閉じる。 |
 
-### グラフィカル表示(`--visual graphical`)
+`--step` ではウィンドウが一時停止状態で始まり、右矢印で 1 ターンずつ進みます。最後のターンの後も
+ウィンドウは "finished - press esc to close" と表示して開いたままです。途中でウィンドウを閉じても表示が
+閉じるだけで、シミュレーションは最後まで続くので、標準出力のターンログは完全なままです。大きなマップでは、
+読めないほど縮小するとゾーンは小さな点になりラベルは省かれ、拡大すると戻ります。
 
-- マップの座標そのままに、窓に収まるよう拡大縮小して描きます。y 軸は上向きです(グラフ用紙と同じ)。
-  同じ座標に宣言されたゾーンは、その位置のまわりに並べて、どれも見えるようにします。
-- ゾーンは `color=` の色で塗ります。restricted のゾーンは赤い枠の四角、priority のゾーンは金色の輪、start と end のゾーンは白い輪、
-  blocked のゾーンは灰色に×印です。
-- 各ゾーンに名前を書きます。start と end のゾーンは名前の後に ` (start)` / ` (end)` を付けます。長い名前は `~` で切ります
-  (マウスを重ねるか、拡大すると読めます)。
-- 各ゾーンの下のバーが、容量に対する在室数を示します(緑、橙、満員で赤)。`在室数/容量` も表示し、そのゾーンへ飛行中の機
-  (次のターンに着く機)は `+N` で続けます(例: `1/1 +1`)。end のゾーンには配達済みの数を出します。
-- 接続は容量が大きいほど太く描き、容量が2以上なら `xN` と書きます。ドローンが飛行中の接続は明るくします。
-  まっすぐ引くと他のゾーンの上を通る接続は、そのゾーンを避ける弧で描きます(弧どうしも離します)。自分自身への接続は、
-  ゾーンの上の小さな輪で描きます。
-- ドローンは点で描きます。ゾーンにいる機は白、飛行中の機は水色(接続の中点に描きます)。そのターンに動いた機には金色の輪が付き、
-  そのターンの移動は、使った接続に沿った金色の軌跡で示します。同じ点にいる複数の機は、数を書いた札1つで示します。
-- 上の帯にターン数・動いた数・配達済みの数・飛行中の数を、下の行にそのターンの移動を出力形式で表示します。
-- **ゾーンにマウスを重ねると**(どの倍率でも)、名前・役割・種類・色・負荷と容量(着く予定の機)・いるドローンのIDをツールチップで表示します。
-- 操作: `Space` 一時停止 / 再開、`右矢印` 次のターンへ(一時停止中は1ターン送り)、`上矢印`/`+` 速く、`下矢印`/`-` 遅く
-  (待ち時間を 0.05〜5 秒の範囲で半分 / 2倍にします)、`Esc`/`q` または窓の閉じるボタンで終了。
-- 拡大縮小と移動(大きなマップ向け): マウスホイールでマウスの位置を中心に拡大縮小、左ボタンのドラッグで移動、`f` で全体表示に戻ります。
-  ゾーン・文字・線の大きさは画面上で変わらず、拡大するとゾーンの間隔だけが広がって名前が読めるようになります。
-  密なマップを縮小すると、名前と数字を省き、ゾーンを小さな点で描きます。
-- `--delay SECONDS` で1ターンの時間を決めます(0〜60、既定 0.5)。`--step` では一時停止で始まり、右矢印で1ターンずつ進みます。
-- 最後のターンの後は、窓を閉じるまで最後の画面を残します(`finished - press esc to close`)。途中で窓を閉じても描画が止まるだけで、
-  シミュレーションは最後まで進み、ターンログも最後まで出ます。
+pygame がインストールされていない、またはウィンドウを開けない(例: ディスプレイが無い)場合、プログラムは
+エラー行を 1 行出して終了コード 1 で止まります。例:
+`error: the graphical view needs pygame (pygame-ce): run 'make install' or
+'pip install pygame-ce', or use --visual terminal`。
 
-### 表示が理解をどう助けるか
+## Additional features
 
-- ターンログだけでは*誰が*動いたかしか分かりません。表示では、*ほかの機がなぜ動かなかったか*が見えます。満員のゾーン
-  (`*` や赤いバー)、使用中の接続、飛行中で待つ機から、混雑や詰まりの場所がひと目で分かります。
-- restricted への移動を追いやすくなります。`+N` の数と `in flight:` の行(または接続上の水色の点)で、次のターンに着陸する機と、
-  その機が必要とする席が分かります。
-- `--step` と一時停止で、1ターンずつ規則どおりかを手で確かめられます。大きなマップでも、ゾーンのツールチップで正確な数が分かります。
-- マップの色をそのまま使うので、表示がマップの作者の意図と一致します。まとめの行では、実行ごとに得点(総ターン数)と副次指標が分かります。
+- **読める JSON ファイルを介して、各段階を単独で実行。**
+  `--parse-only world.json` は解析の後で止まり、解析したワールド(全ゾーンと全コネクションの全フィールドを
+  宣言順に)を書きます。`--from-world` はそのファイルをパーサなしでシミュレーションします(マップと同じ
+  ルールで検査するので、手で編集したファイルでも、パーサが拒否するようなマップがシミュレーションに渡る
+  ことはない)。`--save-run run.json` は各ターン(ターン 0 は初期状態)について、ログ行、各移動、配送済み数、
+  未配送の各ドローンの居場所を書きます。実行が失敗した場合は、それまでのターンを `"complete": false` で書きます。
 
-## 追加機能
+  ```text
+  $ .venv/bin/python fly_in.py maps/subject_example.txt --parse-only world.json
+  world: wrote world.json (7 zones, 6 connections, 5 drones)
+  $ .venv/bin/python fly_in.py world.json --from-world --visual none --save-run run.json
+  D1-corridorA D2-hub-roof1
+  ...
+  run: wrote run.json
+  summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
+  ```
 
-課題の要件にはないオプションです。処理の流れのうち1つの段階だけを単体で動かし、次の段階へ渡すものを JSON のファイルにするので、
-段階の間で中身を読む(書き換える)ことができます。
+- 課題の副次的な指標(1 機あたりの平均ターン、1 ターンあたりの移動数)を含む**要約**を標準エラー出力に表示。
+- 両方の表示での**ステップ実行**(`--step`)と、グラフィカル表示での速度変更、一時停止、拡大縮小、移動、
+  マウスオーバーでの詳細表示。
+- **きれいな出力ストリーム**: ターンログは 1 行ごとに標準出力へフラッシュされ、それ以外は何も書かれない
+  (pygame の import 時のバナーも隠す)ので、パイプやリダイレクトに使えます。読み手が途中で閉じても
+  (`| head`)トレースバックは出ません。
+- **堅牢なエラー処理**: 想定内の失敗はすべて `error: ...` の 1 行と 0 以外の終了コードになります。想定外の
+  例外は `error: internal error: ...` の 1 行になります(`FLYIN_DEBUG=1`、つまり `make debug` のときを除く)。
 
-| オプション | 何をするか |
-|---|---|
-| `--parse-only FILE` | `MAP` を読み、`World`(全ゾーン・全接続のすべての値と `nb_drones`)を `FILE` に書いて、シミュレーションせずに終える |
-| `--from-world` | `MAP` を `--parse-only` が書いた World のファイルとして読み、パーサーを通さずにシミュレーションする |
-| `--save-run FILE` | 各ターンを `FILE` に書く。そのターンの移動(`drone_id`、`destination`、使った `connection`)と、その後の配達前の各ドローンの位置(ゾーン、または飛行中の接続と行き先)と配達済みの数。ターン0は初期状態 |
+## Testing and quality
 
-`--parse-only` と `--save-run` は同時に使えません。ほかのオプション(`--visual`、`--delay`、`--step`)は `--from-world` でもそのまま使えるので、
-`--step` を付ければ移動を1ターンずつ見られます。
+- `make lint` と `make lint-strict` は通ります: 同じコマンド(`flake8 .`、課題指定のフラグ付きの `mypy .`、
+  `mypy . --strict`)をこのリポジトリで実行し、問題なしと報告されることを確認しました
+  (flake8 7.4、mypy 2.4、Python 3.14)。
+- クラスと公開関数には Google スタイルの docstring があり、コードはすべて型注釈付きです(`mypy --strict` で確認)。
+- 実行時には `TurnResolver` が各ターンを移動と容量のルールに照らして検査してから反映するので、出力された
+  ターンログは常に合法です。エンジンは、誰も動かないターンがあった場合や、安全上限のターン数を超えた場合にも止まります。
+- `make test` で `tests/` の単体テストを実行します(pytest。グラフィカル表示のテストは画面なしで動き、
+  pygame-ce がなければ skip します)。`tests/` は開発用のブランチにだけあり、提出用のブランチには含めていません。
+- この README に示した動作(例の出力、ターミナル表示、エラーメッセージ、JSON ファイル)は、課題の例と
+  小さな手書きのマップでプログラムを実行しても確認しました。
 
-```sh
-# 1. パーサーだけ: マップ -> world.json
-python fly_in.py maps/subject_example.txt --parse-only world.json
-# 2. シミュレーションだけ: world.json -> ターンログ(標準出力)と run.json
-python fly_in.py world.json --from-world --visual none --save-run run.json
-# 同じものを1ターンずつ(Enter で進む)
-python fly_in.py world.json --from-world --step
-```
+## Resources
 
-2 のターンログは、マップをふつうに実行したときと同じです。World のファイルは読み込むときにマップと同じように検査します
-(値の型、正の容量、ゾーン名、パーサーの規則、blocked でない start と end が1つずつ)。不正なら
-`error: invalid world file 'world.json': zones[2].max_drones: must be a positive integer` のような1行で終えます。
-シミュレーションが途中で失敗しても、`--save-run` はそこまでのターンを `"complete": false` で書きます。
+### References
 
-課題の例の `run.json` の抜粋(ターン2):
+- Fly-in の課題(42、バージョン 1.6): ルール、マップ形式、出力形式、ベンチマーク。
+- [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)(Wikipedia)。ここではゾーンごとの
+  コストでエンドゾーンから使っている。
+- [Python `heapq`](https://docs.python.org/3/library/heapq.html): 探索の優先度付きキュー。
+- [Python `argparse`](https://docs.python.org/3/library/argparse.html)、
+  [`dataclasses`](https://docs.python.org/3/library/dataclasses.html)、
+  [`typing.Protocol`](https://docs.python.org/3/library/typing.html#typing.Protocol)。
+- [pygame-ce のドキュメント](https://pyga.me/docs/): グラフィカル表示。
+- [mypy](https://mypy.readthedocs.io/) と [flake8](https://flake8.pycqa.org/): 静的検査。
+- [PEP 257](https://peps.python.org/pep-0257/)(docstring)と
+  [Google Python スタイルガイド](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)。
+- [ANSI エスケープコード](https://en.wikipedia.org/wiki/ANSI_escape_code)と [NO_COLOR](https://no-color.org):
+  ターミナル表示の色。
 
-```json
-{"turn": 2, "log": "D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1",
- "moves": [{"drone_id": 4, "destination": "hub-roof1", "connection": "hub-roof1"}, ...],
- "delivered_count": 0,
- "drones": [{"drone_id": 4, "status": "in_transit", "zone": null,
-             "connection": "hub-roof1", "target": "roof1"}, ...]}
-```
+### How AI was used
 
-## テストと品質
-
-- `make lint` と `make lint-strict` が通ります(`flake8`、`mypy`、`mypy --strict`)。
-- `make test` で `tests/` の単体テストを実行します(pytest。グラフィカル表示のテストは画面なしで動き、pygame-ce がなければ skip します)。
-- 単体テストのほかに、開発中には、自作の多くのマップ(不正な入力、境界の場面、容量や restricted のゾーンの場面)のターンログを
-  別に書いた検査プログラムで再生し、どのターンでも規則が破られていないことを確かめました。立ち退きの規則は、数千枚のランダムなマップでも同じように確かめました。
-
-## 参考資料(Resources)
-
-### 参考文献
-
-- E. W. Dijkstra, "A note on two problems in connexion with graphs", *Numerische Mathematik* 1, 1959: 距離表に使った最短経路のアルゴリズム。
-- Python のドキュメント: [`heapq`](https://docs.python.org/3/library/heapq.html)(優先度付きキュー)、
-  [`argparse`](https://docs.python.org/3/library/argparse.html)、[`dataclasses`](https://docs.python.org/3/library/dataclasses.html)、
-  [`typing`](https://docs.python.org/3/library/typing.html)、[`pdb`](https://docs.python.org/3/library/pdb.html)。
-- D. Silver, "Cooperative Pathfinding", AIIDE 2005: 複数エージェントの経路探索での、空間と時間の予約表(この種の問題の背景として読んだもの)。
-- R. Stern ほか, "Multi-Agent Pathfinding: Definitions, Variants, and Benchmarks", SoCS 2019: 複数エージェントの経路探索問題の概観。
-- [pygame-ce のドキュメント](https://pyga.me/docs/)。
-- [mypy のドキュメント](https://mypy.readthedocs.io/)と[flake8 のドキュメント](https://flake8.pycqa.org/)。
-- [NO_COLOR](https://no-color.org/): 色付きの出力を止めるための慣習。
-
-### AI の使い方
-
-プロジェクト全体を通して AI(Anthropic の Claude を Claude Code から利用)を使いました。役割の分担は次のとおりです。
-
-- **課題の分析**: 課題の日本語訳、要件の整理、あいまいな点(例:「the first line」の読み方、接続の容量の数え方)の指摘。
-  どう読むかは作者が決めました。
-- **設計の議論とレビュー**: 設計の議論、代替案の比較、使い捨ての試作による計測、コードとテスト計画のレビュー。
-  設計の決定は作者によるものです。例: 毎ターンの判断の順序(ゾーン単位、出口が少ないゾーンを先)、priority のゾーンを同点のタイブレークとしてだけ扱うこと、
-  遠回りの規則(待つより遅くならないときに出す、一度いたゾーンには戻らない)、
-  restricted のゾーンのための予約表と立ち退きのモデル、後で入る機に約束された席の扱い。立ち退きを最後の手段にすることのように、AI が提案して計測した選択肢の中から
-  作者が選んだものもあります。
-- **実装とテスト**: 経路探索のステージ以降は、作者の明示的な依頼により、AI が実装のコードと単体テストをフェーズごとに書きました
-  (経路探索、シミュレーションエンジン、スケジューラ、可視化、コマンドライン、予約表と立ち退き、遠回り、10の観点のレビューを受けたリファクタリング)。
-  どれも作者と合意した設計に従い、
-  テストは書く前に別のフェーズで設計しました。結果は作者がレビューしました。
-- **ドキュメント**: この README の下書き。
-
-意思決定の記録(検討した代替案を含む)、調査の記録、バグの記録は、このブランチではなくプロジェクトの開発用ブランチに置いています。
+このプロジェクトでは全体を通して、開発者の指示のもとで AI アシスタント(Claude)を使いました。用途は、
+課題の要件の分析、設計案の検討(パーサの構成、経路探索、スケジューリング、表示)、コードレビューと
+不具合の発見、そして指示に従ったコードの作成です。この README も、コードと実際の実行結果をもとに AI の
+助けを借りて書きました。コードはすべて開発者がレビューしており、その責任は開発者が負います。
