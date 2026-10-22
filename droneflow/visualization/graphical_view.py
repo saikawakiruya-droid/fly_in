@@ -57,9 +57,10 @@ _HUD_HEIGHT = 34
 _FOOTER_HEIGHT = 26
 _MARGIN = 60
 _FPS = 60
-_MIN_DELAY = 0.05
-_MAX_DELAY = 5.0
-_MAX_INITIAL_DELAY = 60.0
+_MIN_STEP = 0.05
+"""Shortest delay above 0 that the speed keys go through, in seconds."""
+_MAX_DELAY = 60.0
+"""Longest delay, in seconds: the same limit as ``--delay``."""
 _MAX_STRETCH = 2.0
 _LABEL_ROOM = 72
 _HELP = (
@@ -286,10 +287,10 @@ class _Window:
                     )
                 elif event.key in (pygame.K_UP, pygame.K_PLUS,
                                    pygame.K_EQUALS, pygame.K_KP_PLUS):
-                    self.delay = max(_MIN_DELAY, self.delay / 2)
+                    self.delay = faster(self.delay)
                 elif event.key in (pygame.K_DOWN, pygame.K_MINUS,
                                    pygame.K_KP_MINUS):
-                    self.delay = min(_MAX_DELAY, self.delay * 2)
+                    self.delay = slower(self.delay)
                 self.redraw()
             if not self.paused and pygame.time.get_ticks() >= deadline:
                 return True
@@ -609,6 +610,27 @@ class _Window:
             self.screen.blit(surface, at)
 
 
+def faster(delay: float) -> float:
+    """Return the delay after one press of the "faster" key.
+
+    It halves the delay, and goes to 0 (no wait) once that would be
+    shorter than ``_MIN_STEP``. A delay of 0 stays 0: the key never makes
+    the playback slower.
+    """
+    half = delay / 2
+    return 0.0 if half < _MIN_STEP else half
+
+
+def slower(delay: float) -> float:
+    """Return the delay after one press of the "slower" key.
+
+    It doubles the delay (from 0, it starts at ``_MIN_STEP``) up to
+    ``_MAX_DELAY``, the largest ``--delay``. A delay already at the
+    maximum stays there: the key never makes the playback faster.
+    """
+    return min(_MAX_DELAY, max(_MIN_STEP, delay * 2))
+
+
 def _on_screen(path: list[Point], size: Point) -> bool:
     """Return whether any part of a path's box is on screen."""
     xs = [x for x, _ in path]
@@ -662,7 +684,7 @@ class GraphicalVisualizer:
         # (NaN counts as 0).
         self.delay = (
             0.0 if math.isnan(delay)
-            else min(max(delay, 0.0), _MAX_INITIAL_DELAY)
+            else min(max(delay, 0.0), _MAX_DELAY)
         )
         self.size = size
         self.hold_final = hold_final
