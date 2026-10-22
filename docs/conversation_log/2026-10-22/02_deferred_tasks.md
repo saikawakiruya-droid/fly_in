@@ -108,3 +108,9 @@
 - 検証: develop に `test/trim_run_file` と `test/visual_zoom` を合わせた状態で、Windows(884件)と WSL(全体・部分実行 197/197、make lint/test)。
 - マージ: ユーザーの許可(「検証まで終わったらマージ」)により develop を 5922314 まで進めた。ロードマップ 1 を完了に。
 - 次の依頼: Windows 対応を消してコードが減るなら減らす。
+- Windows 対応の削除(`feature/drop_windows_support`・`test/drop_windows_support`): `fly_in.py` の `_is_closed_pipe`(Windows の EINVAL)、
+  Makefile の `Windows_NT` の分岐、README 両版の一文、テストの AM06 の einval・AM07 を削除。コードは差し引き22行減。
+  端末表示の ASCII(元は Windows の文字コード対策)は、外してもコードが減らないので残した。決定は `docs/decisions.md`。
+  検証: Windows で pytest 878件、WSL で make lint/test(878件)・全体/部分実行 197/197、実際に `| head -1` でパイプを閉じて
+  stderr なし・終了コード 1。
+- 未決: `test/drop_windows_support` の develop へのマージ(ユーザーの許可待ち)
