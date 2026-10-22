@@ -1,7 +1,7 @@
 """Texts shown by the graphical view, built without pygame.
 
 Measuring text needs a font, so the functions that fit text to a width
-take the measuring function as an argument; tests pass a fake one.
+take the measuring function as an argument and need no pygame themselves.
 """
 
 from collections.abc import Callable, Sequence

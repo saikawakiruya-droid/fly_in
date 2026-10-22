@@ -164,3 +164,11 @@
 - 検証(main を取り出した状態、WSL): make lint/lint-strict 成功、全体・部分実行 197/197、develop とのターンログ80枚一致、README の
   配布マップの手順(sed で先頭のコメントを落とす)で challenger が44ターン、空ファイルは `line 1`。
 - 途中、変数を使った `rm -rf` を含むコマンドが安全確認で止められたので、削除せずに新しいフォルダへ取り出してやり直した。
+
+## 残っている問題の確認と、docstring の修正
+
+- 質問: 問題はもうないか → 残り5点を報告(速さのキーの未対応バグ、提出物にない tests に触れる docstring、CLAUDE.md の「main 用の差分」の
+  書き方と実態のずれ、`_tmp/` の整理、残っている作業ツリーとマージ済みブランチ)。別セッションの未追跡ファイル(`docs/review_guide.md` など)には触れていない。
+- 依頼: 2(docstring)を直す → `fix/docstrings_without_tests`(8a59812)。`labels.py` と `app.py` の docstring から tests への言及を外し、
+  引数でできることの説明にした。pytest 878件・flake8・mypy 成功。
+- 未決: develop へのマージと main への反映・push(ユーザーの許可待ち)
