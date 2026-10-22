@@ -1,0 +1,386 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "models/ — 共通のデータ",
+    "locale": "ja",
+    "output": "docs/archify/folder-models/folder-models.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "world",
+      "label": "World",
+      "kind": "record",
+      "row": 0,
+      "col": 0,
+      "sublabel": "解析済みのマップ全体(変更不可)",
+      "attributes": [
+        {
+          "name": "network",
+          "type": "Network",
+          "visibility": "public"
+        },
+        {
+          "name": "nb_drones",
+          "type": "int",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/models/world.py",
+          "line": 8,
+          "end_line": 18
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "label": "Network",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "自前のグラフ(グラフ系ライブラリなし)",
+      "attributes": [
+        {
+          "name": "_zones",
+          "type": "dict[str, Zone]",
+          "visibility": "private"
+        },
+        {
+          "name": "_connections",
+          "type": "tuple[Connection, ...]",
+          "visibility": "private"
+        },
+        {
+          "name": "_adjacency",
+          "type": "dict[str, tuple]",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "add_zone",
+          "visibility": "public",
+          "parameters": "zone"
+        },
+        {
+          "name": "add_connection",
+          "visibility": "public",
+          "parameters": "connection"
+        },
+        {
+          "name": "get_zone",
+          "visibility": "public",
+          "parameters": "name",
+          "returns": "Zone"
+        },
+        {
+          "name": "neighbors",
+          "visibility": "public",
+          "parameters": "name",
+          "returns": "Sequence[Connection]"
+        },
+        {
+          "name": "start_zone",
+          "visibility": "public",
+          "returns": "Zone"
+        },
+        {
+          "name": "end_zone",
+          "visibility": "public",
+          "returns": "Zone"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/models/network.py",
+          "line": 11,
+          "end_line": 120
+        }
+      ]
+    },
+    {
+      "id": "connection",
+      "label": "Connection",
+      "kind": "record",
+      "row": 0,
+      "col": 2,
+      "sublabel": "2つのゾーンを結ぶ線(名前で参照)",
+      "attributes": [
+        {
+          "name": "zone_a",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "zone_b",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "max_link_capacity",
+          "type": "int",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "name",
+          "visibility": "public",
+          "returns": "str"
+        },
+        {
+          "name": "involves",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "bool"
+        },
+        {
+          "name": "other_end",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "str"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/models/connection.py",
+          "line": 6,
+          "end_line": 48
+        }
+      ]
+    },
+    {
+      "id": "zone_type",
+      "label": "ZoneType",
+      "kind": "enum",
+      "row": 1,
+      "col": 0,
+      "sublabel": "normal / blocked / restricted / priority",
+      "methods": [
+        {
+          "name": "turn_cost",
+          "visibility": "public",
+          "returns": "int"
+        },
+        {
+          "name": "is_traversable",
+          "visibility": "public",
+          "returns": "bool"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/models/zone.py",
+          "line": 7,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "id": "zone",
+      "label": "Zone",
+      "kind": "record",
+      "row": 1,
+      "col": 1,
+      "sublabel": "ゾーン1つ(変更不可)",
+      "attributes": [
+        {
+          "name": "name",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "x, y",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "zone_type",
+          "type": "ZoneType",
+          "visibility": "public"
+        },
+        {
+          "name": "role",
+          "type": "ZoneRole",
+          "visibility": "public"
+        },
+        {
+          "name": "color",
+          "type": "str | None",
+          "visibility": "public"
+        },
+        {
+          "name": "max_drones",
+          "type": "int | None",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "capacity",
+          "visibility": "public",
+          "returns": "int | None"
+        },
+        {
+          "name": "arrival_turn",
+          "visibility": "public",
+          "parameters": "depart_turn",
+          "returns": "int"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/models/zone.py",
+          "line": 43,
+          "end_line": 91
+        }
+      ]
+    },
+    {
+      "id": "zone_role",
+      "label": "ZoneRole",
+      "kind": "enum",
+      "row": 1,
+      "col": 2,
+      "sublabel": "hub / start_hub / end_hub",
+      "sources": [
+        {
+          "path": "droneflow/models/zone.py",
+          "line": 35,
+          "end_line": 40
+        }
+      ]
+    },
+    {
+      "id": "drone",
+      "label": "Drone",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "ドローン1機(状態は変わる)",
+      "attributes": [
+        {
+          "name": "drone_id",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "current_zone",
+          "type": "str | None",
+          "visibility": "public"
+        },
+        {
+          "name": "status",
+          "type": "DroneStatus",
+          "visibility": "public"
+        },
+        {
+          "name": "in_transit_connection",
+          "type": "str | None",
+          "visibility": "public"
+        },
+        {
+          "name": "transit_target",
+          "type": "str | None",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "is_delivered",
+          "visibility": "public",
+          "returns": "bool"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/models/drone.py",
+          "line": 15,
+          "end_line": 40
+        }
+      ]
+    },
+    {
+      "id": "drone_status",
+      "label": "DroneStatus",
+      "kind": "enum",
+      "row": 2,
+      "col": 1,
+      "sublabel": "at_zone / in_transit / delivered",
+      "sources": [
+        {
+          "path": "droneflow/models/drone.py",
+          "line": 7,
+          "end_line": 12
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "w_n",
+      "from": "world",
+      "to": "network",
+      "kind": "composition",
+      "label": "network"
+    },
+    {
+      "id": "n_c",
+      "from": "network",
+      "to": "connection",
+      "kind": "composition",
+      "label": "_connections"
+    },
+    {
+      "id": "n_z",
+      "from": "network",
+      "to": "zone",
+      "kind": "composition",
+      "label": "_zones"
+    },
+    {
+      "id": "z_t",
+      "from": "zone",
+      "to": "zone_type",
+      "kind": "association",
+      "label": "zone_type"
+    },
+    {
+      "id": "z_r",
+      "from": "zone",
+      "to": "zone_role",
+      "kind": "association",
+      "label": "role"
+    },
+    {
+      "id": "d_s",
+      "from": "drone",
+      "to": "drone_status",
+      "kind": "association",
+      "label": "status"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "読み方",
+      "items": [
+        "Connection と Drone はゾーンを Zone オブジェクトではなく名前(str)で持つ。Network.get_zone(name) で引く。",
+        "World・Zone・Connection は frozen(作った後は変えない)。Drone だけが毎ターン変わる。",
+        "Drone の集まりは simulation/state.py の SimulationState が持つ。"
+      ]
+    }
+  ]
+}

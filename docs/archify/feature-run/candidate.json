@@ -1,0 +1,344 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "起動から終了まで(fly_in.py → Application.run)",
+    "locale": "ja",
+    "output": "docs/archify/feature-run/feature-run.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "fly_in.py"
+    },
+    {
+      "id": "app",
+      "label": "Application.run"
+    },
+    {
+      "id": "io",
+      "label": "読み込み・JSON"
+    },
+    {
+      "id": "err",
+      "label": "エラー",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "args",
+    "load",
+    "parser",
+    "branch",
+    "build",
+    "run",
+    "summary",
+    "exit0"
+  ],
+  "nodes": [
+    {
+      "id": "args",
+      "lane": "entry",
+      "col": 0,
+      "type": "frontend",
+      "label": "parse_args",
+      "sublabel": "argv → Args",
+      "sources": [
+        {
+          "path": "fly_in.py",
+          "line": 18,
+          "end_line": 32
+        },
+        {
+          "path": "droneflow/cli.py",
+          "line": 128,
+          "end_line": 153
+        }
+      ]
+    },
+    {
+      "id": "load",
+      "lane": "app",
+      "col": 1,
+      "type": "backend",
+      "label": "_load_world",
+      "sublabel": "--from-world で分岐",
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 139,
+          "end_line": 157
+        }
+      ]
+    },
+    {
+      "id": "parser",
+      "lane": "io",
+      "col": 1,
+      "type": "backend",
+      "label": "MapParser.parse",
+      "sublabel": "マップ → World",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_parser.py",
+          "line": 25,
+          "end_line": 43
+        }
+      ]
+    },
+    {
+      "id": "worldread",
+      "lane": "io",
+      "col": 2,
+      "type": "database",
+      "label": "WorldFile.read",
+      "sublabel": "JSON → World",
+      "sources": [
+        {
+          "path": "droneflow/interchange/world_file.py",
+          "line": 177,
+          "end_line": 194
+        }
+      ]
+    },
+    {
+      "id": "branch",
+      "lane": "app",
+      "col": 2,
+      "type": "backend",
+      "label": "--parse-only?",
+      "sublabel": "World を保存して終わるか",
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 112,
+          "end_line": 115
+        }
+      ]
+    },
+    {
+      "id": "worldwrite",
+      "lane": "io",
+      "col": 3,
+      "type": "database",
+      "label": "WorldFile.write",
+      "sublabel": "World → JSON",
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 159,
+          "end_line": 172
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "lane": "app",
+      "col": 3,
+      "type": "backend",
+      "label": "組み立て",
+      "sublabel": "Pathfinder・Scheduler・Engine",
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 116,
+          "end_line": 128
+        }
+      ]
+    },
+    {
+      "id": "run",
+      "lane": "app",
+      "col": 4,
+      "type": "backend",
+      "label": "engine.run",
+      "sublabel": "ObserverGroup に毎ターン通知",
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 126,
+          "end_line": 133
+        },
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 62,
+          "end_line": 94
+        }
+      ]
+    },
+    {
+      "id": "recwrite",
+      "lane": "io",
+      "col": 5,
+      "type": "database",
+      "label": "RunRecorder.write",
+      "sublabel": "--save-run",
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 174,
+          "end_line": 196
+        }
+      ]
+    },
+    {
+      "id": "summary",
+      "lane": "app",
+      "col": 5,
+      "type": "backend",
+      "label": "RunSummary",
+      "sublabel": "まとめを標準エラーへ",
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 134,
+          "end_line": 137
+        }
+      ]
+    },
+    {
+      "id": "exit0",
+      "lane": "entry",
+      "col": 5,
+      "type": "external",
+      "label": "終了コード 0",
+      "sources": [
+        {
+          "path": "fly_in.py",
+          "line": 46,
+          "end_line": 61
+        }
+      ]
+    },
+    {
+      "id": "error",
+      "lane": "err",
+      "col": 4,
+      "type": "security",
+      "label": "error: 1行",
+      "sublabel": "FlyInError → 1、Ctrl+C → 130",
+      "sources": [
+        {
+          "path": "fly_in.py",
+          "line": 46,
+          "end_line": 61
+        },
+        {
+          "path": "fly_in.py",
+          "line": 33,
+          "end_line": 43
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "args",
+      "to": "load",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e2",
+      "from": "load",
+      "to": "parser",
+      "label": "通常",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e3",
+      "from": "load",
+      "to": "worldread",
+      "label": "--from-world",
+      "role": "branch"
+    },
+    {
+      "id": "e4",
+      "from": "parser",
+      "to": "branch",
+      "label": "World",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e5",
+      "from": "worldread",
+      "to": "branch",
+      "label": "World"
+    },
+    {
+      "id": "e6",
+      "from": "branch",
+      "to": "worldwrite",
+      "label": "はい",
+      "role": "branch"
+    },
+    {
+      "id": "e7",
+      "from": "branch",
+      "to": "build",
+      "label": "いいえ",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e8",
+      "from": "build",
+      "to": "run",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e9",
+      "from": "run",
+      "to": "summary",
+      "label": "turns",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e10",
+      "from": "run",
+      "to": "recwrite",
+      "label": "--save-run",
+      "role": "branch"
+    },
+    {
+      "id": "e11",
+      "from": "summary",
+      "to": "exit0",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e12",
+      "from": "run",
+      "to": "error",
+      "label": "例外",
+      "role": "error",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "流れ",
+      "items": [
+        "fly_in.py が引数を Args にし、Application(args).run() を呼ぶ。",
+        "World を作る(マップから、または --from-world で JSON から)。--parse-only なら World を JSON に書いて終わる。",
+        "Pathfinder を作り(end に届かなければ UnreachableGoalError)、Scheduler を渡した SimulationEngine を run。終わったら RunSummary を標準エラーへ。"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "エラーと終了コード",
+      "items": [
+        "どの段階でも FlyInError が出たら error: 1行を標準エラーに出し、終了コード 1。",
+        "Ctrl+C は 130、標準出力が先に閉じた(| head など)ときは 1、引数の誤りは argparse が 2。想定外の例外は internal error の1行で 1(FLYIN_DEBUG=1 なら送出)。",
+        "--save-run は失敗したときも、それまでのターンを書く。"
+      ]
+    }
+  ]
+}

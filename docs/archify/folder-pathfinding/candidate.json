@@ -1,0 +1,234 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "pathfinding/ — 距離と次の一手",
+    "locale": "ja",
+    "output": "docs/archify/folder-pathfinding/folder-pathfinding.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "pathfinder",
+      "label": "Pathfinder",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "次の一手(最短・遠回り)を答える",
+      "attributes": [
+        {
+          "name": "network",
+          "type": "Network",
+          "visibility": "public"
+        },
+        {
+          "name": "_distance_map",
+          "type": "DistanceMap",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "distance",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "int | None"
+        },
+        {
+          "name": "next_hops",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "list[Hop]"
+        },
+        {
+          "name": "detour_hops",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "list[Hop]"
+        },
+        {
+          "name": "route_cost",
+          "visibility": "public",
+          "parameters": "hop",
+          "returns": "int"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 25,
+          "end_line": 150
+        }
+      ]
+    },
+    {
+      "id": "distance_map",
+      "label": "DistanceMap",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "各ゾーンから end までのターン数(Dijkstra)",
+      "attributes": [
+        {
+          "name": "network",
+          "type": "Network",
+          "visibility": "public"
+        },
+        {
+          "name": "_distances",
+          "type": "dict[str, int]",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "distance",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "int | None"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/distance_map.py",
+          "line": 8,
+          "end_line": 63
+        }
+      ]
+    },
+    {
+      "id": "hop",
+      "label": "Hop",
+      "kind": "record",
+      "row": 1,
+      "col": 0,
+      "sublabel": "1回の移動: 通る接続と行き先",
+      "attributes": [
+        {
+          "name": "connection",
+          "type": "Connection",
+          "visibility": "public"
+        },
+        {
+          "name": "zone",
+          "type": "Zone",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 12,
+          "end_line": 22
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "label": "Network（他フォルダ）",
+      "kind": "class",
+      "row": 1,
+      "col": 1,
+      "sublabel": "models/network.py",
+      "sources": [
+        {
+          "path": "droneflow/models/network.py",
+          "line": 11,
+          "end_line": 20
+        }
+      ]
+    },
+    {
+      "id": "connection",
+      "label": "Connection（他フォルダ）",
+      "kind": "record",
+      "row": 2,
+      "col": 0,
+      "sublabel": "models/connection.py",
+      "sources": [
+        {
+          "path": "droneflow/models/connection.py",
+          "line": 6,
+          "end_line": 19
+        }
+      ]
+    },
+    {
+      "id": "zone",
+      "label": "Zone（他フォルダ）",
+      "kind": "record",
+      "row": 2,
+      "col": 1,
+      "sublabel": "models/zone.py",
+      "sources": [
+        {
+          "path": "droneflow/models/zone.py",
+          "line": 43,
+          "end_line": 64
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "pf_dm",
+      "from": "pathfinder",
+      "to": "distance_map",
+      "kind": "composition",
+      "label": "_distance_map"
+    },
+    {
+      "id": "pf_hop",
+      "from": "pathfinder",
+      "to": "hop",
+      "kind": "dependency",
+      "label": "返す"
+    },
+    {
+      "id": "pf_net",
+      "from": "pathfinder",
+      "to": "network",
+      "kind": "association",
+      "label": "network"
+    },
+    {
+      "id": "dm_net",
+      "from": "distance_map",
+      "to": "network",
+      "kind": "association",
+      "label": "network"
+    },
+    {
+      "id": "hop_c",
+      "from": "hop",
+      "to": "connection",
+      "kind": "association"
+    },
+    {
+      "id": "hop_z",
+      "from": "hop",
+      "to": "zone",
+      "kind": "association"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "ポイント",
+      "items": [
+        "DistanceMap は end から逆向きに Dijkstra(heapq)を1回だけ行い、ゾーンに入るコスト(turn_cost)で最短ターン数を求める。blocked には距離がつかない。容量は見ない。",
+        "Pathfinder は作るときに start から end へ届くか確かめ、届かなければ UnreachableGoalError。",
+        "next_hops は最短ルートに乗る一手(priority を先に)、detour_hops は最短ではないが end に届く一手。遠回りを取ってよいかは scheduling/ の DetourPolicy が決める。"
+      ]
+    }
+  ]
+}

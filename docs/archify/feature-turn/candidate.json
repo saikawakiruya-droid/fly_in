@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "1ターンの実行(SimulationEngine.run)",
+    "locale": "ja",
+    "output": "docs/archify/feature-turn/feature-turn.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "participants": [
+    {
+      "id": "engine",
+      "type": "backend",
+      "label": "SimulationEngine",
+      "sublabel": "ターンループ",
+      "sources": [
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 62,
+          "end_line": 116
+        }
+      ]
+    },
+    {
+      "id": "scheduler",
+      "type": "backend",
+      "label": "Scheduler",
+      "sublabel": "MoveDecider",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 92,
+          "end_line": 122
+        }
+      ]
+    },
+    {
+      "id": "resolver",
+      "type": "security",
+      "label": "TurnResolver",
+      "sublabel": "規則",
+      "sources": [
+        {
+          "path": "droneflow/simulation/turn_resolver.py",
+          "line": 56,
+          "end_line": 80
+        }
+      ]
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "SimulationState",
+      "sublabel": "全機の位置",
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 136,
+          "end_line": 192
+        }
+      ]
+    },
+    {
+      "id": "observers",
+      "type": "frontend",
+      "label": "ObserverGroup",
+      "sublabel": "出力・表示・記録",
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 36,
+          "end_line": 72
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 200,
+      "label": "始め"
+    },
+    {
+      "from": 210,
+      "to": 575,
+      "label": "毎ターン(全機が届くまで)"
+    },
+    {
+      "from": 585,
+      "to": 650,
+      "label": "終わり"
+    }
+  ],
+  "messages": [
+    {
+      "id": "t1",
+      "from": "engine",
+      "to": "observers",
+      "y": 175,
+      "label": "begin(state)",
+      "note": "ターン 0 の状態"
+    },
+    {
+      "id": "t2",
+      "from": "engine",
+      "to": "scheduler",
+      "y": 235,
+      "label": "decide_moves(state)",
+      "variant": "emphasis",
+      "note": "max_turns を超えたら SimulationError"
+    },
+    {
+      "id": "t3",
+      "from": "scheduler",
+      "to": "engine",
+      "y": 290,
+      "label": "list[MoveOrder]",
+      "variant": "return",
+      "note": "詳しくは「1ターンの判断」の図"
+    },
+    {
+      "id": "t4",
+      "from": "engine",
+      "to": "resolver",
+      "y": 345,
+      "label": "resolve(state, orders)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t5",
+      "from": "resolver",
+      "to": "state",
+      "y": 375,
+      "label": "占有数・接続の使用数を読む",
+      "variant": "security",
+      "note": "飛行中の機の着陸 → 注文 → 接続容量 → ゾーン容量を確認。1つでも違反なら何も変えず SimulationError"
+    },
+    {
+      "id": "t6",
+      "from": "resolver",
+      "to": "state",
+      "y": 455,
+      "label": "enter_zone / enter_transit / complete_transit",
+      "note": "全部合法なときだけ適用し、turn_number + 1"
+    },
+    {
+      "id": "t7",
+      "from": "resolver",
+      "to": "engine",
+      "y": 505,
+      "label": "list[Move]",
+      "variant": "return",
+      "note": "空なら SimulationError(進まない)"
+    },
+    {
+      "id": "t8",
+      "from": "engine",
+      "to": "observers",
+      "y": 555,
+      "label": "render(state, moves)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t9",
+      "from": "engine",
+      "to": "observers",
+      "y": 610,
+      "label": "close()",
+      "note": "例外のときも必ず呼ぶ(finally)"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "ポイント",
+      "items": [
+        "Scheduler は「決める」だけ、TurnResolver は「確かめて適用する」だけ。決めた手が規則に合わなければ TurnResolver が止める。",
+        "restricted ゾーンへの移動は2ターン: 出発したターンは接続の上(Move は接続名)、次のターンに必ず着陸する。",
+        "run は全ターンの Move の一覧を返し、Application が RunSummary を作る。"
+      ]
+    }
+  ]
+}

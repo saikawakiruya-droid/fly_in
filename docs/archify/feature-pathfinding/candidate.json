@@ -1,0 +1,249 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "経路の計算(Pathfinder)",
+    "locale": "ja",
+    "output": "docs/archify/feature-pathfinding/feature-pathfinding.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "lanes": [
+    {
+      "id": "build",
+      "label": "作るとき(1回)"
+    },
+    {
+      "id": "ask",
+      "label": "問い合わせ"
+    },
+    {
+      "id": "users",
+      "label": "使う側(scheduling/)"
+    },
+    {
+      "id": "err",
+      "label": "エラー",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "new",
+    "dijkstra",
+    "reach",
+    "next",
+    "hops"
+  ],
+  "nodes": [
+    {
+      "id": "new",
+      "lane": "build",
+      "col": 0,
+      "type": "backend",
+      "label": "Pathfinder(network)",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 33,
+          "end_line": 44
+        }
+      ]
+    },
+    {
+      "id": "dijkstra",
+      "lane": "build",
+      "col": 1,
+      "type": "backend",
+      "label": "DistanceMap",
+      "sublabel": "end から逆向きに Dijkstra",
+      "tag": "blocked は通らない",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/distance_map.py",
+          "line": 8,
+          "end_line": 63
+        }
+      ]
+    },
+    {
+      "id": "reach",
+      "lane": "build",
+      "col": 2,
+      "type": "security",
+      "label": "start から届く?",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 40,
+          "end_line": 44
+        }
+      ]
+    },
+    {
+      "id": "unreach",
+      "lane": "err",
+      "col": 2,
+      "type": "security",
+      "label": "UnreachableGoalError",
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 40,
+          "end_line": 58
+        }
+      ]
+    },
+    {
+      "id": "next",
+      "lane": "ask",
+      "col": 3,
+      "type": "backend",
+      "label": "next_hops",
+      "sublabel": "最短ルートに乗る一手",
+      "tag": "priority を先に",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 58,
+          "end_line": 81
+        }
+      ]
+    },
+    {
+      "id": "detour",
+      "lane": "ask",
+      "col": 4,
+      "type": "backend",
+      "label": "detour_hops",
+      "sublabel": "最短ではないが届く一手",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 82,
+          "end_line": 109
+        }
+      ]
+    },
+    {
+      "id": "dist",
+      "lane": "ask",
+      "col": 2,
+      "type": "backend",
+      "label": "distance",
+      "sublabel": "end までのターン数",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 46,
+          "end_line": 56
+        }
+      ]
+    },
+    {
+      "id": "hops",
+      "lane": "users",
+      "col": 3,
+      "type": "database",
+      "label": "Scheduler._hops",
+      "sublabel": "全ゾーンの最短の一手を表に",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 79,
+          "end_line": 87
+        }
+      ]
+    },
+    {
+      "id": "policy",
+      "lane": "users",
+      "col": 4,
+      "type": "backend",
+      "label": "DetourPolicy",
+      "sublabel": "遠回りしてよいか決める",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/detour_policy.py",
+          "line": 125,
+          "end_line": 131
+        }
+      ]
+    },
+    {
+      "id": "ranking",
+      "lane": "users",
+      "col": 2,
+      "type": "backend",
+      "label": "ZoneRanking",
+      "sublabel": "距離でゾーンを並べる",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/zone_ranking.py",
+          "line": 22,
+          "end_line": 48
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "p1",
+      "from": "new",
+      "to": "dijkstra",
+      "variant": "emphasis"
+    },
+    {
+      "id": "p2",
+      "from": "dijkstra",
+      "to": "reach",
+      "variant": "emphasis"
+    },
+    {
+      "id": "p3",
+      "from": "reach",
+      "to": "unreach",
+      "label": "いいえ",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "id": "p4",
+      "from": "reach",
+      "to": "next",
+      "label": "はい",
+      "variant": "emphasis"
+    },
+    {
+      "id": "p5",
+      "from": "next",
+      "to": "hops",
+      "variant": "emphasis"
+    },
+    {
+      "id": "p6",
+      "from": "detour",
+      "to": "policy"
+    },
+    {
+      "id": "p7",
+      "from": "dist",
+      "to": "ranking"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "ポイント",
+      "items": [
+        "距離はゾーンに入るコスト(turn_cost: restricted は2、それ以外は1)の合計。容量は見ない(毎ターン変わるので scheduling/ が扱う)。",
+        "グラフ系ライブラリは使わず、Network の隣接表と heapq で計算する。",
+        "next_hops の結果は Scheduler が最初に全ゾーン分を表(_hops)にして使い回す。"
+      ]
+    }
+  ]
+}

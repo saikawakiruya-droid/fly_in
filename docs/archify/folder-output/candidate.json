@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "output/ — ターンログとまとめ",
+    "locale": "ja",
+    "output": "docs/archify/folder-output/folder-output.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "observer",
+      "label": "TurnObserver（他フォルダ）",
+      "kind": "interface",
+      "row": 0,
+      "col": 0,
+      "sublabel": "simulation/observer.py",
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 9,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "id": "printer",
+      "label": "TurnLogPrinter",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "毎ターン1行を標準出力へ",
+      "attributes": [
+        {
+          "name": "stream",
+          "type": "TextIO",
+          "visibility": "public"
+        },
+        {
+          "name": "formatter",
+          "type": "TurnLogFormatter",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/output/turn_log_printer.py",
+          "line": 10,
+          "end_line": 41
+        }
+      ]
+    },
+    {
+      "id": "formatter",
+      "label": "TurnLogFormatter",
+      "kind": "class",
+      "row": 0,
+      "col": 2,
+      "sublabel": "D<ID>-<zone> の形式にする",
+      "methods": [
+        {
+          "name": "format_turn",
+          "visibility": "public",
+          "parameters": "moves",
+          "returns": "str"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/output/formatter.py",
+          "line": 6,
+          "end_line": 11
+        }
+      ]
+    },
+    {
+      "id": "summary",
+      "label": "RunSummary",
+      "kind": "record",
+      "row": 1,
+      "col": 1,
+      "sublabel": "終了後の主な数字(標準エラーへ)",
+      "attributes": [
+        {
+          "name": "turns",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "drones",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "average_turns_per_drone",
+          "type": "float",
+          "visibility": "public"
+        },
+        {
+          "name": "moves_per_turn",
+          "type": "float",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "from_turns",
+          "visibility": "public",
+          "parameters": "turns, nb_drones",
+          "returns": "RunSummary"
+        },
+        {
+          "name": "describe",
+          "visibility": "public",
+          "returns": "str"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/output/summary.py",
+          "line": 8,
+          "end_line": 58
+        }
+      ]
+    },
+    {
+      "id": "move",
+      "label": "Move（他フォルダ）",
+      "kind": "record",
+      "row": 1,
+      "col": 2,
+      "sublabel": "simulation/state.py",
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 12,
+          "end_line": 36
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "p_obs",
+      "from": "printer",
+      "to": "observer",
+      "kind": "realization"
+    },
+    {
+      "id": "p_fmt",
+      "from": "printer",
+      "to": "formatter",
+      "kind": "composition",
+      "label": "formatter"
+    },
+    {
+      "id": "f_move",
+      "from": "formatter",
+      "to": "move",
+      "kind": "dependency",
+      "label": "整形"
+    },
+    {
+      "id": "s_move",
+      "from": "summary",
+      "to": "move",
+      "kind": "dependency",
+      "label": "数える"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "ポイント",
+      "items": [
+        "標準出力に書くのはターンログだけ(課題の出力形式)。RunSummary・表示・警告は標準エラー。",
+        "TurnLogFormatter は interchange/run_file.py の RunRecorder も使う。"
+      ]
+    }
+  ]
+}

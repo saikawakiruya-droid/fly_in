@@ -1,0 +1,484 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "droneflow/ 直下(app.py・cli.py・errors.py)",
+    "locale": "ja",
+    "output": "docs/archify/folder-top-level/folder-top-level.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "args",
+      "label": "Args",
+      "kind": "record",
+      "row": 0,
+      "col": 0,
+      "sublabel": "cli.py: 引数をまとめた値",
+      "attributes": [
+        {
+          "name": "map_path",
+          "type": "Path",
+          "visibility": "public"
+        },
+        {
+          "name": "visual",
+          "type": "VisualMode",
+          "visibility": "public"
+        },
+        {
+          "name": "delay",
+          "type": "float",
+          "visibility": "public"
+        },
+        {
+          "name": "step",
+          "type": "bool",
+          "visibility": "public"
+        },
+        {
+          "name": "parse_only",
+          "type": "str | None",
+          "visibility": "public"
+        },
+        {
+          "name": "from_world",
+          "type": "bool",
+          "visibility": "public"
+        },
+        {
+          "name": "save_run",
+          "type": "str | None",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "map_name",
+          "visibility": "public",
+          "returns": "str"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/cli.py",
+          "line": 22,
+          "end_line": 57
+        }
+      ]
+    },
+    {
+      "id": "app",
+      "label": "Application",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "app.py: 全体を組み立てて実行",
+      "attributes": [
+        {
+          "name": "args",
+          "type": "Args",
+          "visibility": "public"
+        },
+        {
+          "name": "make_scheduler",
+          "type": "Callable",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "run",
+          "visibility": "public",
+          "returns": "None"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 59,
+          "end_line": 137
+        }
+      ]
+    },
+    {
+      "id": "guarded",
+      "label": "_GuardedView",
+      "kind": "class",
+      "row": 0,
+      "col": 2,
+      "sublabel": "表示の close 失敗を warning に留める",
+      "attributes": [
+        {
+          "name": "name",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "view",
+          "type": "TurnObserver",
+          "visibility": "public"
+        },
+        {
+          "name": "error",
+          "type": "Exception | None",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 24,
+          "end_line": 57
+        }
+      ]
+    },
+    {
+      "id": "observer",
+      "label": "TurnObserver（他フォルダ）",
+      "kind": "interface",
+      "row": 1,
+      "col": 2,
+      "sublabel": "simulation/observer.py",
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 9,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "id": "fly_in_error",
+      "label": "FlyInError",
+      "kind": "class",
+      "row": 2,
+      "col": 1.5,
+      "sublabel": "errors.py: すべての独自例外の親。fly_in.py が捕まえて終了コード 1",
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 4,
+          "end_line": 6
+        }
+      ]
+    },
+    {
+      "id": "parse_error",
+      "label": "ParseError",
+      "kind": "class",
+      "row": 3,
+      "col": 0,
+      "sublabel": "マップの誤り(行番号つき)",
+      "attributes": [
+        {
+          "name": "line_number",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "reason",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 8,
+          "end_line": 21
+        }
+      ]
+    },
+    {
+      "id": "zone_nf",
+      "label": "ZoneNotFoundError",
+      "kind": "class",
+      "row": 3,
+      "col": 1,
+      "sublabel": "存在しないゾーン名",
+      "attributes": [
+        {
+          "name": "zone_name",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 23,
+          "end_line": 34
+        }
+      ]
+    },
+    {
+      "id": "sim_error",
+      "label": "SimulationError",
+      "kind": "class",
+      "row": 3,
+      "col": 2,
+      "sublabel": "シミュレーションの規則違反",
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 36,
+          "end_line": 38
+        }
+      ]
+    },
+    {
+      "id": "unreach",
+      "label": "UnreachableGoalError",
+      "kind": "class",
+      "row": 3,
+      "col": 3,
+      "sublabel": "end に届かない",
+      "attributes": [
+        {
+          "name": "zone_name",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "goal_name",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 40,
+          "end_line": 58
+        }
+      ]
+    },
+    {
+      "id": "mapfile_error",
+      "label": "MapFileError",
+      "kind": "class",
+      "row": 4,
+      "col": 0,
+      "sublabel": "マップを開けない・UTF-8 でない",
+      "attributes": [
+        {
+          "name": "path",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "reason",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 60,
+          "end_line": 74
+        }
+      ]
+    },
+    {
+      "id": "vis_error",
+      "label": "VisualizationError",
+      "kind": "class",
+      "row": 4,
+      "col": 1,
+      "sublabel": "表示を使えない(pygame なし等)",
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 76,
+          "end_line": 82
+        }
+      ]
+    },
+    {
+      "id": "worldfile_error",
+      "label": "WorldFileError",
+      "kind": "class",
+      "row": 4,
+      "col": 2,
+      "sublabel": "--from-world の JSON が不正",
+      "attributes": [
+        {
+          "name": "path",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "reason",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 84,
+          "end_line": 98
+        }
+      ]
+    },
+    {
+      "id": "output_error",
+      "label": "OutputFileError",
+      "kind": "class",
+      "row": 4,
+      "col": 3,
+      "sublabel": "JSON を書けない",
+      "attributes": [
+        {
+          "name": "path",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "reason",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 100,
+          "end_line": 113
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "app_args",
+      "from": "app",
+      "to": "args",
+      "kind": "association",
+      "label": "args"
+    },
+    {
+      "id": "app_guard",
+      "from": "app",
+      "to": "guarded",
+      "kind": "dependency",
+      "label": "表示ごとに作る"
+    },
+    {
+      "id": "guard_obs",
+      "from": "guarded",
+      "to": "observer",
+      "kind": "realization"
+    },
+    {
+      "id": "i1",
+      "from": "parse_error",
+      "to": "fly_in_error",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i2",
+      "from": "zone_nf",
+      "to": "fly_in_error",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i3",
+      "from": "sim_error",
+      "to": "fly_in_error",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i4",
+      "from": "unreach",
+      "to": "fly_in_error",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i5",
+      "from": "mapfile_error",
+      "to": "fly_in_error",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i6",
+      "from": "vis_error",
+      "to": "fly_in_error",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i7",
+      "from": "worldfile_error",
+      "to": "fly_in_error",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i8",
+      "from": "output_error",
+      "to": "fly_in_error",
+      "kind": "inheritance"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "このフォルダの役割",
+      "items": [
+        "fly_in.py が parse_args で Args を作り、Application(args).run() を呼ぶ。",
+        "Application.run: ① MapParser(または WorldFile)で World → ② Pathfinder → ③ SimulationEngine に Scheduler を渡して run → ④ TurnLogPrinter・表示・RunRecorder を ObserverGroup で毎ターン呼ぶ → RunSummary を標準エラーへ。",
+        "graphical_view(pygame)は --visual graphical / both のときだけ import する。"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "例外と終了コード",
+      "items": [
+        "FlyInError の派生は fly_in.py で error: 1行にして終了コード 1。",
+        "Ctrl+C は 130、引数の誤りは argparse が 2。"
+      ]
+    }
+  ]
+}

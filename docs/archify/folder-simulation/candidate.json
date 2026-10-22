@@ -1,0 +1,404 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "simulation/ — ターンループと状態",
+    "locale": "ja",
+    "output": "docs/archify/folder-simulation/folder-simulation.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "decider",
+      "label": "MoveDecider",
+      "kind": "interface",
+      "row": 0,
+      "col": 0,
+      "sublabel": "毎ターンの手を決める役(実体は Scheduler)",
+      "methods": [
+        {
+          "name": "decide_moves",
+          "visibility": "public",
+          "parameters": "state",
+          "returns": "list[MoveOrder]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 12,
+          "end_line": 17
+        }
+      ]
+    },
+    {
+      "id": "engine",
+      "label": "SimulationEngine",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "全機が届くまでターンを回す",
+      "attributes": [
+        {
+          "name": "world",
+          "type": "World",
+          "visibility": "public"
+        },
+        {
+          "name": "decider",
+          "type": "MoveDecider",
+          "visibility": "public"
+        },
+        {
+          "name": "state",
+          "type": "SimulationState",
+          "visibility": "public"
+        },
+        {
+          "name": "resolver",
+          "type": "TurnResolver",
+          "visibility": "public"
+        },
+        {
+          "name": "max_turns",
+          "type": "int",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "run",
+          "visibility": "public",
+          "parameters": "observer",
+          "returns": "list[list[Move]]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 31,
+          "end_line": 116
+        }
+      ]
+    },
+    {
+      "id": "observer",
+      "label": "TurnObserver",
+      "kind": "interface",
+      "row": 0,
+      "col": 2,
+      "sublabel": "毎ターン呼ばれる(出力・表示・記録)",
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 9,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "id": "resolver",
+      "label": "TurnResolver",
+      "kind": "class",
+      "row": 1,
+      "col": 0,
+      "sublabel": "MoveOrder を規則で確かめてから適用",
+      "attributes": [
+        {
+          "name": "network",
+          "type": "Network",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "resolve",
+          "visibility": "public",
+          "parameters": "state, orders",
+          "returns": "list[Move]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/turn_resolver.py",
+          "line": 23,
+          "end_line": 210
+        }
+      ]
+    },
+    {
+      "id": "state",
+      "label": "SimulationState",
+      "kind": "class",
+      "row": 1,
+      "col": 1,
+      "sublabel": "毎ターン変わる状態全体",
+      "attributes": [
+        {
+          "name": "turn_number",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "drones",
+          "type": "dict[int, Drone]",
+          "visibility": "public"
+        },
+        {
+          "name": "_occupancy",
+          "type": "dict[str, int]",
+          "visibility": "private"
+        },
+        {
+          "name": "_link_load",
+          "type": "dict[str, int]",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "load",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "int"
+        },
+        {
+          "name": "is_complete",
+          "visibility": "public",
+          "returns": "bool"
+        },
+        {
+          "name": "enter_zone",
+          "visibility": "public",
+          "parameters": "drone_id, zone"
+        },
+        {
+          "name": "enter_transit",
+          "visibility": "public",
+          "parameters": "drone_id, ..."
+        },
+        {
+          "name": "complete_transit",
+          "visibility": "public",
+          "parameters": "drone_id"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 56,
+          "end_line": 200
+        }
+      ]
+    },
+    {
+      "id": "group",
+      "label": "ObserverGroup",
+      "kind": "class",
+      "row": 1,
+      "col": 2,
+      "sublabel": "複数の TurnObserver に順に転送",
+      "attributes": [
+        {
+          "name": "observers",
+          "type": "list[TurnObserver]",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 36,
+          "end_line": 72
+        }
+      ]
+    },
+    {
+      "id": "order",
+      "label": "MoveOrder",
+      "kind": "record",
+      "row": 2,
+      "col": 0,
+      "sublabel": "「この機をこのゾーンへ」という指示",
+      "attributes": [
+        {
+          "name": "drone_id",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "zone_name",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 39,
+          "end_line": 53
+        }
+      ]
+    },
+    {
+      "id": "drone",
+      "label": "Drone（他フォルダ）",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "models/drone.py",
+      "sources": [
+        {
+          "path": "droneflow/models/drone.py",
+          "line": 15,
+          "end_line": 36
+        }
+      ]
+    },
+    {
+      "id": "move",
+      "label": "Move",
+      "kind": "record",
+      "row": 2,
+      "col": 2,
+      "sublabel": "実際に起きた1手(ターンログの1項目)",
+      "attributes": [
+        {
+          "name": "drone_id",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "destination",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "connection_name",
+          "type": "str | None",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "text",
+          "visibility": "public",
+          "returns": "str"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 12,
+          "end_line": 36
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "e_dec",
+      "from": "engine",
+      "to": "decider",
+      "kind": "association",
+      "label": "decider"
+    },
+    {
+      "id": "e_obs",
+      "from": "engine",
+      "to": "observer",
+      "kind": "dependency",
+      "label": "run で呼ぶ"
+    },
+    {
+      "id": "e_res",
+      "from": "engine",
+      "to": "resolver",
+      "kind": "composition"
+    },
+    {
+      "id": "e_state",
+      "from": "engine",
+      "to": "state",
+      "kind": "composition"
+    },
+    {
+      "id": "g_obs",
+      "from": "group",
+      "to": "observer",
+      "kind": "realization"
+    },
+    {
+      "id": "res_state",
+      "from": "resolver",
+      "to": "state",
+      "kind": "dependency",
+      "label": "適用"
+    },
+    {
+      "id": "res_order",
+      "from": "resolver",
+      "to": "order",
+      "kind": "dependency",
+      "label": "受け取る"
+    },
+    {
+      "id": "s_drone",
+      "from": "state",
+      "to": "drone",
+      "kind": "composition",
+      "label": "drones"
+    },
+    {
+      "id": "g_move",
+      "from": "group",
+      "to": "move",
+      "kind": "dependency",
+      "label": "render で渡す"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "1ターンの流れ(SimulationEngine.run)",
+      "items": [
+        "decider.decide_moves(state) → list[MoveOrder]",
+        "resolver.resolve(state, orders): 容量・接続・restricted などの規則を確かめてから state を更新し、list[Move] を返す",
+        "observer.render(state, moves): 出力・表示・記録へ。全機 delivered か max_turns で終わる"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "依存の向き",
+      "items": [
+        "engine.py は scheduling/ を import しない。MoveDecider(Protocol)だけを知り、Scheduler は Application が渡す。",
+        "scheduling/ の中身は別の図(scheduling)にした。"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "1ターンの判断(Scheduler.decide_moves)",
+    "locale": "ja",
+    "output": "docs/archify/feature-decide/feature-decide.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "lanes": [
+    {
+      "id": "prep",
+      "label": "準備"
+    },
+    {
+      "id": "order",
+      "label": "順番に決める"
+    },
+    {
+      "id": "hop",
+      "label": "一手を探す(HopTaker)"
+    },
+    {
+      "id": "wait",
+      "label": "動けない",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "start",
+    "fresh",
+    "due",
+    "rank",
+    "shortest",
+    "emit"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "lane": "prep",
+      "col": 0,
+      "type": "backend",
+      "label": "_start_turn",
+      "sublabel": "予約表をこのターン用に",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 124,
+          "end_line": 138
+        }
+      ]
+    },
+    {
+      "id": "fresh",
+      "lane": "prep",
+      "col": 1,
+      "type": "database",
+      "label": "TurnLedger・PositionBoard",
+      "sublabel": "このターン用に新しく作る",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 105,
+          "end_line": 107
+        }
+      ]
+    },
+    {
+      "id": "due",
+      "lane": "order",
+      "col": 2,
+      "type": "backend",
+      "label": "予約済みの手を先に",
+      "sublabel": "立ち退きなど",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 109,
+          "end_line": 112
+        }
+      ]
+    },
+    {
+      "id": "rank",
+      "lane": "order",
+      "col": 3,
+      "type": "backend",
+      "label": "残りの機を順に",
+      "sublabel": "ZoneRanking の順",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 167,
+          "end_line": 186
+        }
+      ]
+    },
+    {
+      "id": "shortest",
+      "lane": "hop",
+      "col": 3,
+      "type": "messagebus",
+      "label": "最短の一手",
+      "sublabel": "next_hops",
+      "tag": "空き → 立ち退き",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/hop_taker.py",
+          "line": 29,
+          "end_line": 54
+        }
+      ]
+    },
+    {
+      "id": "detour",
+      "lane": "hop",
+      "col": 4,
+      "type": "messagebus",
+      "label": "遠回りの一手",
+      "sublabel": "DetourPolicy.allowed",
+      "tag": "空き → 立ち退き",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 158,
+          "end_line": 161
+        },
+        {
+          "path": "droneflow/simulation/scheduling/detour_policy.py",
+          "line": 86,
+          "end_line": 124
+        }
+      ]
+    },
+    {
+      "id": "emit",
+      "lane": "order",
+      "col": 5,
+      "type": "backend",
+      "label": "MoveOrder",
+      "sublabel": "注文に加える",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 162,
+          "end_line": 163
+        }
+      ]
+    },
+    {
+      "id": "waits",
+      "lane": "wait",
+      "col": 5,
+      "type": "security",
+      "label": "待つ",
+      "sublabel": "注文なし・予約を元に戻す",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 164,
+          "end_line": 165
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "d1",
+      "from": "start",
+      "to": "fresh",
+      "variant": "emphasis"
+    },
+    {
+      "id": "d2",
+      "from": "fresh",
+      "to": "due",
+      "variant": "emphasis"
+    },
+    {
+      "id": "d3",
+      "from": "due",
+      "to": "rank",
+      "variant": "emphasis"
+    },
+    {
+      "id": "d4",
+      "from": "rank",
+      "to": "shortest",
+      "label": "1機ずつ",
+      "variant": "emphasis"
+    },
+    {
+      "id": "d5",
+      "from": "shortest",
+      "to": "emit",
+      "label": "取れた",
+      "variant": "emphasis"
+    },
+    {
+      "id": "d6",
+      "from": "shortest",
+      "to": "detour",
+      "label": "取れない",
+      "role": "branch"
+    },
+    {
+      "id": "d7",
+      "from": "detour",
+      "to": "emit",
+      "label": "取れた"
+    },
+    {
+      "id": "d8",
+      "from": "detour",
+      "to": "waits",
+      "label": "取れない",
+      "role": "error",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "一手の取り方(HopTaker.take_first)",
+      "items": [
+        "候補を順に、まず「空きがあれば取る」で1周、だめなら「Evictor で先客を動かして空ける」でもう1周する。",
+        "空きの判断は TurnLedger: 接続にこのターン空きがあり、入るゾーンに入るターン以降ずっと席があるか。",
+        "restricted へは着陸ターンから席が要る。席を後の機に取ってあるゾーンには、入ってから先客(自分も含む)を立ち退かせる。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "順番と遠回り",
+      "items": [
+        "ゾーンの順: end までの距離 → 優先ルート上か → 出口の数 → 宣言順(ZoneRanking)。",
+        "遠回りは、行ったことのないゾーンだけ、前に並ぶより遅くならないと見込めるときに許す(DetourPolicy)。",
+        "最短の一手は必ず距離を縮め、遠回りは新しいゾーンにしか入らないので、必ず終わる。"
+      ]
+    }
+  ]
+}

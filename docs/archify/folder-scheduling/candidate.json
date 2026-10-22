@@ -1,0 +1,529 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "simulation/scheduling/ — 1ターンの判断",
+    "locale": "ja",
+    "output": "docs/archify/folder-scheduling/folder-scheduling.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "decider",
+      "label": "MoveDecider（他フォルダ）",
+      "kind": "interface",
+      "row": 0,
+      "col": 0,
+      "sublabel": "simulation/engine.py",
+      "methods": [
+        {
+          "name": "decide_moves",
+          "visibility": "public",
+          "parameters": "state",
+          "returns": "list[MoveOrder]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 12,
+          "end_line": 17
+        }
+      ]
+    },
+    {
+      "id": "scheduler",
+      "label": "Scheduler",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "誰をどこへ動かすか決める",
+      "attributes": [
+        {
+          "name": "pathfinder",
+          "type": "Pathfinder",
+          "visibility": "public"
+        },
+        {
+          "name": "_detour_policy",
+          "type": "DetourPolicy",
+          "visibility": "private"
+        },
+        {
+          "name": "_ranking",
+          "type": "ZoneRanking",
+          "visibility": "private"
+        },
+        {
+          "name": "_table",
+          "type": "ReservationTable",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "decide_moves",
+          "visibility": "public",
+          "parameters": "state",
+          "returns": "list[MoveOrder]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 17,
+          "end_line": 122
+        }
+      ]
+    },
+    {
+      "id": "ranking",
+      "label": "ZoneRanking",
+      "kind": "class",
+      "row": 0,
+      "col": 2,
+      "sublabel": "ゾーンを判断する順番(距離→優先ルート→出口数→宣言順)",
+      "methods": [
+        {
+          "name": "rank",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "int | None"
+        },
+        {
+          "name": "is_on_priority_route",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "bool"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/zone_ranking.py",
+          "line": 11,
+          "end_line": 77
+        }
+      ]
+    },
+    {
+      "id": "taker",
+      "label": "HopTaker",
+      "kind": "class",
+      "row": 1,
+      "col": 0,
+      "sublabel": "取れる最初の一手を取って記録",
+      "attributes": [
+        {
+          "name": "ledger",
+          "type": "TurnLedger",
+          "visibility": "public"
+        },
+        {
+          "name": "evictor",
+          "type": "Evictor",
+          "visibility": "public"
+        },
+        {
+          "name": "board",
+          "type": "PositionBoard",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "take_first",
+          "visibility": "public",
+          "parameters": "..."
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/hop_taker.py",
+          "line": 10,
+          "end_line": 93
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "label": "TurnLedger",
+      "kind": "class",
+      "row": 1,
+      "col": 1,
+      "sublabel": "ゾーン・接続の空き(このターンと先のターン)",
+      "attributes": [
+        {
+          "name": "planning_turn",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "_table",
+          "type": "ReservationTable",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "link_free",
+          "visibility": "public",
+          "parameters": "connection, turn",
+          "returns": "bool"
+        },
+        {
+          "name": "fits",
+          "visibility": "public",
+          "parameters": "zone, turn, extra",
+          "returns": "bool"
+        },
+        {
+          "name": "record",
+          "visibility": "public",
+          "parameters": "from_zone, hop"
+        },
+        {
+          "name": "cancel",
+          "visibility": "public",
+          "parameters": "from_zone, hop"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/turn_ledger.py",
+          "line": 10,
+          "end_line": 128
+        }
+      ]
+    },
+    {
+      "id": "detour",
+      "label": "DetourPolicy",
+      "kind": "class",
+      "row": 1,
+      "col": 2,
+      "sublabel": "待つ代わりに取ってよい遠回り",
+      "attributes": [
+        {
+          "name": "pathfinder",
+          "type": "Pathfinder",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "detours",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "list[Hop]"
+        },
+        {
+          "name": "remember",
+          "visibility": "public",
+          "parameters": "turn, board"
+        },
+        {
+          "name": "allowed",
+          "visibility": "public",
+          "parameters": "...",
+          "returns": "..."
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/detour_policy.py",
+          "line": 9,
+          "end_line": 142
+        }
+      ]
+    },
+    {
+      "id": "evictor",
+      "label": "Evictor",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "満員のゾーンから先客を先に動かして空ける",
+      "attributes": [
+        {
+          "name": "ledger",
+          "type": "TurnLedger",
+          "visibility": "public"
+        },
+        {
+          "name": "table",
+          "type": "ReservationTable",
+          "visibility": "public"
+        },
+        {
+          "name": "board",
+          "type": "PositionBoard",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "make_room",
+          "visibility": "public",
+          "parameters": "zone, first_turn, extra",
+          "returns": "bool"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/evictor.py",
+          "line": 12,
+          "end_line": 113
+        }
+      ]
+    },
+    {
+      "id": "table",
+      "label": "ReservationTable",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "誰がどのターンにどこへ入るか(先の予約)",
+      "methods": [
+        {
+          "name": "reserve",
+          "visibility": "public",
+          "parameters": "reservation"
+        },
+        {
+          "name": "due",
+          "visibility": "public",
+          "parameters": "turn",
+          "returns": "list[Reservation]"
+        },
+        {
+          "name": "entering",
+          "visibility": "public",
+          "parameters": "zone, turn",
+          "returns": "int"
+        },
+        {
+          "name": "mark",
+          "visibility": "public",
+          "returns": "int"
+        },
+        {
+          "name": "rollback",
+          "visibility": "public",
+          "parameters": "mark"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/reservation_table.py",
+          "line": 34,
+          "end_line": 130
+        }
+      ]
+    },
+    {
+      "id": "pathfinder",
+      "label": "Pathfinder（他フォルダ）",
+      "kind": "class",
+      "row": 2,
+      "col": 2,
+      "sublabel": "pathfinding/pathfinder.py",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 25,
+          "end_line": 45
+        }
+      ]
+    },
+    {
+      "id": "board",
+      "label": "PositionBoard",
+      "kind": "class",
+      "row": 3,
+      "col": 0,
+      "sublabel": "決めた後に各機がどこにいるか(Position)",
+      "methods": [
+        {
+          "name": "place",
+          "visibility": "public",
+          "parameters": "drone_id, zone, since_turn"
+        },
+        {
+          "name": "where",
+          "visibility": "public",
+          "parameters": "drone_id",
+          "returns": "Position"
+        },
+        {
+          "name": "drones_in",
+          "visibility": "public",
+          "parameters": "zone",
+          "returns": "list[int]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/positions.py",
+          "line": 22,
+          "end_line": 83
+        }
+      ]
+    },
+    {
+      "id": "reservation",
+      "label": "Reservation",
+      "kind": "record",
+      "row": 3,
+      "col": 1,
+      "sublabel": "1件の予約",
+      "attributes": [
+        {
+          "name": "drone_id",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "from_zone",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "to_zone",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "depart_turn",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "arrive_turn",
+          "type": "int",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/reservation_table.py",
+          "line": 10,
+          "end_line": 31
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "s_dec",
+      "from": "scheduler",
+      "to": "decider",
+      "kind": "realization"
+    },
+    {
+      "id": "s_rank",
+      "from": "scheduler",
+      "to": "ranking",
+      "kind": "composition",
+      "label": "_ranking"
+    },
+    {
+      "id": "s_detour",
+      "from": "scheduler",
+      "to": "detour",
+      "kind": "composition",
+      "label": "_detour_policy"
+    },
+    {
+      "id": "s_ledger",
+      "from": "scheduler",
+      "to": "ledger",
+      "kind": "dependency",
+      "label": "毎ターン作る"
+    },
+    {
+      "id": "s_taker",
+      "from": "scheduler",
+      "to": "taker",
+      "kind": "dependency",
+      "label": "毎ターン作る"
+    },
+    {
+      "id": "t_ledger",
+      "from": "taker",
+      "to": "ledger",
+      "kind": "association"
+    },
+    {
+      "id": "t_evict",
+      "from": "taker",
+      "to": "evictor",
+      "kind": "association"
+    },
+    {
+      "id": "e_ledger",
+      "from": "evictor",
+      "to": "ledger",
+      "kind": "association"
+    },
+    {
+      "id": "e_table",
+      "from": "evictor",
+      "to": "table",
+      "kind": "association"
+    },
+    {
+      "id": "e_board",
+      "from": "evictor",
+      "to": "board",
+      "kind": "association"
+    },
+    {
+      "id": "l_table",
+      "from": "ledger",
+      "to": "table",
+      "kind": "association",
+      "label": "_table"
+    },
+    {
+      "id": "d_pf",
+      "from": "detour",
+      "to": "pathfinder",
+      "kind": "association"
+    },
+    {
+      "id": "tb_res",
+      "from": "table",
+      "to": "reservation",
+      "kind": "composition"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Scheduler.decide_moves(1ターン)",
+      "items": [
+        "ReservationTable を今のターン用に整え、TurnLedger と PositionBoard をそのターンのために新しく作る。",
+        "予約済みでこのターンに出発する手を先に MoveOrder にする。",
+        "残りのドローンをゾーンの順(ZoneRanking)に判断し、HopTaker が最短の一手 → だめなら DetourPolicy が許す遠回り、を取る。満員なら Evictor が先客を動かせるか試す。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "長く持つもの / 毎ターン作るもの",
+      "items": [
+        "Scheduler が持ち続ける: DetourPolicy・ZoneRanking・ReservationTable(と最短の一手の表 _hops)。",
+        "毎ターン作る: TurnLedger・PositionBoard・Evictor・HopTaker。PositionBoard は HopTaker・Evictor・DetourPolicy が共有する(線は一部省略)。",
+        "ZoneRanking は作るときに Pathfinder の距離と DetourPolicy の遠回りの数を使う。"
+      ]
+    }
+  ]
+}

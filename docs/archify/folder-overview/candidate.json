@@ -1,0 +1,419 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "fly_in フォルダ間の依存(import の向き)",
+    "locale": "ja",
+    "output": "docs/archify/folder-overview/folder-overview.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "components": [
+    {
+      "id": "entry",
+      "type": "external",
+      "label": "fly_in.py",
+      "sublabel": "入口・終了コード",
+      "pos": [
+        542,
+        40
+      ],
+      "size": [
+        170,
+        60
+      ],
+      "sources": [
+        {
+          "path": "fly_in.py",
+          "line": 6,
+          "end_line": 8
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "frontend",
+      "label": "cli.py",
+      "sublabel": "引数 → Args",
+      "pos": [
+        812,
+        40
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/cli.py",
+          "line": 128
+        }
+      ]
+    },
+    {
+      "id": "app",
+      "type": "backend",
+      "label": "app.py",
+      "sublabel": "Application: 全体を組み立てる",
+      "pos": [
+        542,
+        170
+      ],
+      "size": [
+        170,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 7,
+          "end_line": 21
+        },
+        {
+          "path": "droneflow/app.py",
+          "line": 97,
+          "end_line": 137
+        }
+      ]
+    },
+    {
+      "id": "pathfinding",
+      "type": "backend",
+      "label": "pathfinding/",
+      "sublabel": "② 距離と次の一手",
+      "pos": [
+        812,
+        170
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 5,
+          "end_line": 9
+        }
+      ]
+    },
+    {
+      "id": "scheduling",
+      "type": "backend",
+      "label": "scheduling/",
+      "sublabel": "③ 毎ターンの判断",
+      "pos": [
+        1032,
+        170
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 3,
+          "end_line": 14
+        }
+      ]
+    },
+    {
+      "id": "parsing",
+      "type": "backend",
+      "label": "parsing/",
+      "sublabel": "① マップ → World",
+      "pos": [
+        40,
+        320
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_parser.py",
+          "line": 5,
+          "end_line": 10
+        }
+      ]
+    },
+    {
+      "id": "interchange",
+      "type": "database",
+      "label": "interchange/",
+      "sublabel": "JSON に保存・読み戻し",
+      "pos": [
+        245,
+        320
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/interchange/world_file.py",
+          "line": 22,
+          "end_line": 29
+        },
+        {
+          "path": "droneflow/interchange/run_file.py",
+          "line": 19,
+          "end_line": 22
+        }
+      ]
+    },
+    {
+      "id": "output",
+      "type": "backend",
+      "label": "output/",
+      "sublabel": "④ ターンログ",
+      "pos": [
+        450,
+        320
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/output/turn_log_printer.py",
+          "line": 6,
+          "end_line": 7
+        }
+      ]
+    },
+    {
+      "id": "visualization",
+      "type": "frontend",
+      "label": "visualization/",
+      "sublabel": "④ 端末・画面表示",
+      "pos": [
+        655,
+        320
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/terminal_view.py",
+          "line": 8,
+          "end_line": 11
+        },
+        {
+          "path": "droneflow/visualization/graphical_view.py",
+          "line": 18,
+          "end_line": 35
+        }
+      ]
+    },
+    {
+      "id": "simulation",
+      "type": "backend",
+      "label": "simulation/(engine・state・turn_resolver・observer)",
+      "sublabel": "③ ターンループと状態。scheduling/ は import しない",
+      "pos": [
+        245,
+        480
+      ],
+      "size": [
+        970,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 5,
+          "end_line": 9
+        },
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 12,
+          "end_line": 17
+        }
+      ]
+    },
+    {
+      "id": "models",
+      "type": "database",
+      "label": "models/",
+      "sublabel": "Zone・Connection・Drone・Network・World(ほぼ全フォルダが使う)",
+      "pos": [
+        40,
+        620
+      ],
+      "size": [
+        560,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/models/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "errors",
+      "type": "security",
+      "label": "errors.py",
+      "sublabel": "FlyInError と派生(ほぼ全フォルダが使う)",
+      "pos": [
+        655,
+        620
+      ],
+      "size": [
+        560,
+        60
+      ],
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 4
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "e_cli",
+      "from": "entry",
+      "to": "cli",
+      "label": "parse_args"
+    },
+    {
+      "id": "e_app",
+      "from": "entry",
+      "to": "app",
+      "label": "run()",
+      "variant": "emphasis"
+    },
+    {
+      "id": "a_parse",
+      "from": "app",
+      "to": "parsing",
+      "label": "①",
+      "variant": "emphasis"
+    },
+    {
+      "id": "a_path",
+      "from": "app",
+      "to": "pathfinding",
+      "label": "②",
+      "variant": "emphasis"
+    },
+    {
+      "id": "a_sched",
+      "from": "app",
+      "to": "scheduling",
+      "label": "③ 作って渡す"
+    },
+    {
+      "id": "a_sim",
+      "from": "app",
+      "to": "simulation",
+      "label": "③ run",
+      "variant": "emphasis"
+    },
+    {
+      "id": "a_out",
+      "from": "app",
+      "to": "output",
+      "label": "④",
+      "variant": "emphasis"
+    },
+    {
+      "id": "a_vis",
+      "from": "app",
+      "to": "visualization",
+      "label": "④",
+      "variant": "emphasis"
+    },
+    {
+      "id": "a_inter",
+      "from": "app",
+      "to": "interchange",
+      "label": "オプション時"
+    },
+    {
+      "id": "s_path",
+      "from": "scheduling",
+      "to": "pathfinding",
+      "label": "Hop"
+    },
+    {
+      "id": "s_sim",
+      "from": "scheduling",
+      "to": "simulation",
+      "label": "State"
+    },
+    {
+      "id": "i_parse",
+      "from": "interchange",
+      "to": "parsing",
+      "label": "規則"
+    },
+    {
+      "id": "i_out",
+      "from": "interchange",
+      "to": "output",
+      "label": "書式"
+    },
+    {
+      "id": "i_sim",
+      "from": "interchange",
+      "to": "simulation",
+      "label": "State"
+    },
+    {
+      "id": "o_sim",
+      "from": "output",
+      "to": "simulation",
+      "label": "Move"
+    },
+    {
+      "id": "v_sim",
+      "from": "visualization",
+      "to": "simulation",
+      "label": "State"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "読み方",
+      "items": [
+        "矢印は「import している」向き(A → B は A が B を使う)。①〜④は Application.run が使う順番。",
+        "models/ と errors.py へは、ほぼすべてのフォルダから矢印が伸びるため省略し、下の帯で示した。",
+        "scheduling/ は simulation/ の下にあるフォルダだが、図では別の箱にした。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "依存の向きのポイント",
+      "items": [
+        "simulation/engine.py は scheduling/ を import しない。MoveDecider(Protocol)だけを知り、Application が Scheduler を作って渡す。",
+        "output/・visualization/・interchange/ は simulation/state.py の Move・SimulationState を読むだけ。TurnObserver(begin / render / close)として毎ターン呼ばれる。",
+        "graphical_view.py(pygame)は Application が --visual graphical / both のときだけ遅れて import する。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "interchange/ の役割",
+      "items": [
+        "world_file.py: --parse-only で World を JSON に書き、--from-world で読み戻す(parsing/ の規則で検証し直す)。",
+        "run_file.py: --save-run で毎ターンの Move と状態を JSON に書く(output/ の書式を使う)。"
+      ]
+    }
+  ]
+}

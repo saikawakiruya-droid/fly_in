@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "interchange/ — 段階間の受け渡し JSON",
+    "locale": "ja",
+    "output": "docs/archify/folder-interchange/folder-interchange.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "world_file",
+      "label": "WorldFile",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "--parse-only で書く / --from-world で読む",
+      "attributes": [
+        {
+          "name": "path",
+          "type": "Path",
+          "visibility": "public"
+        },
+        {
+          "name": "name",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "write",
+          "visibility": "public",
+          "parameters": "world"
+        },
+        {
+          "name": "read",
+          "visibility": "public",
+          "returns": "World"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/interchange/world_file.py",
+          "line": 149,
+          "end_line": 194
+        }
+      ]
+    },
+    {
+      "id": "json_object",
+      "label": "JsonObject",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "読んだ JSON の値を型つきで取り出す",
+      "methods": [
+        {
+          "name": "integer",
+          "visibility": "public",
+          "parameters": "key",
+          "returns": "int"
+        },
+        {
+          "name": "text",
+          "visibility": "public",
+          "parameters": "key",
+          "returns": "str"
+        },
+        {
+          "name": "member",
+          "visibility": "public",
+          "parameters": "key, kind",
+          "returns": "E"
+        },
+        {
+          "name": "objects",
+          "visibility": "public",
+          "parameters": "key",
+          "returns": "list[JsonObject]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/interchange/json_file.py",
+          "line": 39,
+          "end_line": 127
+        }
+      ]
+    },
+    {
+      "id": "observer",
+      "label": "TurnObserver（他フォルダ）",
+      "kind": "interface",
+      "row": 0,
+      "col": 2,
+      "sublabel": "simulation/observer.py",
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 9,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "id": "world",
+      "label": "World（他フォルダ）",
+      "kind": "record",
+      "row": 1,
+      "col": 0,
+      "sublabel": "models/world.py",
+      "sources": [
+        {
+          "path": "droneflow/models/world.py",
+          "line": 8,
+          "end_line": 18
+        }
+      ]
+    },
+    {
+      "id": "rule",
+      "label": "Rule（他フォルダ）",
+      "kind": "interface",
+      "row": 1,
+      "col": 1,
+      "sublabel": "parsing/map_rules.py: 読み戻しでも同じ規則で検査",
+      "sources": [
+        {
+          "path": "droneflow/interchange/world_file.py",
+          "line": 135,
+          "end_line": 146
+        }
+      ]
+    },
+    {
+      "id": "recorder",
+      "label": "RunRecorder",
+      "kind": "class",
+      "row": 1,
+      "col": 2,
+      "sublabel": "--save-run: 毎ターンの手と状態を記録",
+      "attributes": [
+        {
+          "name": "_turns",
+          "type": "list[dict]",
+          "visibility": "private"
+        },
+        {
+          "name": "_formatter",
+          "type": "TurnLogFormatter",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "to_json",
+          "visibility": "public",
+          "returns": "dict"
+        },
+        {
+          "name": "write",
+          "visibility": "public",
+          "parameters": "path"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/interchange/run_file.py",
+          "line": 59,
+          "end_line": 117
+        }
+      ]
+    },
+    {
+      "id": "state",
+      "label": "SimulationState（他フォルダ）",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "simulation/state.py",
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 56,
+          "end_line": 86
+        }
+      ]
+    },
+    {
+      "id": "formatter",
+      "label": "TurnLogFormatter（他フォルダ）",
+      "kind": "class",
+      "row": 2,
+      "col": 2,
+      "sublabel": "output/formatter.py",
+      "sources": [
+        {
+          "path": "droneflow/output/formatter.py",
+          "line": 6,
+          "end_line": 11
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "wf_jo",
+      "from": "world_file",
+      "to": "json_object",
+      "kind": "dependency",
+      "label": "読み取り"
+    },
+    {
+      "id": "wf_w",
+      "from": "world_file",
+      "to": "world",
+      "kind": "dependency",
+      "label": "書く・作る"
+    },
+    {
+      "id": "wf_rule",
+      "from": "world_file",
+      "to": "rule",
+      "kind": "dependency",
+      "label": "検査"
+    },
+    {
+      "id": "rec_obs",
+      "from": "recorder",
+      "to": "observer",
+      "kind": "realization"
+    },
+    {
+      "id": "rec_state",
+      "from": "recorder",
+      "to": "state",
+      "kind": "dependency",
+      "label": "読む"
+    },
+    {
+      "id": "rec_fmt",
+      "from": "recorder",
+      "to": "formatter",
+      "kind": "composition",
+      "label": "_formatter"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "関数",
+      "items": [
+        "json_file.py: write_json(path, data) が JSON を書き、書けなければ OutputFileError。",
+        "world_file.py: world_to_json / world_from_json が World と dict を相互に変換。不正なら WorldFileError。",
+        "run_file.py: move_to_json / drone_to_json / state_to_json が1ターン分を dict にする。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "書く時期",
+      "items": [
+        "RunRecorder は TurnObserver として毎ターン呼ばれ、記録だけする。ファイルに書くのは Application が write を呼んだとき(失敗時も途中まで書く)。"
+      ]
+    }
+  ]
+}

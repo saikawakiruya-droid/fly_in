@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "出力の行き先(毎ターンの通知とまとめ)",
+    "locale": "ja",
+    "output": "docs/archify/feature-output/feature-output.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "stages": [
+    {
+      "label": "シミュレーション"
+    },
+    {
+      "label": "通知"
+    },
+    {
+      "label": "受け取る側"
+    },
+    {
+      "label": "出力先"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "engine",
+      "type": "backend",
+      "label": "SimulationEngine",
+      "sublabel": "state・moves",
+      "stage": 0,
+      "row": 1,
+      "sources": [
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 83,
+          "end_line": 94
+        }
+      ]
+    },
+    {
+      "id": "group",
+      "type": "messagebus",
+      "label": "ObserverGroup",
+      "sublabel": "begin/render/close",
+      "stage": 1,
+      "row": 1,
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 36,
+          "end_line": 72
+        },
+        {
+          "path": "droneflow/app.py",
+          "line": 121,
+          "end_line": 129
+        }
+      ]
+    },
+    {
+      "id": "summary",
+      "type": "backend",
+      "label": "RunSummary",
+      "sublabel": "Application が作る",
+      "stage": 1,
+      "row": 3,
+      "sources": [
+        {
+          "path": "droneflow/output/summary.py",
+          "line": 8,
+          "end_line": 58
+        },
+        {
+          "path": "droneflow/app.py",
+          "line": 134,
+          "end_line": 137
+        }
+      ]
+    },
+    {
+      "id": "printer",
+      "type": "backend",
+      "label": "TurnLogPrinter",
+      "sublabel": "常に",
+      "stage": 2,
+      "row": 0,
+      "sources": [
+        {
+          "path": "droneflow/output/turn_log_printer.py",
+          "line": 10,
+          "end_line": 41
+        }
+      ]
+    },
+    {
+      "id": "terminal",
+      "type": "frontend",
+      "label": "TerminalVisualizer",
+      "sublabel": "--visual terminal",
+      "stage": 2,
+      "row": 1,
+      "sources": [
+        {
+          "path": "droneflow/visualization/terminal_view.py",
+          "line": 64,
+          "end_line": 131
+        },
+        {
+          "path": "droneflow/app.py",
+          "line": 198,
+          "end_line": 218
+        }
+      ]
+    },
+    {
+      "id": "graphical",
+      "type": "frontend",
+      "label": "GraphicalVisualizer",
+      "sublabel": "--visual graphical",
+      "stage": 2,
+      "row": 2,
+      "sources": [
+        {
+          "path": "droneflow/visualization/graphical_view.py",
+          "line": 631,
+          "end_line": 700
+        }
+      ]
+    },
+    {
+      "id": "recorder",
+      "type": "backend",
+      "label": "RunRecorder",
+      "sublabel": "--save-run",
+      "stage": 2,
+      "row": 3,
+      "sources": [
+        {
+          "path": "droneflow/interchange/run_file.py",
+          "line": 59,
+          "end_line": 117
+        }
+      ]
+    },
+    {
+      "id": "stdout",
+      "type": "external",
+      "label": "標準出力",
+      "sublabel": "ターンログだけ",
+      "stage": 3,
+      "row": 0
+    },
+    {
+      "id": "stderr",
+      "type": "external",
+      "label": "標準エラー",
+      "sublabel": "表示・まとめ・error",
+      "stage": 3,
+      "row": 1
+    },
+    {
+      "id": "window",
+      "type": "external",
+      "label": "pygame の窓",
+      "stage": 3,
+      "row": 2
+    },
+    {
+      "id": "json",
+      "type": "database",
+      "label": "run の JSON",
+      "sublabel": "終了後に書く",
+      "stage": 3,
+      "row": 3
+    }
+  ],
+  "flows": [
+    {
+      "id": "f1",
+      "from": "engine",
+      "to": "group",
+      "label": "毎ターン",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f2",
+      "from": "group",
+      "to": "printer",
+      "label": "moves",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f3",
+      "from": "group",
+      "to": "terminal",
+      "label": "state・moves"
+    },
+    {
+      "id": "f4",
+      "from": "group",
+      "to": "graphical",
+      "label": "state・moves"
+    },
+    {
+      "id": "f5",
+      "from": "group",
+      "to": "recorder",
+      "label": "state・moves"
+    },
+    {
+      "id": "f6",
+      "from": "engine",
+      "to": "summary",
+      "label": "全ターン"
+    },
+    {
+      "id": "f7",
+      "from": "printer",
+      "to": "stdout",
+      "label": "D1-zone …",
+      "variant": "emphasis"
+    },
+    {
+      "id": "f8",
+      "from": "terminal",
+      "to": "stderr",
+      "label": "色つきの盤面"
+    },
+    {
+      "id": "f9",
+      "from": "graphical",
+      "to": "window",
+      "label": "描画"
+    },
+    {
+      "id": "f10",
+      "from": "recorder",
+      "to": "json",
+      "label": "write(path)",
+      "variant": "dashed"
+    },
+    {
+      "id": "f11",
+      "from": "summary",
+      "to": "stderr",
+      "label": "まとめ1行"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "ポイント",
+      "items": [
+        "標準出力には課題の形式のターンログだけを書く。それ以外(盤面・まとめ・警告・error)は標準エラー。",
+        "--visual both なら端末と窓の両方。--step では窓(なければ端末)がキー入力を待つ。",
+        "表示の close の失敗は _GuardedView が warning 1行に留め、結果は止めない。"
+      ]
+    }
+  ]
+}

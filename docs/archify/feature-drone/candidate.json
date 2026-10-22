@@ -1,0 +1,149 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "ドローン1機の状態(DroneStatus)",
+    "locale": "ja",
+    "output": "docs/archify/feature-drone/feature-drone.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "mainPath": [
+    "at_start",
+    "at_zone",
+    "delivered"
+  ],
+  "states": [
+    {
+      "id": "at_start",
+      "type": "start",
+      "label": "start_hub",
+      "sublabel": "全機ここから",
+      "tag": "AT_ZONE",
+      "step": "01",
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 74,
+          "end_line": 85
+        }
+      ]
+    },
+    {
+      "id": "at_zone",
+      "type": "active",
+      "label": "途中のゾーン",
+      "sublabel": "注文がなければ待つ",
+      "tag": "AT_ZONE",
+      "step": "02",
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 136,
+          "end_line": 143
+        },
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 186,
+          "end_line": 192
+        }
+      ]
+    },
+    {
+      "id": "delivered",
+      "type": "success",
+      "label": "end_hub",
+      "sublabel": "数えるだけになる",
+      "tag": "DELIVERED",
+      "step": "03",
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 186,
+          "end_line": 190
+        },
+        {
+          "path": "droneflow/models/drone.py",
+          "line": 7,
+          "end_line": 12
+        }
+      ]
+    },
+    {
+      "id": "in_transit",
+      "type": "waiting",
+      "label": "接続の上",
+      "sublabel": "restricted へ向かう途中",
+      "tag": "IN_TRANSIT",
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 145,
+          "end_line": 173
+        }
+      ]
+    },
+    {
+      "id": "stuck",
+      "type": "failure",
+      "label": "SimulationError",
+      "sublabel": "着陸先が満員",
+      "sources": [
+        {
+          "path": "droneflow/simulation/turn_resolver.py",
+          "line": 186,
+          "end_line": 193
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "s1",
+      "from": "at_start",
+      "to": "at_zone",
+      "label": "1ターンで移動"
+    },
+    {
+      "id": "s2",
+      "from": "at_zone",
+      "to": "delivered",
+      "label": "end_hub に入る"
+    },
+    {
+      "id": "s3",
+      "from": "at_zone",
+      "to": "in_transit",
+      "label": "restricted へ出発"
+    },
+    {
+      "id": "s4",
+      "from": "in_transit",
+      "to": "at_zone",
+      "label": "次のターンに着陸"
+    },
+    {
+      "id": "s5",
+      "from": "in_transit",
+      "to": "stuck",
+      "label": "満員",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "ポイント",
+      "items": [
+        "移動は TurnResolver が適用する: 通常のゾーンへは enter_zone(1ターン)、restricted へは enter_transit → 次のターンに complete_transit。",
+        "start_hub からも restricted へ出発できる(図では途中のゾーンにまとめた)。",
+        "接続の上で待つことは許されないので、着陸先が満員なら SimulationError。Scheduler は予約表でそうならないように席を取っておく。"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,895 @@
+{
+  "schema_version": 1,
+  "diagram_type": "tree",
+  "meta": {
+    "title": "fly_in フォルダ構成",
+    "locale": "ja",
+    "output": "docs/archify/folder-tree/folder-tree.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    },
+    "views": [
+      {
+        "id": "v_flow",
+        "label": "実行の流れ順",
+        "focus": [
+          "fly_in_py",
+          "app",
+          "parsing",
+          "pathfinding",
+          "simulation",
+          "output",
+          "visualization"
+        ],
+        "note": "fly_in.py → Application が ①読み込み ②経路 ③シミュレーション ④出力・表示 を順に呼ぶ"
+      },
+      {
+        "id": "v_sched",
+        "label": "1ターンの判断",
+        "focus": [
+          "scheduling",
+          "scheduler",
+          "zone_ranking",
+          "hop_taker",
+          "evictor",
+          "detour_policy",
+          "reservation_table",
+          "turn_ledger",
+          "positions"
+        ],
+        "note": "Scheduler と、判断を任せる部品(2026-10-22 に simulation/scheduling/ へ整理)"
+      },
+      {
+        "id": "v_dev",
+        "label": "develop だけにあるもの",
+        "focus": [
+          "tests",
+          "docs"
+        ],
+        "note": "tests/ と docs/ は main(提出物)に含めない"
+      }
+    ]
+  },
+  "layout": {
+    "direction": "right"
+  },
+  "nodes": [
+    {
+      "id": "root",
+      "label": "fly_in/",
+      "sublabel": "リポジトリのルート"
+    },
+    {
+      "id": "fly_in_py",
+      "parent": "root",
+      "label": "fly_in.py",
+      "sublabel": "入口。終了コードを返す",
+      "sources": [
+        {
+          "path": "fly_in.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "makefile",
+      "parent": "root",
+      "label": "Makefile",
+      "sublabel": "install / run / lint / test",
+      "sources": [
+        {
+          "path": "Makefile",
+          "line": 29,
+          "end_line": 64
+        }
+      ]
+    },
+    {
+      "id": "config",
+      "parent": "root",
+      "label": "requirements.txt・setup.cfg",
+      "sublabel": "依存と flake8・mypy の設定",
+      "sources": [
+        {
+          "path": "setup.cfg",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "readme",
+      "parent": "root",
+      "label": "README.md・README.ja.md",
+      "sublabel": "英語版と日本語版",
+      "sources": [
+        {
+          "path": "README.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "claude_md",
+      "parent": "root",
+      "label": "CLAUDE.md",
+      "sublabel": "AI と作業するときのルール",
+      "sources": [
+        {
+          "path": "CLAUDE.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "maps",
+      "parent": "root",
+      "label": "maps/",
+      "sublabel": "subject_example.txt(make run の既定)",
+      "sources": [
+        {
+          "path": "maps/subject_example.txt",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "maps_tar",
+      "parent": "root",
+      "label": "maps.tar.gz",
+      "sublabel": "配布マップ(main には含めない)"
+    },
+    {
+      "id": "droneflow",
+      "parent": "root",
+      "label": "droneflow/",
+      "sublabel": "本体パッケージ",
+      "sources": [
+        {
+          "path": "droneflow/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "app",
+      "parent": "droneflow",
+      "label": "app.py",
+      "sublabel": "Application: 全体を配線",
+      "sources": [
+        {
+          "path": "droneflow/app.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "parent": "droneflow",
+      "label": "cli.py",
+      "sublabel": "コマンドライン引数",
+      "sources": [
+        {
+          "path": "droneflow/cli.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "errors",
+      "parent": "droneflow",
+      "label": "errors.py",
+      "sublabel": "FlyInError と派生の例外",
+      "sources": [
+        {
+          "path": "droneflow/errors.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "models",
+      "parent": "droneflow",
+      "label": "models/",
+      "sublabel": "共通の土台(データ)",
+      "sources": [
+        {
+          "path": "droneflow/models/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "zone",
+      "parent": "models",
+      "label": "zone.py",
+      "sublabel": "Zone・ZoneType",
+      "sources": [
+        {
+          "path": "droneflow/models/zone.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "connection",
+      "parent": "models",
+      "label": "connection.py",
+      "sublabel": "ゾーン間の接続",
+      "sources": [
+        {
+          "path": "droneflow/models/connection.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "drone",
+      "parent": "models",
+      "label": "drone.py",
+      "sublabel": "Drone・DroneStatus",
+      "sources": [
+        {
+          "path": "droneflow/models/drone.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "parent": "models",
+      "label": "network.py",
+      "sublabel": "自前のグラフ(ライブラリなし)",
+      "sources": [
+        {
+          "path": "droneflow/models/network.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "world",
+      "parent": "models",
+      "label": "world.py",
+      "sublabel": "解析済みのマップ全体",
+      "sources": [
+        {
+          "path": "droneflow/models/world.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "parsing",
+      "parent": "droneflow",
+      "label": "parsing/",
+      "sublabel": "① マップの読み込みと検証",
+      "sources": [
+        {
+          "path": "droneflow/parsing/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "map_parser",
+      "parent": "parsing",
+      "label": "map_parser.py",
+      "sublabel": "テキスト → World",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_parser.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "map_reader",
+      "parent": "parsing",
+      "label": "map_reader.py",
+      "sublabel": "行番号つきで1行ずつ",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_reader.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "line_tokenizer",
+      "parent": "parsing",
+      "label": "line_tokenizer.py",
+      "sublabel": "1行を部品に分ける(構文)",
+      "sources": [
+        {
+          "path": "droneflow/parsing/line_tokenizer.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "map_format",
+      "parent": "parsing",
+      "label": "map_format.py",
+      "sublabel": "行の書式の一覧表",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_format.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "map_validator",
+      "parent": "parsing",
+      "label": "map_validator.py",
+      "sublabel": "部品 → 検証済み World",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_validator.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "map_rules",
+      "parent": "parsing",
+      "label": "map_rules.py",
+      "sublabel": "複数行にまたがる規則",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "interchange",
+      "parent": "droneflow",
+      "label": "interchange/",
+      "sublabel": "段階間の受け渡し JSON",
+      "sources": [
+        {
+          "path": "droneflow/interchange/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "json_file",
+      "parent": "interchange",
+      "label": "json_file.py",
+      "sublabel": "JSON の読み書き",
+      "sources": [
+        {
+          "path": "droneflow/interchange/json_file.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "world_file",
+      "parent": "interchange",
+      "label": "world_file.py",
+      "sublabel": "--parse-only / --from-world",
+      "sources": [
+        {
+          "path": "droneflow/interchange/world_file.py",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "id": "run_file",
+      "parent": "interchange",
+      "label": "run_file.py",
+      "sublabel": "--save-run(毎ターンの記録)",
+      "sources": [
+        {
+          "path": "droneflow/interchange/run_file.py",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "id": "pathfinding",
+      "parent": "droneflow",
+      "label": "pathfinding/",
+      "sublabel": "② 経路(自前の探索)",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "distance_map",
+      "parent": "pathfinding",
+      "label": "distance_map.py",
+      "sublabel": "各ゾーンから end までのターン数",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/distance_map.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "pathfinder",
+      "parent": "pathfinding",
+      "label": "pathfinder.py",
+      "sublabel": "次の一手(最短と遠回り)",
+      "sources": [
+        {
+          "path": "droneflow/pathfinding/pathfinder.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "simulation",
+      "parent": "droneflow",
+      "label": "simulation/",
+      "sublabel": "③ ターンごとのシミュレーション",
+      "sources": [
+        {
+          "path": "droneflow/simulation/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "engine",
+      "parent": "simulation",
+      "label": "engine.py",
+      "sublabel": "全機到着までのターンループ",
+      "sources": [
+        {
+          "path": "droneflow/simulation/engine.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "turn_resolver",
+      "parent": "simulation",
+      "label": "turn_resolver.py",
+      "sublabel": "規則を確かめて適用",
+      "sources": [
+        {
+          "path": "droneflow/simulation/turn_resolver.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "state",
+      "parent": "simulation",
+      "label": "state.py",
+      "sublabel": "毎ターン変わる状態",
+      "sources": [
+        {
+          "path": "droneflow/simulation/state.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "observer",
+      "parent": "simulation",
+      "label": "observer.py",
+      "sublabel": "毎ターン呼ばれる観測者",
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "scheduling",
+      "parent": "simulation",
+      "label": "scheduling/",
+      "sublabel": "そのターンの手を決める",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "scheduler",
+      "parent": "scheduling",
+      "label": "scheduler.py",
+      "sublabel": "誰をどこへ動かすか",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/scheduler.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "zone_ranking",
+      "parent": "scheduling",
+      "label": "zone_ranking.py",
+      "sublabel": "ゾーンを判断する順番",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/zone_ranking.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "hop_taker",
+      "parent": "scheduling",
+      "label": "hop_taker.py",
+      "sublabel": "取れる最初の一手を取る",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/hop_taker.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "evictor",
+      "parent": "scheduling",
+      "label": "evictor.py",
+      "sublabel": "先客を動かして空ける",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/evictor.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "detour_policy",
+      "parent": "scheduling",
+      "label": "detour_policy.py",
+      "sublabel": "待つ代わりの遠回り",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/detour_policy.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "reservation_table",
+      "parent": "scheduling",
+      "label": "reservation_table.py",
+      "sublabel": "先のターンの入場予約",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/reservation_table.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "turn_ledger",
+      "parent": "scheduling",
+      "label": "turn_ledger.py",
+      "sublabel": "ゾーン・接続の空き",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/turn_ledger.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "positions",
+      "parent": "scheduling",
+      "label": "positions.py",
+      "sublabel": "決めた後の各機の位置",
+      "sources": [
+        {
+          "path": "droneflow/simulation/scheduling/positions.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "output",
+      "parent": "droneflow",
+      "label": "output/",
+      "sublabel": "④ ターンログとまとめ",
+      "sources": [
+        {
+          "path": "droneflow/output/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "formatter",
+      "parent": "output",
+      "label": "formatter.py",
+      "sublabel": "D<ID>-<zone> の形式",
+      "sources": [
+        {
+          "path": "droneflow/output/formatter.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "turn_log_printer",
+      "parent": "output",
+      "label": "turn_log_printer.py",
+      "sublabel": "進行中に1行ずつ出力",
+      "sources": [
+        {
+          "path": "droneflow/output/turn_log_printer.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "summary",
+      "parent": "output",
+      "label": "summary.py",
+      "sublabel": "終了時の主な数字",
+      "sources": [
+        {
+          "path": "droneflow/output/summary.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "visualization",
+      "parent": "droneflow",
+      "label": "visualization/",
+      "sublabel": "④ 表示(端末の色・画面)",
+      "sources": [
+        {
+          "path": "droneflow/visualization/__init__.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "terminal_view",
+      "parent": "visualization",
+      "label": "terminal_view.py",
+      "sublabel": "端末に色つきで表示",
+      "sources": [
+        {
+          "path": "droneflow/visualization/terminal_view.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "graphical_view",
+      "parent": "visualization",
+      "label": "graphical_view.py",
+      "sublabel": "pygame を使う唯一の場所",
+      "sources": [
+        {
+          "path": "droneflow/visualization/graphical_view.py",
+          "line": 1,
+          "end_line": 5
+        }
+      ]
+    },
+    {
+      "id": "camera",
+      "parent": "visualization",
+      "label": "camera.py",
+      "sublabel": "表示範囲と拡大率",
+      "sources": [
+        {
+          "path": "droneflow/visualization/camera.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "geometry",
+      "parent": "visualization",
+      "label": "geometry.py",
+      "sublabel": "重なり回避・弧の計算",
+      "sources": [
+        {
+          "path": "droneflow/visualization/geometry.py",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "id": "labels",
+      "parent": "visualization",
+      "label": "labels.py",
+      "sublabel": "画面に出す文字",
+      "sources": [
+        {
+          "path": "droneflow/visualization/labels.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "palette",
+      "parent": "visualization",
+      "label": "palette.py",
+      "sublabel": "色名 → RGB",
+      "sources": [
+        {
+          "path": "droneflow/visualization/palette.py",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "tests",
+      "parent": "root",
+      "label": "tests/",
+      "sublabel": "単体テスト(develop のみ)",
+      "sources": [
+        {
+          "path": "tests/README.md",
+          "line": 1,
+          "end_line": 11
+        }
+      ]
+    },
+    {
+      "id": "t_root",
+      "parent": "tests",
+      "label": "test_app.py ほか",
+      "sublabel": "app・cli・errors・fly_in"
+    },
+    {
+      "id": "t_models",
+      "parent": "tests",
+      "label": "models/",
+      "sublabel": "models/ に対応"
+    },
+    {
+      "id": "t_parsing",
+      "parent": "tests",
+      "label": "parsing/",
+      "sublabel": "parsing/ に対応"
+    },
+    {
+      "id": "t_interchange",
+      "parent": "tests",
+      "label": "interchange/",
+      "sublabel": "interchange/ に対応"
+    },
+    {
+      "id": "t_pathfinding",
+      "parent": "tests",
+      "label": "pathfinding/",
+      "sublabel": "pathfinding/ に対応"
+    },
+    {
+      "id": "t_simulation",
+      "parent": "tests",
+      "label": "simulation/",
+      "sublabel": "scheduling/ を含む"
+    },
+    {
+      "id": "t_output",
+      "parent": "tests",
+      "label": "output/",
+      "sublabel": "output/ に対応"
+    },
+    {
+      "id": "t_visualization",
+      "parent": "tests",
+      "label": "visualization/",
+      "sublabel": "pygame が無ければ skip",
+      "sources": [
+        {
+          "path": "tests/README.md",
+          "line": 21,
+          "end_line": 22
+        }
+      ]
+    },
+    {
+      "id": "docs",
+      "parent": "root",
+      "label": "docs/",
+      "sublabel": "記録(develop のみ)",
+      "sources": [
+        {
+          "path": "docs/archify/README.ja.md",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "id": "decisions",
+      "parent": "docs",
+      "label": "decisions.md",
+      "sublabel": "意思決定の記録"
+    },
+    {
+      "id": "bugs",
+      "parent": "docs",
+      "label": "bugs.md",
+      "sublabel": "バグの記録"
+    },
+    {
+      "id": "roadmap",
+      "parent": "docs",
+      "label": "roadmap.md",
+      "sublabel": "Stage ごとの計画"
+    },
+    {
+      "id": "review_guide",
+      "parent": "docs",
+      "label": "review_guide.md",
+      "sublabel": "ピアレビューでの説明の順番",
+      "sources": [
+        {
+          "path": "docs/review_guide.md",
+          "line": 1,
+          "end_line": 5
+        }
+      ]
+    },
+    {
+      "id": "research",
+      "parent": "docs",
+      "label": "research/",
+      "sublabel": "調査記録(1調査=1ファイル)"
+    },
+    {
+      "id": "conv_log",
+      "parent": "docs",
+      "label": "conversation_log/",
+      "sublabel": "会話ログ(日付ごと)"
+    },
+    {
+      "id": "archify_dir",
+      "parent": "docs",
+      "label": "archify/",
+      "sublabel": "残す図(overview・stage1〜7)",
+      "sources": [
+        {
+          "path": "docs/archify/README.ja.md",
+          "line": 6,
+          "end_line": 13
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "読み方",
+      "items": [
+        "線は「フォルダの中にある」という包含だけを表す。呼び出しの向きではない。",
+        "①〜④は実行の順番: fly_in.py → Application が ①読み込み → ②経路 → ③シミュレーション → ④出力・表示 を順に使う。",
+        "models/ は①〜④のどれもが使う共通のデータ。interchange/ は①と③の結果を JSON に保存・読み戻す。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "main と develop の違い",
+      "items": [
+        "main(提出物): fly_in.py・droneflow/・Makefile・README 両版・requirements.txt・setup.cfg・maps/subject_example.txt・CLAUDE.md・.gitignore・.gitattributes。",
+        "develop だけ: tests/・docs/・maps.tar.gz。",
+        "_tmp/ と revie_case/ はローカル専用で、どちらのブランチにもコミットしない。"
+      ]
+    }
+  ]
+}

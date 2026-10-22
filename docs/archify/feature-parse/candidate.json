@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "マップの読み込み(MapParser.parse)",
+    "locale": "ja",
+    "output": "docs/archify/feature-parse/feature-parse.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "participants": [
+    {
+      "id": "parser",
+      "type": "backend",
+      "label": "MapParser",
+      "sublabel": "つなぎ役",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_parser.py",
+          "line": 25,
+          "end_line": 43
+        }
+      ]
+    },
+    {
+      "id": "reader",
+      "type": "database",
+      "label": "MapReader",
+      "sublabel": "ファイル",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_reader.py",
+          "line": 21,
+          "end_line": 41
+        }
+      ]
+    },
+    {
+      "id": "tokenizer",
+      "type": "backend",
+      "label": "LineTokenizer",
+      "sublabel": "構文",
+      "sources": [
+        {
+          "path": "droneflow/parsing/line_tokenizer.py",
+          "line": 38,
+          "end_line": 59
+        }
+      ]
+    },
+    {
+      "id": "validator",
+      "type": "backend",
+      "label": "MapValidator",
+      "sublabel": "意味",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_validator.py",
+          "line": 29,
+          "end_line": 73
+        }
+      ]
+    },
+    {
+      "id": "rules",
+      "type": "security",
+      "label": "Rule",
+      "sublabel": "default_rules()",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 51,
+          "end_line": 106
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "type": "database",
+      "label": "Network",
+      "sublabel": "models/",
+      "sources": [
+        {
+          "path": "droneflow/models/network.py",
+          "line": 30,
+          "end_line": 47
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 300,
+      "label": "1行目(ヘッダ)"
+    },
+    {
+      "from": 310,
+      "to": 615,
+      "label": "2行目以降(1行ずつ繰り返す)"
+    },
+    {
+      "from": 625,
+      "to": 730,
+      "label": "最後"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "parser",
+      "to": "reader",
+      "y": 170,
+      "label": "for src in MapReader(path)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m2",
+      "from": "reader",
+      "to": "parser",
+      "y": 200,
+      "label": "SourceLine(行番号, 文字列)",
+      "variant": "return"
+    },
+    {
+      "id": "m3",
+      "from": "parser",
+      "to": "tokenizer",
+      "y": 232,
+      "label": "tokenize_header(src)",
+      "note": "nb_drones: の行として読む"
+    },
+    {
+      "id": "m4",
+      "from": "parser",
+      "to": "validator",
+      "y": 280,
+      "label": "accept(RawLine)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m5",
+      "from": "parser",
+      "to": "tokenizer",
+      "y": 330,
+      "label": "tokenize(src)",
+      "note": "空行・# のコメントは None で飛ばす。知らないキーワードは ParseError"
+    },
+    {
+      "id": "m6",
+      "from": "tokenizer",
+      "to": "parser",
+      "y": 400,
+      "label": "RawLine",
+      "variant": "return"
+    },
+    {
+      "id": "m7",
+      "from": "parser",
+      "to": "validator",
+      "y": 430,
+      "label": "accept(RawLine)",
+      "variant": "emphasis",
+      "note": "LineSpec.build で Zone / Connection を作る"
+    },
+    {
+      "id": "m8",
+      "from": "validator",
+      "to": "rules",
+      "y": 490,
+      "label": "check(entry, network)",
+      "variant": "security",
+      "note": "名前の重複・start/end は1つ・両端が宣言済み・接続の重複"
+    },
+    {
+      "id": "m9",
+      "from": "rules",
+      "to": "validator",
+      "y": 560,
+      "label": "ValueError → ParseError(行番号)",
+      "variant": "return"
+    },
+    {
+      "id": "m10",
+      "from": "validator",
+      "to": "network",
+      "y": 595,
+      "label": "add_zone / add_connection"
+    },
+    {
+      "id": "m11",
+      "from": "parser",
+      "to": "validator",
+      "y": 650,
+      "label": "finish()",
+      "variant": "emphasis",
+      "note": "ヘッダ・start_hub・end_hub がなければ ParseError"
+    },
+    {
+      "id": "m12",
+      "from": "validator",
+      "to": "parser",
+      "y": 710,
+      "label": "World(network, nb_drones)",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "役割の分け方",
+      "items": [
+        "MapReader は行を読むだけ、LineTokenizer は形(構文)だけ、MapValidator は値と規則(意味)を見る。",
+        "どんな行があるかは map_format.py の一覧表(DEFAULT_FORMAT)にまとめてあり、LineTokenizer はそこから行の形を知る。",
+        "どの誤りも行番号つきの ParseError になる。ファイルを開けない・UTF-8 でないときは Application が MapFileError にする。"
+      ]
+    }
+  ]
+}

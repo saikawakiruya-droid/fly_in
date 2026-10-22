@@ -1,0 +1,538 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "parsing/ — マップファイル → World",
+    "locale": "ja",
+    "output": "docs/archify/folder-parsing/folder-parsing.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "parser",
+      "label": "MapParser",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "部品をつないで World を作る",
+      "attributes": [
+        {
+          "name": "path",
+          "type": "Path",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "parse",
+          "visibility": "public",
+          "returns": "World"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_parser.py",
+          "line": 13,
+          "end_line": 43
+        }
+      ]
+    },
+    {
+      "id": "reader",
+      "label": "MapReader",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "行番号つきで1行ずつ渡す",
+      "attributes": [
+        {
+          "name": "path",
+          "type": "Path",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "__iter__",
+          "visibility": "public",
+          "returns": "Iterator[SourceLine]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_reader.py",
+          "line": 21,
+          "end_line": 41
+        }
+      ]
+    },
+    {
+      "id": "source_line",
+      "label": "SourceLine",
+      "kind": "record",
+      "row": 0,
+      "col": 2,
+      "sublabel": "1行の生テキスト",
+      "attributes": [
+        {
+          "name": "number",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "text",
+          "type": "str",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_reader.py",
+          "line": 8,
+          "end_line": 18
+        }
+      ]
+    },
+    {
+      "id": "validator",
+      "label": "MapValidator",
+      "kind": "class",
+      "row": 1,
+      "col": 0,
+      "sublabel": "部品を受け取り Network を組み立てる",
+      "attributes": [
+        {
+          "name": "_rules",
+          "type": "list[Rule]",
+          "visibility": "private"
+        },
+        {
+          "name": "_network",
+          "type": "Network",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "accept",
+          "visibility": "public",
+          "parameters": "raw: RawLine"
+        },
+        {
+          "name": "finish",
+          "visibility": "public",
+          "returns": "World"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_validator.py",
+          "line": 15,
+          "end_line": 73
+        }
+      ]
+    },
+    {
+      "id": "tokenizer",
+      "label": "LineTokenizer",
+      "kind": "class",
+      "row": 1,
+      "col": 1,
+      "sublabel": "1行を部品に分ける(構文だけ)",
+      "attributes": [
+        {
+          "name": "_format",
+          "type": "MapFormat",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "tokenize_header",
+          "visibility": "public",
+          "parameters": "src",
+          "returns": "RawLine"
+        },
+        {
+          "name": "tokenize",
+          "visibility": "public",
+          "parameters": "src",
+          "returns": "RawLine | None"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/line_tokenizer.py",
+          "line": 31,
+          "end_line": 97
+        }
+      ]
+    },
+    {
+      "id": "raw_line",
+      "label": "RawLine",
+      "kind": "record",
+      "row": 1,
+      "col": 2,
+      "sublabel": "分けた結果",
+      "attributes": [
+        {
+          "name": "number",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "spec",
+          "type": "LineSpec",
+          "visibility": "public"
+        },
+        {
+          "name": "positional",
+          "type": "tuple[str, ...]",
+          "visibility": "public"
+        },
+        {
+          "name": "metadata",
+          "type": "Mapping[str, str]",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/line_tokenizer.py",
+          "line": 14,
+          "end_line": 28
+        }
+      ]
+    },
+    {
+      "id": "map_format",
+      "label": "MapFormat",
+      "kind": "class",
+      "row": 1,
+      "col": 3,
+      "sublabel": "どんな行があり得るかの一覧表(DEFAULT_FORMAT)",
+      "attributes": [
+        {
+          "name": "header",
+          "type": "LineSpec",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "find",
+          "visibility": "public",
+          "parameters": "keyword",
+          "returns": "LineSpec | None"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_format.py",
+          "line": 251,
+          "end_line": 318
+        }
+      ]
+    },
+    {
+      "id": "rule",
+      "label": "Rule",
+      "kind": "interface",
+      "row": 2,
+      "col": 1.5,
+      "sublabel": "複数行にまたがる規則",
+      "methods": [
+        {
+          "name": "check",
+          "visibility": "public",
+          "parameters": "entry, network"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 16,
+          "end_line": 20
+        }
+      ]
+    },
+    {
+      "id": "line_spec",
+      "label": "LineSpec",
+      "kind": "record",
+      "row": 2,
+      "col": 3,
+      "sublabel": "1種類の行の書式(フィールドと組み立て方)",
+      "attributes": [
+        {
+          "name": "keyword",
+          "type": "str",
+          "visibility": "public"
+        },
+        {
+          "name": "positional",
+          "type": "Sequence[FieldSpec]",
+          "visibility": "public"
+        },
+        {
+          "name": "metadata",
+          "type": "Sequence[FieldSpec]",
+          "visibility": "public"
+        },
+        {
+          "name": "builder",
+          "type": "Builder",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "build",
+          "visibility": "public",
+          "parameters": "raw",
+          "returns": "Entry"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_format.py",
+          "line": 167,
+          "end_line": 212
+        }
+      ]
+    },
+    {
+      "id": "zone_rule",
+      "label": "ZoneRule",
+      "kind": "abstract",
+      "row": 3,
+      "col": 0.5,
+      "sublabel": "Zone だけを調べる",
+      "methods": [
+        {
+          "name": "check_zone",
+          "visibility": "public",
+          "parameters": "zone, network"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 23,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "id": "conn_rule",
+      "label": "ConnectionRule",
+      "kind": "abstract",
+      "row": 3,
+      "col": 2.5,
+      "sublabel": "Connection だけを調べる",
+      "methods": [
+        {
+          "name": "check_connection",
+          "visibility": "public",
+          "parameters": "connection, network"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 36,
+          "end_line": 48
+        }
+      ]
+    },
+    {
+      "id": "unique_zone",
+      "label": "UniqueZoneName",
+      "kind": "class",
+      "row": 4,
+      "col": 0,
+      "sublabel": "名前の重複なし",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 51,
+          "end_line": 57
+        }
+      ]
+    },
+    {
+      "id": "single_se",
+      "label": "SingleStartAndEnd",
+      "kind": "class",
+      "row": 4,
+      "col": 1,
+      "sublabel": "start / end は1つずつ",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 60,
+          "end_line": 68
+        }
+      ]
+    },
+    {
+      "id": "known_ep",
+      "label": "KnownEndpoints",
+      "kind": "class",
+      "row": 4,
+      "col": 2,
+      "sublabel": "両端が宣言済み",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 71,
+          "end_line": 80
+        }
+      ]
+    },
+    {
+      "id": "unique_conn",
+      "label": "UniqueConnection",
+      "kind": "class",
+      "row": 4,
+      "col": 3,
+      "sublabel": "同じ接続の重複なし",
+      "sources": [
+        {
+          "path": "droneflow/parsing/map_rules.py",
+          "line": 83,
+          "end_line": 96
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "p_r",
+      "from": "parser",
+      "to": "reader",
+      "kind": "dependency",
+      "label": "読む"
+    },
+    {
+      "id": "r_s",
+      "from": "reader",
+      "to": "source_line",
+      "kind": "dependency",
+      "label": "yield"
+    },
+    {
+      "id": "p_v",
+      "from": "parser",
+      "to": "validator",
+      "kind": "dependency",
+      "label": "渡す"
+    },
+    {
+      "id": "p_t",
+      "from": "parser",
+      "to": "tokenizer",
+      "kind": "dependency",
+      "label": "分ける"
+    },
+    {
+      "id": "t_raw",
+      "from": "tokenizer",
+      "to": "raw_line",
+      "kind": "dependency",
+      "label": "作る"
+    },
+    {
+      "id": "t_f",
+      "from": "tokenizer",
+      "to": "map_format",
+      "kind": "association",
+      "label": "_format"
+    },
+    {
+      "id": "f_ls",
+      "from": "map_format",
+      "to": "line_spec",
+      "kind": "composition"
+    },
+    {
+      "id": "raw_ls",
+      "from": "raw_line",
+      "to": "line_spec",
+      "kind": "association",
+      "label": "spec"
+    },
+    {
+      "id": "v_rule",
+      "from": "validator",
+      "to": "rule",
+      "kind": "aggregation",
+      "label": "_rules"
+    },
+    {
+      "id": "zr_rule",
+      "from": "zone_rule",
+      "to": "rule",
+      "kind": "realization"
+    },
+    {
+      "id": "cr_rule",
+      "from": "conn_rule",
+      "to": "rule",
+      "kind": "realization"
+    },
+    {
+      "id": "i1",
+      "from": "unique_zone",
+      "to": "zone_rule",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i2",
+      "from": "single_se",
+      "to": "zone_rule",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i3",
+      "from": "known_ep",
+      "to": "conn_rule",
+      "kind": "inheritance"
+    },
+    {
+      "id": "i4",
+      "from": "unique_conn",
+      "to": "conn_rule",
+      "kind": "inheritance"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "流れ",
+      "items": [
+        "MapParser.parse: MapReader の各行を、1行目は tokenize_header、それ以外は tokenize で RawLine にし、MapValidator.accept に渡す。最後に finish で World。",
+        "LineSpec.build が RawLine から Zone・Connection・DroneCount を作り、MapValidator が Rule で検査してから Network に足す。",
+        "LineSpec の各フィールドは FieldSpec(名前・変換関数・既定値)。図では省略した。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "エラー",
+      "items": [
+        "どの段階の誤りも ParseError(行番号・理由)にして送出する。",
+        "interchange/world_file.py も default_rules() と to_zone_name を使い、読み戻した World を同じ規則で検査する。"
+      ]
+    }
+  ]
+}

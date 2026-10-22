@@ -1,0 +1,450 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "visualization/ — 端末と画面の表示",
+    "locale": "ja",
+    "output": "docs/archify/folder-visualization/folder-visualization.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/saikawakiruya-droid/fly_in.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "ce56156cf7928967e24e0a180c14111a08544ebc"
+    }
+  },
+  "layout": {
+    "mode": "grid"
+  },
+  "types": [
+    {
+      "id": "terminal",
+      "label": "TerminalVisualizer",
+      "kind": "class",
+      "row": 0,
+      "col": 0,
+      "sublabel": "terminal_view.py: 端末に色つきで表示",
+      "attributes": [
+        {
+          "name": "stream",
+          "type": "TextIO",
+          "visibility": "public"
+        },
+        {
+          "name": "color",
+          "type": "bool",
+          "visibility": "public"
+        },
+        {
+          "name": "step",
+          "type": "bool",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        },
+        {
+          "name": "frame",
+          "visibility": "public",
+          "parameters": "state, moves",
+          "returns": "list[str]"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/terminal_view.py",
+          "line": 64,
+          "end_line": 131
+        }
+      ]
+    },
+    {
+      "id": "observer",
+      "label": "TurnObserver（他フォルダ）",
+      "kind": "interface",
+      "row": 0,
+      "col": 1,
+      "sublabel": "simulation/observer.py",
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/simulation/observer.py",
+          "line": 9,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "id": "graphical",
+      "label": "GraphicalVisualizer",
+      "kind": "class",
+      "row": 0,
+      "col": 2,
+      "sublabel": "graphical_view.py: pygame を使う唯一の場所",
+      "attributes": [
+        {
+          "name": "delay",
+          "type": "float",
+          "visibility": "public"
+        },
+        {
+          "name": "step",
+          "type": "bool",
+          "visibility": "public"
+        },
+        {
+          "name": "_window",
+          "type": "_Window | None",
+          "visibility": "private"
+        }
+      ],
+      "methods": [
+        {
+          "name": "begin",
+          "visibility": "public",
+          "parameters": "state"
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "parameters": "state, moves"
+        },
+        {
+          "name": "close",
+          "visibility": "public"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/graphical_view.py",
+          "line": 631,
+          "end_line": 700
+        }
+      ]
+    },
+    {
+      "id": "palette",
+      "label": "palette.py(関数)",
+      "kind": "class",
+      "row": 1,
+      "col": 0,
+      "sublabel": "色名 → RGB",
+      "methods": [
+        {
+          "name": "rgb",
+          "visibility": "public",
+          "parameters": "name",
+          "returns": "RGB | None"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/palette.py",
+          "line": 43,
+          "end_line": 51
+        }
+      ]
+    },
+    {
+      "id": "labels",
+      "label": "labels.py(関数)",
+      "kind": "class",
+      "row": 1,
+      "col": 1,
+      "sublabel": "画面に出す文字を幅に収める",
+      "methods": [
+        {
+          "name": "zone_title",
+          "visibility": "public",
+          "parameters": "zone, measure, max_width",
+          "returns": "str"
+        },
+        {
+          "name": "load_label",
+          "visibility": "public",
+          "parameters": "state, zone",
+          "returns": "str | None"
+        },
+        {
+          "name": "fit_items",
+          "visibility": "public",
+          "parameters": "items, measure, max_width",
+          "returns": "str"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/labels.py",
+          "line": 22,
+          "end_line": 90
+        }
+      ]
+    },
+    {
+      "id": "window",
+      "label": "_Window",
+      "kind": "class",
+      "row": 1,
+      "col": 2,
+      "sublabel": "pygame の窓・描画・キー操作",
+      "attributes": [
+        {
+          "name": "layout",
+          "type": "_Layout",
+          "visibility": "public"
+        },
+        {
+          "name": "camera",
+          "type": "Camera",
+          "visibility": "public"
+        },
+        {
+          "name": "delay",
+          "type": "float",
+          "visibility": "public"
+        },
+        {
+          "name": "paused",
+          "type": "bool",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "show",
+          "visibility": "public",
+          "parameters": "..."
+        },
+        {
+          "name": "redraw",
+          "visibility": "public",
+          "parameters": "note"
+        },
+        {
+          "name": "wait",
+          "visibility": "public",
+          "returns": "bool"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/graphical_view.py",
+          "line": 194,
+          "end_line": 220
+        }
+      ]
+    },
+    {
+      "id": "geometry",
+      "label": "geometry.py(関数)",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "重なりを避ける配置・弧の経路(PointGrid)",
+      "methods": [
+        {
+          "name": "spread_duplicates",
+          "visibility": "public",
+          "parameters": "points, radius",
+          "returns": "dict"
+        },
+        {
+          "name": "route",
+          "visibility": "public",
+          "parameters": "start, end, ...",
+          "returns": "Path"
+        },
+        {
+          "name": "arc",
+          "visibility": "public",
+          "parameters": "start, end, bulge",
+          "returns": "Path"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/geometry.py",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "id": "layout",
+      "label": "_Layout",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "ゾーンの位置と接続の線を一度だけ計算",
+      "attributes": [
+        {
+          "name": "radius",
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "spacing",
+          "type": "float",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "position",
+          "visibility": "public",
+          "parameters": "zone_name",
+          "returns": "Point"
+        },
+        {
+          "name": "path",
+          "visibility": "public",
+          "parameters": "connection",
+          "returns": "Path"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/graphical_view.py",
+          "line": 77,
+          "end_line": 150
+        }
+      ]
+    },
+    {
+      "id": "camera",
+      "label": "Camera",
+      "kind": "class",
+      "row": 2,
+      "col": 2,
+      "sublabel": "camera.py: 表示範囲と拡大率",
+      "attributes": [
+        {
+          "name": "zoom",
+          "type": "float",
+          "visibility": "public"
+        },
+        {
+          "name": "offset",
+          "type": "(float, float)",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "to_screen",
+          "visibility": "public",
+          "parameters": "point",
+          "returns": "Point"
+        },
+        {
+          "name": "zoom_at",
+          "visibility": "public",
+          "parameters": "screen, factor"
+        },
+        {
+          "name": "pan",
+          "visibility": "public",
+          "parameters": "dx, dy"
+        }
+      ],
+      "sources": [
+        {
+          "path": "droneflow/visualization/camera.py",
+          "line": 23,
+          "end_line": 67
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "t_obs",
+      "from": "terminal",
+      "to": "observer",
+      "kind": "realization"
+    },
+    {
+      "id": "g_obs",
+      "from": "graphical",
+      "to": "observer",
+      "kind": "realization"
+    },
+    {
+      "id": "t_pal",
+      "from": "terminal",
+      "to": "palette",
+      "kind": "dependency",
+      "label": "rgb"
+    },
+    {
+      "id": "g_win",
+      "from": "graphical",
+      "to": "window",
+      "kind": "composition",
+      "label": "_window"
+    },
+    {
+      "id": "w_lab",
+      "from": "window",
+      "to": "labels",
+      "kind": "dependency"
+    },
+    {
+      "id": "w_lay",
+      "from": "window",
+      "to": "layout",
+      "kind": "composition"
+    },
+    {
+      "id": "w_cam",
+      "from": "window",
+      "to": "camera",
+      "kind": "composition"
+    },
+    {
+      "id": "l_geo",
+      "from": "layout",
+      "to": "geometry",
+      "kind": "dependency"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "ポイント",
+      "items": [
+        "どちらの表示も TurnObserver として毎ターン begin / render / close で呼ばれる。--visual terminal / graphical / both で選ぶ。",
+        "pygame を import するのは graphical_view.py だけ。ほかのモジュール(palette・labels・geometry・camera)は pygame なしでテストできる。",
+        "graphical_view.py の zone_rgb も palette.rgb を使う(線は省略)。"
+      ]
+    }
+  ]
+}
