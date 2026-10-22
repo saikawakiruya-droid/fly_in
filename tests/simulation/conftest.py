@@ -9,7 +9,9 @@ shared the same way; they live in ``tests/conftest.py`` with ``place`` and
 ``snapshot``, since the visualization tests use them too.
 
 ``evictor_for`` builds a ``ReservationTable``, a ``TurnLedger`` and an
-``Evictor`` for one turn, for the timed reservation tests. ``moves_of``
+``Evictor`` for one turn, for the timed reservation tests, and
+``taker_for`` the same over a ``PositionBoard`` with a ``HopTaker``.
+``moves_of``
 lists a drone's planned moves from the table's public ``due`` and
 ``last_turn``.
 """
@@ -24,6 +26,7 @@ from droneflow.output.formatter import TurnLogFormatter
 from droneflow.pathfinding.pathfinder import Hop, Pathfinder
 from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.evictor import Evictor
+from droneflow.simulation.hop_taker import HopTaker
 from droneflow.simulation.observer import TurnObserver
 from droneflow.simulation.positions import PositionBoard
 from droneflow.simulation.reservation_table import (
@@ -38,6 +41,7 @@ Script = list[list[MoveOrder]]
 Record = tuple[int, int, bool]
 Call = tuple[object, ...]
 EvictorParts = tuple[ReservationTable, TurnLedger, Evictor]
+TakerParts = tuple[ReservationTable, TurnLedger, PositionBoard, HopTaker]
 
 
 class ScriptedScheduler:
@@ -227,6 +231,28 @@ def make_evictor(
     return table, ledger, Evictor(ledger, table, hops, board)
 
 
+def make_taker(
+    state: SimulationState, table: ReservationTable | None = None
+) -> TakerParts:
+    """Return a table, a ledger, a board and a hop taker for the next turn.
+
+    Built the same way as ``make_evictor``; the taker shares the board
+    and the ledger with its evictor. Moves reserved in ``table`` before
+    the call are kept (``start_turn`` keeps the moves of drones still
+    standing where they depart from).
+    """
+    network = state.network
+    if table is None:
+        table = ReservationTable()
+    table.start_turn(state)
+    ledger = TurnLedger(state, table)
+    pathfinder = Pathfinder(network)
+    hops = {name: pathfinder.next_hops(name) for name in network.zones}
+    board = PositionBoard.from_state(state)
+    evictor = Evictor(ledger, table, hops, board)
+    return table, ledger, board, HopTaker(ledger, evictor, board)
+
+
 @pytest.fixture
 def scripted_scheduler() -> Callable[[Network, Script], MoveDecider]:
     """Return a factory for ``ScriptedScheduler`` (the network is unused)."""
@@ -273,6 +299,12 @@ def moves_of() -> Callable[[ReservationTable, int], list[Reservation]]:
 def evictor_for() -> Callable[..., EvictorParts]:
     """Return the ``make_evictor`` helper (timed reservation tests)."""
     return make_evictor
+
+
+@pytest.fixture
+def taker_for() -> Callable[..., TakerParts]:
+    """Return the ``make_taker`` helper (hop taker tests)."""
+    return make_taker
 
 
 @pytest.fixture
