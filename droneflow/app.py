@@ -148,7 +148,7 @@ class Application:
         name = self.args.map_name
         try:
             if self.args.from_world:
-                return WorldFile(name).read()
+                return WorldFile(self.args.map_path, name).read()
             return MapParser(self.args.map_path).parse()
         except OSError as exc:
             reason = exc.strerror or type(exc).__name__

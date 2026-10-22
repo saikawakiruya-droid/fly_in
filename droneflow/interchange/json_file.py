@@ -3,6 +3,7 @@
 import json
 from collections.abc import Mapping
 from enum import Enum
+from pathlib import Path
 from typing import TypeVar
 
 from ..errors import OutputFileError
@@ -10,13 +11,17 @@ from ..errors import OutputFileError
 E = TypeVar("E", bound=Enum)
 
 
-def write_json(path: str, data: Mapping[str, object]) -> None:
+def write_json(
+    path: str | Path, data: Mapping[str, object], name: str | None = None
+) -> None:
     """Write ``data`` to ``path`` as indented UTF-8 JSON.
 
     Args:
-        path: The file path as given on the command line.
+        path: The file to write.
         data: Plain JSON values (dicts, lists, str, int, float, bool,
             None).
+        name: The path as typed on the command line, for the error;
+            None means ``str(path)``.
 
     Raises:
         OutputFileError: If the file cannot be written.
@@ -27,7 +32,8 @@ def write_json(path: str, data: Mapping[str, object]) -> None:
             f.write("\n")
     except OSError as exc:
         reason = exc.strerror or type(exc).__name__
-        raise OutputFileError(path, reason) from exc
+        shown = str(path) if name is None else name
+        raise OutputFileError(shown, reason) from exc
 
 
 class JsonObject:
