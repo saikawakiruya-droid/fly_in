@@ -18,15 +18,15 @@ class Reservation:
     Attributes:
         drone_id: Which drone moves.
         from_zone: The zone it leaves.
-        zone: The zone it enters.
+        to_zone: The zone it enters.
         depart_turn: The turn it leaves ``from_zone`` (and uses the
             connection).
-        arrive_turn: The turn it enters ``zone``.
+        arrive_turn: The turn it enters ``to_zone``.
     """
 
     drone_id: int
     from_zone: str
-    zone: str
+    to_zone: str
     depart_turn: int
     arrive_turn: int
 
@@ -95,13 +95,13 @@ class ReservationTable:
             for move in self._by_drone.get(drone_id, [])
         )
 
-    def entering(self, zone: str, turn: int) -> int:
+    def entering(self, zone_name: str, turn: int) -> int:
         """Return how many drones are planned to enter the zone that turn."""
-        return len(self._entries.get((zone, turn), []))
+        return len(self._entries.get((zone_name, turn), []))
 
-    def leaving(self, zone: str, turn: int) -> int:
+    def leaving(self, zone_name: str, turn: int) -> int:
         """Return how many drones are planned to leave the zone that turn."""
-        return self._leaving.get((zone, turn), 0)
+        return self._leaving.get((zone_name, turn), 0)
 
     def due(self, turn: int) -> list[Reservation]:
         """Return the moves departing on that turn, in drone_id order."""
@@ -148,7 +148,7 @@ class ReservationTable:
         )
 
     def _insert(self, reservation: Reservation) -> None:
-        key = (reservation.zone, reservation.arrive_turn)
+        key = (reservation.to_zone, reservation.arrive_turn)
         self._entries.setdefault(key, []).append(reservation)
         leave = (reservation.from_zone, reservation.depart_turn)
         self._leaving[leave] = self._leaving.get(leave, 0) + 1
@@ -160,7 +160,7 @@ class ReservationTable:
         )
 
     def _discard(self, reservation: Reservation) -> None:
-        key = (reservation.zone, reservation.arrive_turn)
+        key = (reservation.to_zone, reservation.arrive_turn)
         self._entries[key].remove(reservation)
         if not self._entries[key]:
             del self._entries[key]

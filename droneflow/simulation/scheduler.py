@@ -107,8 +107,8 @@ class Scheduler:
         self._detour_policy.remember(ledger.turn, board)
         orders: list[MoveOrder] = []
         for move in self._table.due(ledger.turn):
-            orders.append(MoveOrder(move.drone_id, move.zone))
-            board.place(move.drone_id, move.zone, move.arrive_turn)
+            orders.append(MoveOrder(move.drone_id, move.to_zone))
+            board.place(move.drone_id, move.to_zone, move.arrive_turn)
         ordered = {order.drone_id for order in orders}
         taker = HopTaker(
             ledger,

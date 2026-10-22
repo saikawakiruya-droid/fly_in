@@ -65,7 +65,7 @@ class TurnLedger:
         used = sum(
             1 for move in self.table.due(turn)
             if connection.involves(move.from_zone)
-            and connection.involves(move.zone)
+            and connection.involves(move.to_zone)
         )
         if turn == self.turn:
             used += self._link_use.get(connection.name, 0)
