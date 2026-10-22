@@ -131,3 +131,13 @@ def test_write_json_failure(tmp_path: Path) -> None:
         f"cannot write '{path}': No such file or directory"
     )
     assert isinstance(info.value.__cause__, OSError)
+
+
+def test_write_json_failure_shows_the_typed_name(tmp_path: Path) -> None:
+    """JO11: the error names the path as typed, not the one opened."""
+    path = tmp_path / "no_dir" / "x.json"
+
+    with pytest.raises(OutputFileError) as info:
+        write_json(path, {}, name="./no_dir/x.json")
+
+    assert info.value.path == "./no_dir/x.json"
