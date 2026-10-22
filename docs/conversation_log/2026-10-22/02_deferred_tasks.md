@@ -43,3 +43,5 @@
   スケジューラーの実行に `--visual`・`--step` を付ければ表示でき、`--save-run` と併用しても記録は同じことを確認。
 - 決定: `docs/decisions.md` 2026-10-22「表示の単体実行(記録の再生)は作らない」
 - 未決: `test/stage_files` の develop へのマージ(ユーザーの許可待ち)
+- ユーザーの許可を得て `test/stage_files` を develop にマージ(2987ed9)。pytest 818件成功、flake8・mypy 問題なし。開いている issue はなし。
+  roadmap の 2・3 を完了に更新。main への反映は後回しにし、次はロードマップ 1(ビジュアライズの改善)を先に行う(ユーザー判断)。
