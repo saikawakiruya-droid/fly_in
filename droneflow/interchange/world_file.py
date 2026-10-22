@@ -17,6 +17,7 @@ cannot give the simulation a map the parser would have rejected.
 
 import json
 from collections.abc import Sequence
+from pathlib import Path
 
 from ..errors import WorldFileError
 from ..models.connection import Connection
@@ -146,11 +147,23 @@ def _check(
 
 
 class WorldFile:
-    """Writes a World to a JSON file, or reads one back."""
+    """Writes a World to a JSON file, or reads one back.
 
-    def __init__(self, path: str) -> None:
-        """Keep the file path as given on the command line."""
-        self.path = path
+    Attributes:
+        path: The file to write or read.
+        name: The path as the user typed it, for messages.
+    """
+
+    def __init__(self, path: str | Path, name: str | None = None) -> None:
+        """Keep the file path, and how to name it in messages.
+
+        Args:
+            path: The file to write or read.
+            name: The path as typed on the command line; None means
+                ``str(path)``.
+        """
+        self.path = Path(path)
+        self.name = str(path) if name is None else name
 
     def write(self, world: World) -> None:
         """Write the World.
@@ -159,7 +172,7 @@ class WorldFile:
             droneflow.errors.OutputFileError: If the file cannot be
                 written.
         """
-        write_json(self.path, world_to_json(world))
+        write_json(self.path, world_to_json(world), self.name)
 
     def read(self) -> World:
         """Read the World back.
@@ -175,7 +188,7 @@ class WorldFile:
             return world_from_json(json.loads(text))
         except json.JSONDecodeError as exc:
             raise WorldFileError(
-                self.path, f"not JSON: {exc.msg} (line {exc.lineno})"
+                self.name, f"not JSON: {exc.msg} (line {exc.lineno})"
             ) from None
         except ValueError as exc:
-            raise WorldFileError(self.path, str(exc)) from None
+            raise WorldFileError(self.name, str(exc)) from None
