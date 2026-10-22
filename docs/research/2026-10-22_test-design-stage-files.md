@@ -36,7 +36,6 @@
 | JO08 | オブジェクトのリスト | `objects("zones")` に `{}` / `[{}, 1]` | `"zones: must be a list"` / 2つ目で `"zones[1]: must be an object"`。1つ目の `where("name") == "zones[0].name"` |
 | JO09 | 書き出しの形 | `write_json(str(p), {"a": [1], "名前": "é"})` | ファイルが UTF-8 で、`json.loads` で元に戻り、インデント2で、最後が改行。ASCII 以外はそのまま(`\u` に変えない) |
 | JO10 | 書けないとき | `write_json(str(tmp_path / "no_dir" / "x.json"), {})` | `OutputFileError`。`path` は渡したとおりの文字列、`reason == "No such file or directory"`、メッセージ `cannot write '<path>': No such file or directory`。`OSError` が `__cause__` |
-
 | JO11 | 書けないときの表示名(作成のフェーズで追加) | `write_json(tmp_path / "no_dir" / "x.json", {}, name="./no_dir/x.json")` | `OutputFileError.path == "./no_dir/x.json"`(開いたパスではなく入力どおり) |
 
 ## B. World のファイル(`tests/interchange/test_world_file.py`)
