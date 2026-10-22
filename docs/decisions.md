@@ -1329,3 +1329,13 @@ sequenceDiagram
 - 理由: ユーザー判断。1 は配布資料であって成果物ではないため(R10-8)。2 は CLAUDE.md の方針(公開しうるリポジトリは noreply)。
   履歴の書き換えは全コミットの ID が変わり、push 済みの origin に強制 push が要るため見送った。3 は評価での説明しやすさと型の安全性のため。
 - 検討した代替案: 履歴を書き換えて作者情報とセッション URL を直す(強制 push が要る)、作者情報は今は変えない。
+
+## 2026-10-22: main への反映は「成果物のパスだけを develop から取り出す1コミット」で行う
+
+- 決定内容: main には develop をマージせず、main の上で `git checkout develop -- <成果物のパス>` で成果物だけを取り出し、
+  main 用の差分(`tests/` が無いことに合わせて、Makefile の `test`、requirements の pytest、setup.cfg の `[mypy-tests.*]`、
+  README の `make test` と tests の記述を取り除く)を加えて1コミットにする。成果物のパスと main 用の差分は CLAUDE.md の
+  「ブランチごとの責任分化」に書いた。古いスケルトンのファイルと `maps.tar.gz` は main から削除した(1de8625)。
+  反映後、`git archive main` で取り出した状態で flake8・mypy(課題のフラグと --strict)・課題の例の実行が通ることを確かめた。
+- 理由: ユーザーの許可(2026-10-22)。develop をマージすると `docs/`・`tests/` を含むコミットが main の履歴に入るため(R10-1)。
+- 検討した代替案: release ブランチで `docs/`・`tests/` を消してからマージする案(履歴に docs/tests のコミットが残る)。
