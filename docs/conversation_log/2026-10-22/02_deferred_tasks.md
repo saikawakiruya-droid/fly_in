@@ -119,3 +119,15 @@
   検証し、develop を 3b40b46 まで進めた。別セッションの作業ツリー(D:)には触れていない。
 - 依頼: 全マップの部分実行を見たい → `_tmp/partial_runs/summary.md`(一覧)と各マップの成果物を WSL から持ち帰った。
 - 残っているもの: `feature/capacity_info`(練習用。マージしない)、main への反映、VG08 の不安定さの調査(bugs.md)。
+
+## 練習用ブランチの push と main への反映
+
+- 依頼: `feature/capacity_info` はリモートに上げておく。残りの main への反映を行う。
+- push: 作者は noreply、セッションURL・個人情報・ローカルの絶対パスがないことを確かめて `origin/feature/capacity_info` に push(追跡も設定)。
+- main への反映(0901dd5、決定 2026-10-22「成果物のパスだけを develop から取り出す1コミット」の手順どおり): main で `droneflow/` を一度消してから
+  develop の成果物のパスを取り出し(`simulation/scheduling/` への移動で消えたファイルが残らないように)、前回の main 用の差分
+  (test ターゲット・pytest・`[mypy-tests.*]`・README の tests の記述)を 3-way で当て直した。README の Makefile の段落だけ競合
+  (Windows の一文を消した変更と重なった)し、手で解消。main は59ファイルで `tests/`・`docs/`・`maps.tar.gz` なし。
+- 検証(`git archive main` で取り出した状態): Windows で flake8・mypy(両方)問題なし。WSL で make install/lint/lint-strict/run 成功、
+  `make test` は無い(想定どおり)。配布マップを検証用に置いて全体・部分実行 197/197 成功、ターンログは develop の結果(`_tmp/partial_runs`)と80枚すべて一致。
+- push はしていない(main・develop とも origin より進んでいる)。
