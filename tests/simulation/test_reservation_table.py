@@ -219,3 +219,45 @@ def test_eviction_of_landing_drone_is_kept(
     assert [(m.from_zone, m.depart_turn) for m in moves_of(table, 1)] == [
         ("s", 0), ("r", 2)
     ]
+
+
+# --- leaves_after -----------------------------------------------------
+
+
+def test_leaves_after_without_moves() -> None:
+    """LA01: a drone with no planned move does not leave after any turn."""
+    assert ReservationTable().leaves_after(1, 0) is False
+
+
+def test_leaves_after_is_strictly_after() -> None:
+    """LA02: true only for turns before depart_turn, and for that drone
+    only."""
+    table = ReservationTable()
+    table.reserve(Rv(1, "a", "g", 3, 3))
+
+    assert [table.leaves_after(1, turn) for turn in (1, 2, 3, 4)] == [
+        True, True, False, False
+    ]
+    assert table.leaves_after(2, 0) is False
+
+
+def test_leaves_after_follows_remove_and_rollback() -> None:
+    """LA03: two moves, a remove and a rolled back restricted move; the
+    restricted move counts by its departure, not its arrival."""
+    table = ReservationTable()
+    table.reserve(Rv(1, "a", "g", 3, 3))
+    table.reserve(Rv(1, "s", "a", 1, 2))
+    assert [table.leaves_after(1, turn) for turn in range(4)] == [
+        True, True, True, False
+    ]
+
+    table.remove(1)
+    assert table.leaves_after(1, 0) is False
+
+    mark = table.mark()
+    table.reserve(Rv(2, "s", "r", 4, 5))
+    assert table.leaves_after(2, 4) is False
+    assert table.leaves_after(2, 3) is True
+
+    table.rollback(mark)
+    assert table.leaves_after(2, 3) is False

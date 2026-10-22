@@ -10,6 +10,7 @@ from droneflow.errors import (
     UnreachableGoalError,
     ZoneNotFoundError,
 )
+from droneflow.models.connection import Connection
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.parsing.map_parser import MapParser
@@ -586,3 +587,83 @@ def test_provided_map_detour_counts(
 
     total = sum(len(pathfinder.detour_hops(name)) for name in network.zones)
     assert total == count
+
+
+# --- route_cost -------------------------------------------------------
+
+
+RC_EDGES = "s-a a-g s-r r-g s-x x-g"
+
+
+def rc_network(make_network: MakeNetwork) -> Network:
+    """Return RC_EDGES with r restricted, x blocked and z isolated."""
+    return make_network(
+        RC_EDGES, types={"r": R, "x": X}, isolated=("z",)
+    )
+
+
+def make_hop(network: Network, from_zone: str, to_zone: str) -> Hop:
+    """Return the hop from one zone into an adjacent one."""
+    connection = network.connection_between(from_zone, to_zone)
+    assert connection is not None
+    return Hop(connection, network.get_zone(to_zone))
+
+
+def test_route_cost_is_entry_cost_plus_distance(
+    make_network: MakeNetwork,
+) -> None:
+    """RC01: the turns to enter the zone plus its distance, for a hop
+    going backward too."""
+    network = rc_network(make_network)
+    pathfinder = Pathfinder(network)
+
+    assert pathfinder.route_cost(make_hop(network, "s", "a")) == 2
+    assert pathfinder.route_cost(make_hop(network, "s", "r")) == 3
+    assert pathfinder.route_cost(make_hop(network, "a", "g")) == 1
+    assert pathfinder.route_cost(make_hop(network, "a", "s")) == 3
+
+
+def test_route_cost_into_a_zone_that_cannot_finish_raises(
+    make_network: MakeNetwork,
+) -> None:
+    """RC02: a hop into a blocked or isolated zone is a ValueError."""
+    network = rc_network(make_network)
+    pathfinder = Pathfinder(network)
+
+    with pytest.raises(ValueError) as blocked:
+        pathfinder.route_cost(make_hop(network, "s", "x"))
+    assert str(blocked.value) == "'x' cannot reach the end zone"
+    with pytest.raises(ValueError) as isolated:
+        pathfinder.route_cost(
+            Hop(Connection("s", "z"), network.get_zone("z"))
+        )
+    assert str(isolated.value) == "'z' cannot reach the end zone"
+
+
+@pytest.mark.parametrize(
+    "member",
+    [None, *(entry[0] for entry in PROVIDED_MAP_DETOURS)],
+    ids=["subject", *(map_id(entry[0]) for entry in PROVIDED_MAP_DETOURS)],
+)
+def test_route_cost_splits_shortest_hops_and_detours(
+    write_map: WriteMap,
+    provided_map: Callable[[str], str],
+    member: str | None,
+) -> None:
+    """RC03: on real maps, every shortest hop costs the zone's distance and
+    every detour more, cheapest first."""
+    text = SUBJECT_SAMPLE_MAP if member is None else provided_map(member)
+    network = MapParser(write_map(text)).parse().network
+    pathfinder = Pathfinder(network)
+
+    cost = pathfinder.route_cost
+    for name in network.zones:
+        here = pathfinder.distance(name)
+        shortest = [cost(hop) for hop in pathfinder.next_hops(name)]
+        detours = [cost(hop) for hop in pathfinder.detour_hops(name)]
+        if here is None:
+            assert shortest == [] and detours == [], name
+            continue
+        assert all(total == here for total in shortest), name
+        assert all(total > here for total in detours), name
+        assert detours == sorted(detours), name

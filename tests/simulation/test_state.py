@@ -2,6 +2,8 @@
 
 from typing import Callable
 
+import dataclasses
+
 import pytest
 
 from droneflow.errors import SimulationError
@@ -9,7 +11,8 @@ from droneflow.models.connection import Connection
 from droneflow.models.drone import DroneStatus
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
-from droneflow.simulation.state import SimulationState
+from droneflow.simulation.state import Move, MoveOrder, SimulationState
+from droneflow.simulation.turn_resolver import TurnResolver
 
 MakeNetwork = Callable[..., Network]
 
@@ -136,3 +139,44 @@ def test_basic_operations_refuse_broken_preconditions(
         state.enter_transit(1, connection, "r")
     with pytest.raises(SimulationError, match="not in flight"):
         state.complete_transit(2)
+
+
+# --- Move -------------------------------------------------------------
+
+
+def test_move_text_and_default() -> None:
+    """MV01: the printed text, and no connection name by default."""
+    assert Move(3, "x").text == "D3-x"
+    assert Move(12, "a-b", "a-b").text == "D12-a-b"
+    assert Move(3, "x").connection_name is None
+
+
+def test_resolver_sets_the_connection_name(
+    make_network: MakeNetwork,
+) -> None:
+    """MV02: departures carry the connection used (a departure toward a
+    restricted zone has it as destination too); a landing carries None."""
+    network = make_network("s-a a-r r-g", types={"r": R})
+    state = SimulationState(network, 2)
+    resolver = TurnResolver(network)
+
+    assert resolver.resolve(state, [MoveOrder(1, "a")]) == [
+        Move(1, "a", "s-a")
+    ]
+    second = resolver.resolve(state, [MoveOrder(1, "r"), MoveOrder(2, "a")])
+    assert second == [Move(1, "a-r", "a-r"), Move(2, "a", "s-a")]
+    assert " ".join(move.text for move in second) == "D1-a-r D2-a"
+    assert resolver.resolve(state, []) == [Move(1, "r", None)]
+    assert resolver.resolve(state, [MoveOrder(1, "g")]) == [
+        Move(1, "g", "r-g")
+    ]
+
+
+def test_move_is_frozen_and_compares_the_connection() -> None:
+    """MV03: a Move cannot be changed, and the connection name is part of
+    its equality."""
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        setattr(Move(1, "a"), "destination", "b")
+    assert len({Move(1, "a"), Move(1, "a")}) == 1
+    assert (Move(1, "a") == Move(1, "a", None)) is True
+    assert (Move(1, "a") == Move(1, "a", "s-a")) is False
