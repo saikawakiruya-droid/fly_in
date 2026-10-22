@@ -394,10 +394,6 @@ Scheduler: ZoneRanking の順にゾーン、ゾーンの中は ID 順
 継承は「〜は〜の一種」の関係にだけ使っています。例外の階層(`FlyInError` とその派生)と、パーサーの行をまたぐ規則の
 抽象基底クラス(`ZoneRule`、`ConnectionRule`。派生クラスがそれぞれ1つの制約を検査します)です。それ以外は Enum、NamedTuple、Protocol です。
 
-毎ターン新しい情報(例: 接続の使用量)を表示したいときは、`begin`・`render`・`close` を持つクラスを書いて
-`Application._make_views` に足します。各 `Move` は出発した機が使った接続を持ち(`Move.connection`。着陸は `None`)、
-`SimulationState` からゾーンの在室数と容量(`Zone.capacity`)が分かります。
-
 ## 可視化
 
 どちらの表示もシミュレーションを1ターンずつ追い、ターンログには影響しません。ターミナル表示は標準エラー出力に書き、
@@ -458,7 +454,7 @@ in flight: D4 s-b -> b, D5 s-a -> a
 |---|---|
 | `--parse-only FILE` | `MAP` を読み、`World`(全ゾーン・全接続のすべての値と `nb_drones`)を `FILE` に書いて、シミュレーションせずに終える |
 | `--from-world` | `MAP` を `--parse-only` が書いた World のファイルとして読み、パーサーを通さずにシミュレーションする |
-| `--save-run FILE` | 各ターンを `FILE` に書く。そのターンの移動(`drone_id`、`destination`、使った `connection`)と、その後の `SimulationState`(配達前のドローン、ゾーンの在室数と飛行中の到着予定数、飛行中の機がいる接続)。ターン0は初期状態 |
+| `--save-run FILE` | 各ターンを `FILE` に書く。そのターンの移動(`drone_id`、`destination`、使った `connection`)と、その後の配達前の各ドローンの位置(ゾーン、または飛行中の接続と行き先)と配達済みの数。ターン0は初期状態 |
 
 `--parse-only` と `--save-run` は同時に使えません。ほかのオプション(`--visual`、`--delay`、`--step`)は `--from-world` でもそのまま使えるので、
 `--step` を付ければ移動を1ターンずつ見られます。
@@ -484,9 +480,7 @@ python fly_in.py world.json --from-world --step
  "moves": [{"drone_id": 4, "destination": "hub-roof1", "connection": "hub-roof1"}, ...],
  "delivered_count": 0,
  "drones": [{"drone_id": 4, "status": "in_transit", "zone": null,
-             "connection": "hub-roof1", "target": "roof1"}, ...],
- "zones": {"roof1": {"occupancy": 1, "reserved": 1}, ...},
- "connections": {"hub-roof1": 1}}
+             "connection": "hub-roof1", "target": "roof1"}, ...]}
 ```
 
 ## テストと品質

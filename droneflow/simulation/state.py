@@ -22,9 +22,8 @@ class Move:
             just entered a restricted-zone transit.
         connection_name: Name of the connection the drone departed along,
             or None for a landing (the drone left its connection then). Only
-            departures count toward a connection's capacity. Kept for views
-            (for example a capacity report); the turn log and the rule
-            checks do not use it.
+            departures count toward a connection's capacity. The turn log
+            and the rule checks do not use it.
     """
 
     drone_id: int

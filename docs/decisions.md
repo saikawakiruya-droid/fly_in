@@ -1390,3 +1390,17 @@ sequenceDiagram
 - 理由: ユーザー判断(「めんどくさそう」「それでいい」)。表示つきの実行でも `run.json` は表示なしと同じ内容になることを確認した
   (表示は状態を読むだけ)。
 - 検討した代替案: `--replay run.json` で記録を再生する(`world.json` も必要、または `run.json` に World を含める)。
+
+## 2026-10-22: ライブコーディング(`--capacity-info`)と重なる内容を外す
+
+- 決定内容(ユーザー判断。提示した案の2):
+  1. `--save-run` の各ターンの状態から `zones`(ゾーンの在室数・到着予定数)と `connections`(飛行中の機がいる接続)を外し、
+     `delivered_count` と配達前のドローンの位置(`drones`)だけにする。2026-10-22「パーサーと移動ロジックを…」の5を改める。
+  2. README 両版の「毎ターン新しい情報(例: 接続の使用量)を表示したいときは…」の段落と、`Move.connection_name` の docstring の
+     「for example a capacity report」を消す。
+  3. `Move.connection`(2026-10-21 の7。ユーザー判断)と、表示のゾーンの数字(Stage 7 からある可視化)は残す。
+- 理由: 評価シートのライブコーディング課題は `--capacity-info`(各ターンに「ゾーンX: Y/Z ドローン、接続AB: Y/Z 容量使用」を出す。
+  `docs/research/2026-10-16_review-test-patterns.md`)。`--save-run` の `zones`・`connections` はそのデータそのもので、README と docstring は
+  作り方のヒントになっていた。評価の場で本人が書く作業を先取りしない。「中身が見える」という目的は位置と移動で足りる(在室数は位置から数えられる)。
+- 検討した代替案: `run.json` だけ直してヒントは残す(案1)、そのまま残して説明できればよいとする(案3)。
+- ライブコーディングの手順の記録: `docs/research/2026-10-22_live-coding-capacity-info.md`
