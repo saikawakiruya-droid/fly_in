@@ -68,8 +68,9 @@
 
 - 発生箇所: 空ファイル時の `ParseError`(`MapParser.parse` 周辺。`revie_case/maps/parse_error/E32_empty_file.txt` で再現)
 - 症状: `line 0: map file is empty, ...` と表示される。行番号は1始まりなので `0` は利用者に分かりにくい。
-- 原因: 未調査(空ファイル用に行番号0を渡している)。
-- 対応状況: 未対応(軽微。メッセージ自体は明確なので評価上の影響は小さい)。
+- 原因: `MapValidator.finish` が「最後に読んだ行の番号」(`_last_number`、初期値0)を渡していた。空ファイルは1行も読まないので0のまま。
+- 対応状況: 対応済み(2026-10-22、`fix/empty_file_line_number`)。1行目は必ずヘッダーとして読まれ、違えばその場でエラーになるので、
+  `nb_drones` がないまま `finish` に来るのは空ファイルだけ。`nb_drones:` があるはずの行として `line 1` を報告する。
 
 ## 2026-10-16: メタデータの重複キーが後勝ちになり、start/end の `zone=blocked` 検査をすり抜ける
 
