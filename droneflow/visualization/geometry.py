@@ -73,8 +73,10 @@ def arc(start: Point, end: Point, bulge: float) -> Path:
     """Return a quadratic Bezier arc from ``start`` to ``end``.
 
     The control point is ``bulge`` pixels from the middle of the straight
-    line, on its left (seen from ``start``) when positive, so the arc's
-    middle is ``bulge / 2`` pixels off the line. A bulge of 0 gives the
+    line, so the arc's middle is ``bulge / 2`` pixels off the line. A
+    positive bulge bends it to the right of the line as seen on screen
+    going from ``start`` to ``end`` (y grows downwards), a negative one
+    to the left. A bulge of 0 gives the
     straight line, as two points.
     """
     if bulge == 0 or start == end:
