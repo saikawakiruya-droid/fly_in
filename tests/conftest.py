@@ -11,9 +11,12 @@ makes a ``StringIO`` that claims to be a terminal, for the terminal view
 (which only asks ``isatty()``) and the application tests.
 ``provided_map`` and ``maps_archive`` read the maps handed out with the
 subject from ``maps.tar.gz`` at the repository root without extracting
-it, for the end-to-end tests of the scheduler and the bottleneck finders.
+it, for the end-to-end tests of the scheduler. ``stuck_after`` hands out
+``StuckScheduler`` makers to pass as ``Application(make_scheduler=...)``,
+for runs that stop part-way.
 """
 
+import functools
 import io
 import tarfile
 from pathlib import Path
@@ -26,7 +29,10 @@ from droneflow.models.network import Network
 from droneflow.models.world import World
 from droneflow.models.zone import Zone, ZoneRole, ZoneType
 from droneflow.parsing.map_parser import MapParser
-from droneflow.simulation.state import SimulationState
+from droneflow.pathfinding.pathfinder import Pathfinder
+from droneflow.simulation.engine import MoveDecider
+from droneflow.simulation.scheduler import Scheduler
+from droneflow.simulation.state import MoveOrder, SimulationState
 
 Snapshot = dict[str, object]
 
@@ -74,6 +80,24 @@ SCHEDULER_OUTPUT = [
     "D2-goal D3-goal D4-roof2 D5-tunnelB",
     "D4-goal D5-goal",
 ]
+
+
+class StuckScheduler:
+    """The real scheduler for ``ok_turns`` turns, then nothing at all."""
+
+    def __init__(
+        self, network: Network, pathfinder: Pathfinder, ok_turns: int
+    ) -> None:
+        """Wrap a real scheduler over the same network."""
+        self.inner = Scheduler(network, pathfinder)
+        self.left = ok_turns
+
+    def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
+        """Delegate while turns are left; then order no move."""
+        if self.left == 0:
+            return []
+        self.left -= 1
+        return self.inner.decide_moves(state)
 
 
 class TtyStringIO(io.StringIO):
@@ -169,6 +193,22 @@ def build_network(
     return network
 
 
+SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]
+
+
+@pytest.fixture
+def stuck_after() -> Callable[[int], SchedulerMaker]:
+    """Return ``ok_turns -> make_scheduler`` for ``StuckScheduler``.
+
+    Pass the result as ``Application(..., make_scheduler=...)``.
+    """
+
+    def make(ok_turns: int) -> SchedulerMaker:
+        return functools.partial(StuckScheduler, ok_turns=ok_turns)
+
+    return make
+
+
 @pytest.fixture
 def make_network() -> NetworkFactory:
     """Return a factory that builds small networks in one line."""
@@ -225,7 +265,6 @@ def take_snapshot(state: SimulationState) -> Snapshot:
                 d.status,
                 d.in_transit_connection,
                 d.transit_target,
-                d.turns_remaining,
             )
             for drone_id, d in state.drones.items()
         },

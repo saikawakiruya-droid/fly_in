@@ -37,21 +37,21 @@ def test_add_connection_updates_adjacency_for_both_ends() -> None:
     connection = Connection(zone_a="a", zone_b="b")
     network.add_connection(connection)
 
-    assert network.neighbors("a") == [connection]
-    assert network.neighbors("b") == [connection]
+    assert network.neighbors("a") == (connection,)
+    assert network.neighbors("b") == (connection,)
 
 
 def test_neighbors_empty_for_zone_with_no_connections() -> None:
     """A zone with no registered connections has an empty neighbor list."""
     network = Network()
     network.add_zone(make_zone("a"))
-    assert network.neighbors("a") == []
+    assert network.neighbors("a") == ()
 
 
 def test_neighbors_empty_for_unknown_zone() -> None:
     """Asking for neighbors of an unregistered zone name is not an error."""
     network = Network()
-    assert network.neighbors("missing") == []
+    assert network.neighbors("missing") == ()
 
 
 def test_start_zone_and_end_zone() -> None:

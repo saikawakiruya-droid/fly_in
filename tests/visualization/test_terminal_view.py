@@ -19,7 +19,7 @@ from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import SimulationEngine
 from droneflow.simulation.scheduler import Scheduler
 from droneflow.simulation.state import Move, SimulationState
-from droneflow.visualization.base import Visualizer
+from droneflow.simulation.observer import TurnObserver
 from droneflow.visualization.terminal_view import (
     TerminalVisualizer,
     color_enabled,
@@ -37,7 +37,7 @@ PROMPT = "-- press Enter for the next turn --"
 PAINTED = re.compile(r"\x1b\[38;2;\d+;\d+;\d+m(\w+)")
 
 
-def run(world: World, view: Visualizer) -> list[list[Move]]:
+def run(world: World, view: TurnObserver) -> list[list[Move]]:
     """Run the real scheduler (Stage 5) over the world with the view."""
     scheduler = Scheduler(world.network, Pathfinder(world.network))
     return SimulationEngine(world, scheduler).run(view)

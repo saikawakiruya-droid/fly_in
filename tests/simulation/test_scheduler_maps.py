@@ -162,29 +162,22 @@ Load = Callable[[str], World]
 def test_subject_sample_map_output(
     load_world: Load,
     scheduler_output: list[str],
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """R01: the real scheduler prints these five lines.
 
     Two drones go round by roof1, so the run is shorter than the seven
     lines of the subject's example.
     """
-    TurnLogFormatter().emit(run_engine(load_world(SUBJECT)))
-
-    assert capsys.readouterr().out.splitlines() == scheduler_output
+    assert output_lines(load_world(SUBJECT)) == scheduler_output
 
 
-def test_restricted_only_map_output(
-    load_world: Load, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_restricted_only_map_output(load_world: Load) -> None:
     """R02: through restricted roof1 only, the run takes eight turns.
 
     The drone landing in roof1 is planned to leave it (for roof2) on the
     next turn, so one drone can take off toward roof1 every turn.
     """
-    TurnLogFormatter().emit(run_engine(load_world(RESTRICTED_ONLY)))
-
-    assert capsys.readouterr().out.splitlines() == [
+    assert output_lines(load_world(RESTRICTED_ONLY)) == [
         "D1-hub-roof1",
         "D1-roof1 D2-hub-roof1",
         "D1-roof2 D2-roof1 D3-hub-roof1",

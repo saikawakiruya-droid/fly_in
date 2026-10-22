@@ -1,4 +1,4 @@
-"""Tests for the visualizer hooks of SimulationEngine.run (Stage 7).
+"""Tests for the observer hooks of SimulationEngine.run (Stage 7).
 
 The engine calls ``begin`` once before the first turn, ``render(state,
 moves)`` after every applied turn and ``close`` once at the end, even
@@ -13,16 +13,15 @@ import pytest
 from droneflow.errors import SimulationError
 from droneflow.models.network import Network
 from droneflow.models.world import World
-from droneflow.simulation.engine import SimulationEngine
-from droneflow.simulation.scheduler import Scheduler
+from droneflow.simulation.engine import MoveDecider, SimulationEngine
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
 
 MakeNetwork = Callable[..., Network]
 Script = list[list[MoveOrder]]
-Scripted = Callable[[Network, Script], Scheduler]
-Follower = Callable[[Network], Scheduler]
-Idle = Callable[[Network], Scheduler]
-Oscillating = Callable[[Network, str, str], Scheduler]
+Scripted = Callable[[Network, Script], MoveDecider]
+Follower = Callable[[Network], MoveDecider]
+Idle = Callable[[Network], MoveDecider]
+Oscillating = Callable[[Network, str, str], MoveDecider]
 Call = tuple[object, ...]
 Turns = list[list[Move]]
 

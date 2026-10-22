@@ -22,15 +22,17 @@ from pathlib import Path
 import pytest
 
 import fly_in
+from droneflow.app import Application
 from droneflow.errors import ParseError
 from droneflow.models.network import Network
 from droneflow.output.turn_log_view import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.scheduler import Scheduler
-from droneflow.simulation.state import Move, MoveOrder, SimulationState
+from droneflow.simulation.engine import MoveDecider
+from droneflow.simulation.state import Move, SimulationState
 from droneflow.visualization.terminal_view import TerminalVisualizer
 
 WriteMap = Callable[[str], Path]
+StuckAfter = Callable[[int], Callable[[Network, Pathfinder], MoveDecider]]
 
 ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = (
@@ -88,23 +90,6 @@ def raising_app(
             raise exc
 
     monkeypatch.setattr(fly_in, "Application", RaisingApp)
-
-
-class StuckScheduler:
-    """The real scheduler for ``ok_turns`` turns, then nothing at all."""
-
-    def __init__(
-        self, network: Network, pathfinder: Pathfinder, ok_turns: int
-    ) -> None:
-        self.inner = Scheduler(network, pathfinder)
-        self.left = ok_turns
-
-    def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
-        """Delegate while turns are left; then order no move."""
-        if self.left == 0:
-            return []
-        self.left -= 1
-        return self.inner.decide_moves(state)
 
 
 @pytest.fixture
@@ -409,11 +394,13 @@ def test_close_failure_after_failure(
     sample_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    stuck_after: StuckAfter,
 ) -> None:
     """AM10 (2): the warning comes first, then the run's own error."""
     monkeypatch.setattr(
-        "droneflow.app.Scheduler",
-        functools.partial(StuckScheduler, ok_turns=0),
+        fly_in,
+        "Application",
+        functools.partial(Application, make_scheduler=stuck_after(0)),
     )
 
     assert call_main(str(sample_path)) == 1

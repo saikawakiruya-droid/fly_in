@@ -11,19 +11,22 @@ from droneflow.models.world import World
 from droneflow.models.zone import ZoneType
 from droneflow.output.formatter import TurnLogFormatter
 from droneflow.parsing.map_parser import MapParser
-from droneflow.simulation.engine import SimulationEngine, default_turn_limit
-from droneflow.simulation.scheduler import Scheduler
+from droneflow.simulation.engine import (
+    MoveDecider,
+    SimulationEngine,
+    default_turn_limit,
+)
 from droneflow.simulation.state import MoveOrder
-from droneflow.visualization.base import Visualizer
+from droneflow.simulation.observer import TurnObserver
 
 MakeNetwork = Callable[..., Network]
 WriteMap = Callable[[str], Path]
 Script = list[list[MoveOrder]]
-Scripted = Callable[[Network, Script], Scheduler]
-Follower = Callable[[Network], Scheduler]
-Idle = Callable[[Network], Scheduler]
-Oscillating = Callable[[Network, str, str], Scheduler]
-Recorder = tuple[Visualizer, list[tuple[int, int, bool]]]
+Scripted = Callable[[Network, Script], MoveDecider]
+Follower = Callable[[Network], MoveDecider]
+Idle = Callable[[Network], MoveDecider]
+Oscillating = Callable[[Network, str, str], MoveDecider]
+Recorder = tuple[TurnObserver, list[tuple[int, int, bool]]]
 
 R = ZoneType.RESTRICTED
 
@@ -197,7 +200,6 @@ def test_illegal_order_propagates(
 def test_subject_sample_map_end_to_end(
     write_map: WriteMap,
     scripted_scheduler: Scripted,
-    capsys: pytest.CaptureFixture[str],
     subject_map: str,
     subject_output: list[str],
 ) -> None:
@@ -207,23 +209,23 @@ def test_subject_sample_map_end_to_end(
         world.network, script_from_output(subject_output)
     )
 
-    TurnLogFormatter().emit(SimulationEngine(world, scheduler).run())
+    turns = SimulationEngine(world, scheduler).run()
 
-    assert capsys.readouterr().out.splitlines() == subject_output
+    lines = [TurnLogFormatter().format_turn(m) for m in turns]
+
+    assert lines == subject_output
 
 
 def test_restricted_route_end_to_end(
     write_map: WriteMap,
     follower_scheduler: Follower,
-    capsys: pytest.CaptureFixture[str],
     restricted_only_map: str,
 ) -> None:
     """G10: restricted moves print the declared connection, then the zone."""
     world = MapParser(write_map(restricted_only_map)).parse()
     engine = SimulationEngine(world, follower_scheduler(world.network))
 
-    TurnLogFormatter().emit(engine.run())
-    lines = capsys.readouterr().out.splitlines()
+    lines = [TurnLogFormatter().format_turn(m) for m in engine.run()]
 
     # roof1 holds one drone, so each take-off waits for the previous
     # drone to leave roof1: D<n> takes off on turn 2n-1 and the last

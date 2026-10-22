@@ -4,7 +4,7 @@ from typing import Callable
 
 import pytest
 
-from droneflow.errors import SimulationError, ZoneNotFoundError
+from droneflow.errors import SimulationError
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Pathfinder
@@ -94,49 +94,6 @@ def test_same_zone_keeps_active_drone_order(
     assert real_scheduler(network).decide_moves(place(network, 3)) == [
         MoveOrder(1, "a")
     ]
-
-
-# --- is_on_priority_route ---------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("edges", "zone", "expected"),
-    [
-        ("s-p p-g", "p", True),
-        ("s-p p-g", "s", True),
-        ("s-a a-p p-g", "s", False),
-        ("s-a a-g s-p p-q q-g", "s", False),
-        ("s-p p-g", "g", False),
-    ],
-    ids=[
-        "in-priority-zone",
-        "next-hop-priority",
-        "priority-two-hops-away",
-        "priority-on-detour",
-        "end-zone",
-    ],
-)
-def test_is_on_priority_route(
-    make_network: MakeNetwork,
-    real_scheduler: RealScheduler,
-    edges: str,
-    zone: str,
-    expected: bool,
-) -> None:
-    """D07: only the zone itself and its shortest next hop count."""
-    network = make_network(edges, types={"p": P})
-
-    assert real_scheduler(network).is_on_priority_route(zone) is expected
-
-
-def test_is_on_priority_route_unknown_zone(
-    make_network: MakeNetwork, real_scheduler: RealScheduler
-) -> None:
-    """D08: an unknown zone name raises ZoneNotFoundError."""
-    network = make_network("s-a a-g")
-
-    with pytest.raises(ZoneNotFoundError):
-        real_scheduler(network).is_on_priority_route("nope")
 
 
 # --- choosing a hop ---------------------------------------------------
