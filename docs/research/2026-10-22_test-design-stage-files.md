@@ -37,6 +37,8 @@
 | JO09 | 書き出しの形 | `write_json(str(p), {"a": [1], "名前": "é"})` | ファイルが UTF-8 で、`json.loads` で元に戻り、インデント2で、最後が改行。ASCII 以外はそのまま(`\u` に変えない) |
 | JO10 | 書けないとき | `write_json(str(tmp_path / "no_dir" / "x.json"), {})` | `OutputFileError`。`path` は渡したとおりの文字列、`reason == "No such file or directory"`、メッセージ `cannot write '<path>': No such file or directory`。`OSError` が `__cause__` |
 
+| JO11 | 書けないときの表示名(作成のフェーズで追加) | `write_json(tmp_path / "no_dir" / "x.json", {}, name="./no_dir/x.json")` | `OutputFileError.path == "./no_dir/x.json"`(開いたパスではなく入力どおり) |
+
 ## B. World のファイル(`tests/interchange/test_world_file.py`)
 
 | ID | 何を確かめるか | 入力 | 期待 |
@@ -124,3 +126,11 @@ connections: 0 hub-roof1, 1 hub-corridorA, 2 roof1-roof2, 3 roof2-goal, 4 corrid
 | SM01 | 書けない `--parse-only` は終了コード 1 | `call_main(map, "--parse-only", <書けないパス>)` | 1、stderr が `error: cannot write '<path>': No such file or directory\n`、stdout が空 |
 | SM02 | 不正な World のファイルは終了コード 1 | `call_main(<JSON でないファイル>, "--from-world")` | 1、stderr が `error: invalid world file '<path>': not JSON: Expecting value (line 1)\n` |
 | SM03 | パーサー → ファイル → シミュレーションの通し | `call_main(map, "--parse-only", w)` → `call_main(w, "--from-world", "--visual", "none")` | どちらも 0。2回目の stdout が `log`。(Makefile の `run` と同じ入口で動く) |
+
+## 作成のフェーズの結果(2026-10-22、`test/stage_files`)
+
+- 設計どおりに作成した。pytest **818 passed**(前回 745 から +73)、`flake8 .`・`mypy . --strict`・`mypy . $(MYPY_FLAGS)` はエラーなし。
+- SA05 が `--from-world` の不具合を見つけた: `Application` が入力どおりの表示名(`map_arg`)でファイルを開いていた
+  (`docs/bugs.md` 2026-10-22)。`feature/stage_files` で直し(`WorldFile(path, name)`・`write_json(..., name)`)、テストのブランチにマージした。
+  これに合わせて JO11 を足した。
+- SA08 は `OutputFileError.path` ではなくメッセージで確かめる(`run_failing` が返すのは `BaseException` の情報のため)。
