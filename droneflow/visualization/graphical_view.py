@@ -120,6 +120,7 @@ class _Layout:
                 (link.zone_a, link.zone_b),
                 grid,
                 self.radius,
+                nearest,
             )
             for link in network.connections
         }
