@@ -17,7 +17,7 @@ from droneflow.models.world import World
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import SimulationEngine
 from droneflow.simulation.observer import ObserverGroup
-from droneflow.simulation.scheduler import Scheduler
+from droneflow.simulation.scheduling.scheduler import Scheduler
 from droneflow.simulation.state import Move, SimulationState
 
 MakeNetwork = Callable[..., Network]

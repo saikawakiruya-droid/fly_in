@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.zone_ranking (ZoneRanking).
+"""Tests for droneflow.simulation.scheduling.zone_ranking (ZoneRanking).
 
 The ranking is built the way ``Scheduler.__init__`` builds it, from a
 pathfinder, every zone's shortest next hops and a ``DetourPolicy`` over
@@ -16,8 +16,8 @@ from droneflow.errors import ZoneNotFoundError
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.detour_policy import DetourPolicy
-from droneflow.simulation.zone_ranking import ZoneRanking
+from droneflow.simulation.scheduling.detour_policy import DetourPolicy
+from droneflow.simulation.scheduling.zone_ranking import ZoneRanking
 
 MakeNetwork = Callable[..., Network]
 

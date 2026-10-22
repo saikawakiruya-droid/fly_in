@@ -16,7 +16,7 @@ from .parsing.map_parser import MapParser
 from .pathfinding.pathfinder import Pathfinder
 from .simulation.engine import MoveDecider, SimulationEngine
 from .simulation.observer import ObserverGroup, TurnObserver
-from .simulation.scheduler import Scheduler
+from .simulation.scheduling.scheduler import Scheduler
 from .simulation.state import Move, SimulationState
 from .visualization.terminal_view import TerminalVisualizer
 

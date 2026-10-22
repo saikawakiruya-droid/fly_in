@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.evictor (Evictor).
+"""Tests for droneflow.simulation.scheduling.evictor (Evictor).
 
 Every case builds the table, the ledger and the evictor with
 ``evictor_for`` for the state's next turn (turn 1, unless the state says
@@ -12,13 +12,13 @@ import pytest
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.evictor import Evictor
-from droneflow.simulation.reservation_table import (
+from droneflow.simulation.scheduling.evictor import Evictor
+from droneflow.simulation.scheduling.reservation_table import (
     Reservation,
     ReservationTable,
 )
 from droneflow.simulation.state import SimulationState
-from droneflow.simulation.turn_ledger import TurnLedger
+from droneflow.simulation.scheduling.turn_ledger import TurnLedger
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

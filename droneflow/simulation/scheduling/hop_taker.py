@@ -1,7 +1,7 @@
 """HopTaker: takes the first hop a drone can make this turn, and records it."""
 
-from ..models.zone import ZoneType
-from ..pathfinding.pathfinder import Hop
+from ...models.zone import ZoneType
+from ...pathfinding.pathfinder import Hop
 from .evictor import Evictor
 from .positions import PositionBoard
 from .turn_ledger import TurnLedger

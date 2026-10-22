@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.scheduler (Scheduler)."""
+"""Tests for droneflow.simulation.scheduling.scheduler (Scheduler)."""
 
 from typing import Callable
 
@@ -8,7 +8,7 @@ from droneflow.errors import SimulationError
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.scheduler import Scheduler
+from droneflow.simulation.scheduling.scheduler import Scheduler
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
 from droneflow.simulation.turn_resolver import TurnResolver
 

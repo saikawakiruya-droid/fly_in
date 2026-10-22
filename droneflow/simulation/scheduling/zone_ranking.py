@@ -2,9 +2,9 @@
 
 from collections.abc import Mapping
 
-from ..models.network import Network
-from ..models.zone import ZoneType
-from ..pathfinding.pathfinder import Hop, Pathfinder
+from ...models.network import Network
+from ...models.zone import ZoneType
+from ...pathfinding.pathfinder import Hop, Pathfinder
 from .detour_policy import DetourPolicy
 
 

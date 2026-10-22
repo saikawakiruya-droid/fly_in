@@ -23,7 +23,7 @@ from droneflow.output.formatter import TurnLogFormatter
 from droneflow.parsing.map_parser import MapParser
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import SimulationEngine, default_turn_limit
-from droneflow.simulation.scheduler import Scheduler
+from droneflow.simulation.scheduling.scheduler import Scheduler
 from droneflow.simulation.state import Move, SimulationState
 from droneflow.simulation.turn_resolver import TurnResolver
 

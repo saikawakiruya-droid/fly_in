@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.detour_policy (DetourPolicy).
+"""Tests for droneflow.simulation.scheduling.detour_policy (DetourPolicy).
 
 The policy is built the way ``Scheduler.__init__`` builds it, from a
 pathfinder and every zone's shortest next hops (``policy_for``). In the
@@ -21,8 +21,8 @@ from droneflow.errors import ZoneNotFoundError
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.pathfinding.pathfinder import Hop, Pathfinder
-from droneflow.simulation.detour_policy import DetourPolicy
-from droneflow.simulation.positions import PositionBoard
+from droneflow.simulation.scheduling.detour_policy import DetourPolicy
+from droneflow.simulation.scheduling.positions import PositionBoard
 
 MakeNetwork = Callable[..., Network]
 

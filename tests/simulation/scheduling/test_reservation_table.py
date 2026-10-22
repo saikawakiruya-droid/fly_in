@@ -1,10 +1,13 @@
-"""Tests for droneflow.simulation.reservation_table (ReservationTable)."""
+"""Tests for droneflow.simulation.scheduling.reservation_table.
+
+Covers ReservationTable.
+"""
 
 from typing import Callable
 
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
-from droneflow.simulation.reservation_table import (
+from droneflow.simulation.scheduling.reservation_table import (
     Reservation,
     ReservationTable,
 )

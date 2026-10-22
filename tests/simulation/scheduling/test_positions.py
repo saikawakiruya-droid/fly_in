@@ -1,4 +1,6 @@
-"""Tests for droneflow.simulation.positions (Position, PositionBoard).
+"""Tests for droneflow.simulation.scheduling.positions.
+
+Covers Position and PositionBoard.
 
 The board tells where every drone will be as a turn's moves are decided:
 ``drones_in`` lists the drones of a zone lowest number first (a new list
@@ -15,7 +17,7 @@ import pytest
 
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
-from droneflow.simulation.positions import Position, PositionBoard
+from droneflow.simulation.scheduling.positions import Position, PositionBoard
 from droneflow.simulation.state import SimulationState
 
 MakeNetwork = Callable[..., Network]
