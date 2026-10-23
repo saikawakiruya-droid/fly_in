@@ -106,7 +106,9 @@ def fail_close(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def break_palette_import(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make importing the graphical view fail on a module not pygame."""
-    monkeypatch.setitem(sys.modules, "pygame", types.ModuleType("pygame"))
+    pygame = types.ModuleType("pygame")
+    setattr(pygame, "IS_CE", True)
+    monkeypatch.setitem(sys.modules, "pygame", pygame)
     monkeypatch.setitem(
         sys.modules, "droneflow.visualization.palette", None
     )

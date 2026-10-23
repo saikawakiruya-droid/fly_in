@@ -91,11 +91,11 @@ python -m pytest tests/
   入力どおりのパス(`map_name`。比較には使わない)、`VISUAL_MODES` が `VisualMode` の値と同じ順(NT10)。
   追加機能のオプション(SC01〜SC05): 既定は無効、JSON のパスは入力どおりの文字列、`--parse-only` と `--save-run` は排他、
   `--from-world` と `--parse-only` は併用できる、ヘルプの見出し
-- `tests/test_app.py` — `Application`(pygame 不要。AA01〜AA15): none / terminal で stdout が本物のスケジューラの出力
+- `tests/test_app.py` — `Application`(pygame 不要。AA01〜AA16): none / terminal で stdout が本物のスケジューラの出力
   (課題の例の5行。`scheduler_output`)と完全一致し、
   stderr はターミナル表示とまとめの1行、ターンの行がそのフレームより先に出ること、ステップ実行のビューの組み立て
   (`_make_views`)、none はビューを作らず pygame の表示を import しない、マップが読めない(存在しない・ディレクトリ・
-  UTF-8 でない)の `MapFileError` と原因、パース・到達不能のエラーはそのまま、pygame がない(`sys.modules` で再現)の
+  UTF-8 でない)の `MapFileError` と原因、パース・到達不能のエラーはそのまま、pygame がない(`sys.modules` で再現)・本家 pygame しか無い(`IS_CE` が無い。AA16)の
   `VisualizationError` とマップのエラーが先なこと、pygame 以外の import の失敗は包まない、close の失敗は警告だけ・
   元のエラーを隠さない、途中のエラーでもそれまでのログとビューの後始末が残る、ターンログ側の失敗は包まない、
   エラーのパスは入力どおり。`make_scheduler` の注入(AI01: `(network, pathfinder)` で1回作りエンジンに渡す、

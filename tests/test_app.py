@@ -308,6 +308,26 @@ def test_missing_pygame(visual: VisualMode, sample_path: Path) -> None:
     assert err == ""
 
 
+@pytest.mark.parametrize("visual", ["graphical", "both"])
+def test_original_pygame_is_a_missing_pygame_ce(
+    visual: VisualMode, sample_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AA16: the original pygame (no IS_CE) gets the same pygame hint."""
+    monkeypatch.setitem(sys.modules, "pygame", types.ModuleType("pygame"))
+    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
+
+    info, out, err = run_failing(
+        Args(sample_path, visual), VisualizationError
+    )
+
+    assert str(info.value) == NO_PYGAME
+    cause = info.value.__cause__
+    assert isinstance(cause, ModuleNotFoundError)
+    assert cause.name == "pygame"
+    assert out == ""
+    assert err == ""
+
+
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
@@ -340,7 +360,9 @@ def test_other_import_errors_are_not_wrapped(
     A stand-in pygame module is installed so the failing import is the
     palette, whether or not pygame is really installed.
     """
-    monkeypatch.setitem(sys.modules, "pygame", types.ModuleType("pygame"))
+    pygame = types.ModuleType("pygame")
+    setattr(pygame, "IS_CE", True)
+    monkeypatch.setitem(sys.modules, "pygame", pygame)
     monkeypatch.setitem(
         sys.modules, "droneflow.visualization.palette", None
     )
