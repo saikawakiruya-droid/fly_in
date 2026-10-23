@@ -188,3 +188,6 @@
   archify の図は別セッションがすでに `docs/archify/` に移していた。
 - 質問: README に Windows 用の動作が残っているが、コードにもないか → OS の分岐はもうない。Windows 由来のものとして BOM の読み飛ばし(utf-8-sig)、
   効いていない `rstrip("\r\n")` の `\r`、`.gitattributes`(Makefile の LF 固定)、端末表示の ASCII を報告。どこまで外すかはユーザー確認待ち。
+- 5(片付け): `fly_in_scheduling` の作業ツリーを外し(git の削除は D: で失敗したのでフォルダは手で削除)、develop にマージ済みのローカルブランチ56本を
+  `git branch -d` で削除(別セッションのマージ済み `feature/review_guide` を含む)。main に取り込み済みの `feature/readme_rewrite` も削除。
+  残したもの: main・develop・`feature/capacity_info`(練習用)・未マージの自分のブランチ3本・別セッションが使用中の `test/huge_mesh_maps`。リモートとタグは触っていない。
