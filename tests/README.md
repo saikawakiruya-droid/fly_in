@@ -287,7 +287,8 @@ python -m pytest tests/
   重なりの改善(VO01〜VO05): 同じ座標のゾーンがどちらも見えてマウスで見つかる(VG04 の同じ点も3点に分かれる)、他のゾーンの上を通る接続は弧、
   飛行中の機は弧の真ん中、移動の軌跡は使った接続の弧に沿い、着陸は弧の真ん中から先。自己接続の輪(VO06)、同じ点のドローンは件数の札(VO07)。
   拡大縮小(VZ01〜VZ08): ホイールで拡大縮小、ドラッグで移動、`f` で全体表示、ほかのキーは扱わない、縮小で名前を省き点にする、
-  拡大してもマウスの下のゾーンが分かる、拡大で名前の幅が広がる、画面外は描かない
+  拡大してもマウスの下のゾーンが分かる、拡大で名前の幅が広がる、画面外は描かない。
+  速さのキー(DK01〜DK07、VG11 を変更): 速くは半分で 0.05 秒を下回ると 0、遅くは2倍で 0 からは 0.05 秒・上限 60 秒、どちらも逆向きに働かない
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
 Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization)と、CLI / Application / エントリポイント

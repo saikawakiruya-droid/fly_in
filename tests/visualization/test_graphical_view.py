@@ -37,6 +37,8 @@ from droneflow.visualization import graphical_view  # noqa: E402
 from droneflow.visualization.graphical_view import (  # noqa: E402
     GraphicalVisualizer,
     _Layout,
+    faster,
+    slower,
     zone_rgb,
 )
 from droneflow.visualization.geometry import (  # noqa: E402
@@ -296,8 +298,8 @@ def test_space_resumes_auto_play(headless: Headless, line: Network) -> None:
     ("delay", "keys", "expected"),
     [
         (1.0, ["K_UP"], 0.5),
-        (1.0, ["K_DOWN"] * 4, 5.0),
-        (0.1, ["K_UP"] * 3, 0.05),
+        (1.0, ["K_DOWN"] * 4, 16.0),
+        (0.1, ["K_UP"] * 3, 0.0),
     ],
 )
 def test_delay_keys_and_limits(
@@ -307,7 +309,7 @@ def test_delay_keys_and_limits(
     headless: Headless,
     line: Network,
 ) -> None:
-    """VG11: up halves, down doubles, within 0.05 and 5 seconds."""
+    """VG11: up halves (to 0 below 0.05 s), down doubles (up to 60 s)."""
     view = GraphicalVisualizer(delay=delay, step=True)
     for key in keys:
         headless.post_key(getattr(pygame, key))
@@ -755,3 +757,28 @@ def test_off_screen_is_not_drawn(
     window.redraw()
 
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("delay", "expected"),
+    [(1.0, 0.5), (0.1, 0.05), (0.05, 0.0), (0.08, 0.0), (0.0, 0.0)],
+)
+def test_faster(delay: float, expected: float) -> None:
+    """DK01-DK03: halve; below 0.05 s go to 0; 0 stays 0."""
+    assert faster(delay) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("delay", "expected"),
+    [(0.5, 1.0), (0.0, 0.05), (0.01, 0.05), (40.0, 60.0), (60.0, 60.0)],
+)
+def test_slower(delay: float, expected: float) -> None:
+    """DK04-DK06: double; from 0 start at 0.05 s; stop at 60 s."""
+    assert slower(delay) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("delay", [0.0, 0.01, 0.05, 0.5, 5.0, 59.0, 60.0])
+def test_speed_keys_never_work_backwards(delay: float) -> None:
+    """DK07: faster never lengthens the delay, slower never shortens it."""
+    assert faster(delay) <= delay
+    assert slower(delay) >= delay
