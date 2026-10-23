@@ -10,6 +10,11 @@
 > `--parse-only`, `--from-world`, `--save-run`), the JSON files, the summary
 > line and the debug switch of the full version were removed. The turn log is
 > the same as the full version's on every map.
+>
+> **Variant `feature/minimal_matplotlib`.** On top of that, a single
+> `--graphical` option adds a minimal matplotlib window (zones, connections,
+> drones turn by turn, the turn number). Without the option the program
+> behaves exactly like `feature/minimal_build`.
 
 ## Description
 
@@ -32,7 +37,8 @@ respecting the movement rules of the subject:
 The program parses and validates the map, computes distances to the goal,
 schedules the moves of every drone turn by turn, checks every turn against
 the rules, prints the turn log in the required format, and shows the run in
-the terminal with colors. No graph library is used: the graph, the
+the terminal with colors (and, with `--graphical`, in a matplotlib window).
+No graph library is used: the graph, the
 shortest-path search and the scheduler are written by hand, as the subject
 requires. The code is object-oriented, type-annotated, and passes `flake8`
 and `mypy --strict`.
@@ -97,11 +103,12 @@ Everything else (the terminal view and errors) goes to standard error, so
 ### Requirements
 
 - Python 3.10 or later (the checks below were run with Python 3.14).
+- `matplotlib` (>= 3.8) for the `--graphical` window only.
 - `flake8` and `mypy` for `make lint` / `make lint-strict`.
 - `pytest` for `make test` (the unit tests in `tests/`).
 
-All of them are listed in `requirements.txt`; the program itself needs only
-the standard library. The Makefile is written for Linux (it uses
+All of them are listed in `requirements.txt`; without `--graphical` the
+program needs only the standard library. The Makefile is written for Linux (it uses
 `.venv/bin/python`).
 
 The maps handed out with the subject (`maps.tar.gz`) are not part of the
@@ -129,10 +136,12 @@ example of the subject) is included.
 
 ```sh
 make install
-.venv/bin/python fly_in.py MAP
+.venv/bin/python fly_in.py MAP [--graphical]
 ```
 
-The map file is the only argument (`-h` shows the usage).
+The map file is the only required argument (`-h` shows the usage).
+`--graphical` also shows the run in a matplotlib window (see "Visual
+representation"); the turn log and the terminal view are unchanged.
 
 **Maps that start with comments.** The parser reads the physical first line
 as the `nb_drones:` header (the subject: "The first line must define the
@@ -158,7 +167,7 @@ make run MAP=/tmp/map.txt
 | Code | When |
 | --- | --- |
 | `0` | The run finished. |
-| `1` | The map file cannot be read or is invalid, the goal is unreachable, the simulation fails, or an unexpected internal error occurred. One `error: ...` line is printed on standard error. |
+| `1` | The map file cannot be read or is invalid, the goal is unreachable, the simulation fails, `--graphical` cannot open a window (matplotlib missing, no display), or an unexpected internal error occurred. One `error: ...` line is printed on standard error. |
 | `2` | Invalid command-line arguments (from `argparse`). |
 | `130` | Interrupted with Ctrl+C. |
 
@@ -175,6 +184,7 @@ error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub
 error: goal 'e' is unreachable from 's'
+error: cannot open the graphical window (no display?)
 fly_in.py: error: unrecognized arguments: --visual none
 ```
 
@@ -338,7 +348,9 @@ droneflow/
                              Evictor, ReservationTable, DetourPolicy,
                              PositionBoard
   output/                    TurnLogFormatter, TurnLogPrinter
-  visualization/             TerminalVisualizer, palette (color names)
+  visualization/             TerminalVisualizer, palette (color names),
+                             GraphicalVisualizer and MapScene (matplotlib),
+                             geometry (where connections are drawn)
 ```
 
 Design choices visible in the code:
@@ -359,7 +371,7 @@ Design choices visible in the code:
 
 The subject asks for visual feedback through colored terminal output, a
 graphical interface, or both. This variant provides the colored terminal
-output.
+output, and a minimal graphical window with `--graphical`.
 
 The terminal view writes one frame per turn to standard error, so it never
 mixes with the turn log on standard output. Each frame has:
@@ -408,6 +420,30 @@ in flight: D4 hub-roof1 -> roof1
 entered by D4 on the same turn, which is legal; the view makes that visible
 instead of looking like an overflow.
 
+### Graphical window (`--graphical`)
+
+The window (matplotlib) draws the map once and then the drones, one turn
+every 0.5 seconds:
+
+- zones are circles filled with their `color=`; restricted zones are
+  squares, blocked zones are dark gray, and the ring marks the start and end
+  (white), restricted (red) and priority (gold) zones; names are written
+  under the zones on maps of up to 60 zones;
+- connections are straight lines, bent into an arc only where the straight
+  line would cross another zone. Zones are drawn in map units with the same
+  radius the arcs are routed round, and x and y keep the same scale, so a
+  connection is curved exactly when it would otherwise run over a zone on
+  screen. Zooming in with matplotlib's toolbar makes the zones bigger;
+- a drone is a white dot in its zone, or a cyan dot in the middle of the
+  connection while it flies to a restricted zone; several drones at the same
+  point are one bigger dot holding their number. The title shows the turn
+  number and the delivered count.
+
+Closing the window stops the drawing; the simulation then finishes at once,
+so the turn log is still complete. After the last turn the window stays open
+until it is closed. Without a display, the program stops with
+`error: cannot open the graphical window (no display?)`.
+
 ## Testing and quality
 
 - `make lint` and `make lint-strict` pass: `flake8 .`, `mypy .` with the
@@ -440,6 +476,10 @@ instead of looking like an overflow.
   [Google Python style guide](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings).
 - [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code) and
   [NO_COLOR](https://no-color.org): the terminal view's colors.
+- [matplotlib](https://matplotlib.org/): the graphical window (patches,
+  collections, `set_aspect("equal")`), and
+  [Bezier curves](https://en.wikipedia.org/wiki/B%C3%A9zier_curve) for the
+  arcs.
 
 ### How AI was used
 
@@ -448,6 +488,7 @@ developer's direction: to analyse the subject's requirements, to discuss
 design options (parser structure, pathfinding, scheduling, views), to review
 code and find bugs, and to write code as instructed. This minimal variant was
 produced by the assistant, at the developer's request, by removing the
-non-mandatory features from the full version. It also helped write this
+non-mandatory features from the full version, and then added the minimal
+`--graphical` window on branch `feature/minimal_matplotlib`. It also helped write this
 README from the code and real runs of the program. The developer reviews all
 of the code and is responsible for it.

@@ -9,6 +9,10 @@
 > 指定形式のターンログ、色付きのターミナル表示です。完全版にあったグラフィカルウィンドウ、追加の
 > コマンドラインオプション(`--visual`、`--delay`、`--step`、`--parse-only`、`--from-world`、`--save-run`)、
 > JSON ファイル、要約行、デバッグ用の切り替えは取り除きました。ターンログはどのマップでも完全版と同じです。
+>
+> **派生ブランチ `feature/minimal_matplotlib`。** さらに `--graphical` オプション1つで、最小限の matplotlib の
+> ウィンドウ(ゾーン、コネクション、ターンごとのドローン、ターン番号)を足しています。オプションなしでは
+> `feature/minimal_build` とまったく同じに動きます。
 
 ## Description
 
@@ -25,7 +29,7 @@ Fly-in は、Python で書いたドローン群のルーティングシミュレ
 
 プログラムはマップを解析・検証し、ゴールまでの距離を計算し、ドローンの移動をターンごとに決め、
 各ターンをルールに照らして検査したうえで、決められた形式でターンログを出力し、実行の様子を色付きで
-ターミナルに表示します。課題の指定どおりグラフ系ライブラリは使っておらず、グラフ、最短経路探索、
+ターミナルに(`--graphical` を付ければ matplotlib のウィンドウにも)表示します。課題の指定どおりグラフ系ライブラリは使っておらず、グラフ、最短経路探索、
 スケジューラはすべて自作です。コードはオブジェクト指向で型注釈付きで書かれており、`flake8` と
 `mypy --strict` を通ります。
 
@@ -83,10 +87,11 @@ connection: corridorA-tunnelB [max_link_capacity=2]
 ### Requirements
 
 - Python 3.10 以上(下記の確認は Python 3.14 で行った)。
+- `--graphical` のウィンドウ用にだけ `matplotlib`(3.8 以上)。
 - `make lint` / `make lint-strict` 用に `flake8` と `mypy`。
 - `make test`(`tests/` の単体テスト)用に `pytest`。
 
-すべて `requirements.txt` に書かれています。プログラム本体は標準ライブラリだけで動きます。Makefile は
+すべて `requirements.txt` に書かれています。`--graphical` なしなら、プログラム本体は標準ライブラリだけで動きます。Makefile は
 Linux 向けです(`.venv/bin/python` を使う)。
 
 課題と一緒に配布されるマップ(`maps.tar.gz`)は提出用のリポジトリには含まれていません。課題のページから
@@ -113,10 +118,11 @@ Linux 向けです(`.venv/bin/python` を使う)。
 
 ```sh
 make install
-.venv/bin/python fly_in.py MAP
+.venv/bin/python fly_in.py MAP [--graphical]
 ```
 
-引数はマップファイルだけです(`-h` で使い方を表示)。
+必須の引数はマップファイルだけです(`-h` で使い方を表示)。`--graphical` を付けると、matplotlib のウィンドウにも
+実行の様子を表示します(「Visual representation」を参照)。ターンログとターミナル表示は変わりません。
 
 **コメントで始まるマップ。** パーサは物理的な 1 行目を `nb_drones:` のヘッダとして読みます(課題:
 "The first line must define the number of drones")。そのため 1 行目がコメントや空行のファイルは拒否されます。
@@ -139,7 +145,7 @@ make run MAP=/tmp/map.txt
 | コード | 条件 |
 | --- | --- |
 | `0` | 実行が完了した。 |
-| `1` | マップファイルが読めない・不正、ゴールに到達できない、シミュレーションが失敗した、または想定外の内部エラー。標準エラー出力に `error: ...` を 1 行出す。 |
+| `1` | マップファイルが読めない・不正、ゴールに到達できない、シミュレーションが失敗した、`--graphical` でウィンドウを開けない(matplotlib がない、ディスプレイがない)、または想定外の内部エラー。標準エラー出力に `error: ...` を 1 行出す。 |
 | `2` | コマンドライン引数が不正(`argparse` による)。 |
 | `130` | Ctrl+C で中断された。 |
 
@@ -156,6 +162,7 @@ error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub
 error: goal 'e' is unreachable from 's'
+error: cannot open the graphical window (no display?)
 fly_in.py: error: unrecognized arguments: --visual none
 ```
 
@@ -288,7 +295,9 @@ droneflow/
                              Evictor, ReservationTable, DetourPolicy,
                              PositionBoard
   output/                    TurnLogFormatter, TurnLogPrinter
-  visualization/             TerminalVisualizer, palette(色名)
+  visualization/             TerminalVisualizer, palette(色名),
+                             GraphicalVisualizer と MapScene(matplotlib),
+                             geometry(コネクションを描く位置)
 ```
 
 コードから読み取れる設計上の選択:
@@ -304,7 +313,8 @@ droneflow/
 ## Visual representation
 
 課題は、色付きのターミナル出力、グラフィカルインターフェース、またはその両方による視覚的なフィードバックを
-求めています。この最小構成版は、色付きのターミナル出力を提供します。
+求めています。この最小構成版は、色付きのターミナル出力と、`--graphical` による最小限のグラフィカルウィンドウを
+提供します。
 
 ターミナル表示は、1 ターンごとに 1 フレームを標準エラー出力に書くので、標準出力のターンログと混ざりません。
 各フレームの内容:
@@ -346,6 +356,23 @@ in flight: D4 hub-roof1 -> roof1
 `roof1 R 1/1+1*` は、同じターンに D2 が出ていき D4 が入ってくる restricted ゾーンを示しています。これは
 合法で、表示は容量超過のように見せるのではなく、その状況が分かるようにしています。
 
+### グラフィカルウィンドウ(`--graphical`)
+
+ウィンドウ(matplotlib)は、マップを一度描いたあと、0.5 秒に 1 ターンずつドローンを描きます:
+
+- ゾーンは `color=` の色で塗った円です。restricted ゾーンは四角、blocked ゾーンは濃い灰色で、縁の色が
+  スタートとエンド(白)、restricted(赤)、priority(金)を示します。ゾーンが 60 個までのマップでは、
+  ゾーンの下に名前を書きます。
+- コネクションは直線で、直線のままだと他のゾーンの上を通る場合だけ弧に曲げます。ゾーンは、弧がよけるときに
+  使うのと同じ半径でマップの単位で描き、x と y の縮尺をそろえているので、コネクションが曲がるのは、まっすぐでは
+  画面上でゾーンに重なるときだけです。matplotlib のツールバーで拡大すると、ゾーンも大きくなります。
+- ドローンは、ゾーンにいるときは白い点、restricted ゾーンへ飛行中はコネクションの中央の水色の点です。
+  同じ地点にいる複数のドローンは、数を書いた大きめの点 1 つになります。タイトルにターン番号と配送済み数を出します。
+
+ウィンドウを閉じると描画をやめ、シミュレーションはすぐに最後まで進むので、ターンログは完全なままです。
+最後のターンのあとは、閉じるまでウィンドウを開いたままにします。ディスプレイがないときは
+`error: cannot open the graphical window (no display?)` で止まります。
+
 ## Testing and quality
 
 - `make lint` と `make lint-strict` は通ります: `flake8 .`、課題指定のフラグ付きの `mypy .`、
@@ -371,11 +398,14 @@ in flight: D4 hub-roof1 -> roof1
   [Google Python スタイルガイド](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)。
 - [ANSI エスケープコード](https://en.wikipedia.org/wiki/ANSI_escape_code)と [NO_COLOR](https://no-color.org):
   ターミナル表示の色。
+- [matplotlib](https://matplotlib.org/): グラフィカルウィンドウ(パッチ、コレクション、`set_aspect("equal")`)。
+  弧には[ベジェ曲線](https://en.wikipedia.org/wiki/B%C3%A9zier_curve)を使う。
 
 ### How AI was used
 
 このプロジェクトでは全体を通して、開発者の指示のもとで AI アシスタント(Claude)を使いました。用途は、
 課題の要件の分析、設計案の検討(パーサの構成、経路探索、スケジューリング、表示)、コードレビューと
 不具合の発見、そして指示に従ったコードの作成です。この最小構成版は、開発者の依頼により、完全版から
-必須でない機能を取り除く形で AI アシスタントが作成しました。この README も、コードと実際の実行結果を
+必須でない機能を取り除く形で AI アシスタントが作成し、さらにブランチ `feature/minimal_matplotlib` で最小限の
+`--graphical` ウィンドウを足しました。この README も、コードと実際の実行結果を
 もとに AI の助けを借りて書きました。コードはすべて開発者がレビューし、その責任は開発者が負います。
