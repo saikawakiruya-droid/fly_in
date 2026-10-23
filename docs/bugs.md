@@ -252,3 +252,15 @@
 - 発見: README を見出しだけから書き直したサブエージェントの報告(コードと docstring の食い違いとして)。
 - 対応状況: 対応済み(2026-10-23、`fix/delay_keys_range`)。キーの範囲を CLI と同じ 0〜60 秒にした。速く(`faster`)は半分にし、
   0.05 秒を下回れば 0。遅く(`slower`)は2倍にし、0 からは 0.05 秒、上限 60 秒。どちらも逆向きに働かない。README 両版の操作の表も更新。
+
+## 2026-10-23: `python3 fly_in.py --visual both` が `module 'pygame.draw' has no attribute 'aacircle'` で落ちる
+
+- 箇所: `droneflow/visualization/graphical_view.py` の `pygame.draw.aacircle`(424, 430, 519, 520 行)。import の確認は 16 行。
+- 症状: `python3 fly_in.py --delay 5 --visual both ./maps/subject_example.txt` で、ターン0のターミナル表示の後に
+  `error: internal error: AttributeError: module 'pygame.draw' has no attribute 'aacircle'`(終了コード 1)。
+- 原因(`make run` では動いたことで確認): `.venv` ではなくシステムの `python3` で直接実行していて、そちらには本家の `pygame`(または古い pygame-ce)が
+  入っている。`aacircle` は pygame-ce にしかない(requirements は `pygame-ce>=2.5`)。本家の pygame でも `import pygame` は通るので、
+  「pygame が無い」(`VisualizationError`)ではなく、描画の途中で想定外の内部エラーになる。
+- 対応状況: 対応済み(`fix/require_pygame_ce`)。`graphical_view.py` で import の直後に `pygame.IS_CE` を確かめ、pygame-ce でなければ
+  `ModuleNotFoundError(name="pygame")` を出す。アプリはこれを pygame が無いときと同じ `VisualizationError`(make install の案内)にする。
+  テスト AA16 を追加。README 両版の説明も更新(main の README は未反映)。
