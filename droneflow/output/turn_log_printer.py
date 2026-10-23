@@ -27,10 +27,19 @@ class TurnLogPrinter:
         self.formatter = TurnLogFormatter()
 
     def begin(self, state: SimulationState) -> None:
-        """Write nothing: turn 0 has no moves."""
+        """Write nothing: turn 0 has no moves.
+
+        Args:
+            state: The state before the first turn (unused).
+        """
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Write the turn's line and flush it right away."""
+        """Write the turn's line and flush it right away.
+
+        Args:
+            state: The state after the turn (unused).
+            moves: The moves made during the turn.
+        """
         if not moves:
             return
         self.stream.write(self.formatter.format_turn(moves) + "\n")

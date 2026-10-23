@@ -32,6 +32,9 @@ class Network:
 
         Does not check for duplicate names; the caller (the parser) is
         responsible for enforcing that constraint.
+
+        Args:
+            zone: The zone to add.
         """
         self._zones[zone.name] = zone
 
@@ -40,6 +43,9 @@ class Network:
 
         Does not check for duplicate connections; the caller (the parser)
         is responsible for enforcing that constraint.
+
+        Args:
+            connection: The connection to add.
         """
         self._connections += (connection,)
         for zone_name in (connection.zone_a, connection.zone_b):
@@ -48,6 +54,12 @@ class Network:
 
     def get_zone(self, name: str) -> Zone:
         """Look up a zone by name.
+
+        Args:
+            name: The zone's name.
+
+        Returns:
+            The zone.
 
         Raises:
             ZoneNotFoundError: If no zone with this name is registered.
@@ -58,13 +70,25 @@ class Network:
             raise ZoneNotFoundError(name) from None
 
     def neighbors(self, name: str) -> Sequence[Connection]:
-        """Return all connections incident to the given zone (read-only)."""
+        """Return all connections incident to the given zone (read-only).
+
+        Args:
+            name: The zone's name.
+
+        Returns:
+            The connections in declaration order; empty for an unknown
+            zone.
+        """
         return self._adjacency.get(name, ())
 
     def connection_between(
         self, zone_a: str, zone_b: str
     ) -> Connection | None:
         """Return the connection linking two zones, in either direction.
+
+        Args:
+            zone_a: One zone's name.
+            zone_b: The other zone's name.
 
         Returns:
             The connection, or None if the zones are not directly linked.
@@ -77,6 +101,13 @@ class Network:
 
     def connection_named(self, zone_name: str, name: str) -> Connection:
         """Return the connection called ``name`` that touches the zone.
+
+        Args:
+            zone_name: A zone at one end of the connection.
+            name: The connection's name (``<zone_a>-<zone_b>``).
+
+        Returns:
+            The connection.
 
         Raises:
             SimulationError: If the zone has no connection of that name
@@ -111,6 +142,17 @@ class Network:
         return self._unique_role_zone(ZoneRole.END)
 
     def _unique_role_zone(self, role: ZoneRole) -> Zone:
+        """Return the only zone with the given role.
+
+        Args:
+            role: START or END.
+
+        Returns:
+            The zone.
+
+        Raises:
+            SimulationError: If there is not exactly one such zone.
+        """
         matches = [zone for zone in self._zones.values() if zone.role is role]
         if len(matches) != 1:
             raise SimulationError(

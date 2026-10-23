@@ -34,6 +34,9 @@ class RunSummary:
         Args:
             turns: Every turn's moves, as returned by the engine.
             nb_drones: Number of drones in the run.
+
+        Returns:
+            The summary.
         """
         delivered_on: dict[int, int] = {}
         for number, moves in enumerate(turns, start=1):
@@ -50,7 +53,11 @@ class RunSummary:
         )
 
     def describe(self) -> str:
-        """Return the summary as one human readable line."""
+        """Return the summary as one human readable line.
+
+        Returns:
+            The line, starting with ``summary:`` (no newline).
+        """
         return (
             f"summary: {self.turns} turns, {self.drones} drones, "
             f"{self.average_turns_per_drone:.2f} turns per drone "

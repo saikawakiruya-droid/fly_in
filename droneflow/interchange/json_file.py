@@ -45,7 +45,11 @@ class JsonObject:
     """
 
     def __init__(self, data: object, where: str = "") -> None:
-        """Wrap ``data``, found at ``where`` ("" for the top level).
+        """Wrap a value read from a JSON file.
+
+        Args:
+            data: The value to wrap.
+            where: Where the value is in the file ("" for the top level).
 
         Raises:
             ValueError: If ``data`` is not a JSON object.
@@ -56,11 +60,24 @@ class JsonObject:
         self._where = where
 
     def where(self, key: str) -> str:
-        """Return the location of ``key`` inside this object."""
+        """Return the location of ``key`` inside this object.
+
+        Args:
+            key: A field name.
+
+        Returns:
+            The location, e.g. ``zones[2].max_drones``.
+        """
         return f"{self._where}.{key}" if self._where else key
 
     def value(self, key: str) -> object:
         """Return the raw value of ``key``.
+
+        Args:
+            key: A field name.
+
+        Returns:
+            The value as JSON decoded it.
 
         Raises:
             ValueError: If the key is missing.
@@ -70,14 +87,34 @@ class JsonObject:
         return self._data[key]
 
     def integer(self, key: str) -> int:
-        """Return ``key`` as an integer (``true``/``false`` are not)."""
+        """Return ``key`` as an integer (``true``/``false`` are not).
+
+        Args:
+            key: A field name.
+
+        Returns:
+            The integer.
+
+        Raises:
+            ValueError: If the value is not an integer.
+        """
         value = self.value(key)
         if isinstance(value, bool) or not isinstance(value, int):
             raise ValueError(f"{self.where(key)}: must be an integer")
         return value
 
     def positive(self, key: str) -> int:
-        """Return ``key`` as an integer greater than zero."""
+        """Return ``key`` as an integer greater than zero.
+
+        Args:
+            key: A field name.
+
+        Returns:
+            The integer.
+
+        Raises:
+            ValueError: If the value is not a positive integer.
+        """
         value = self.integer(key)
         if value <= 0:
             raise ValueError(
@@ -86,26 +123,61 @@ class JsonObject:
         return value
 
     def optional_positive(self, key: str) -> int | None:
-        """Return ``key`` as a positive integer, or None for ``null``."""
+        """Return ``key`` as a positive integer, or None for ``null``.
+
+        Args:
+            key: A field name.
+
+        Returns:
+            The integer, or None.
+        """
         if self.value(key) is None:
             return None
         return self.positive(key)
 
     def text(self, key: str) -> str:
-        """Return ``key`` as a string."""
+        """Return ``key`` as a string.
+
+        Args:
+            key: A field name.
+
+        Returns:
+            The string.
+
+        Raises:
+            ValueError: If the value is not a string.
+        """
         value = self.value(key)
         if not isinstance(value, str):
             raise ValueError(f"{self.where(key)}: must be a string")
         return value
 
     def optional_text(self, key: str) -> str | None:
-        """Return ``key`` as a string, or None for ``null``."""
+        """Return ``key`` as a string, or None for ``null``.
+
+        Args:
+            key: A field name.
+
+        Returns:
+            The string, or None.
+        """
         if self.value(key) is None:
             return None
         return self.text(key)
 
     def member(self, key: str, kind: type[E]) -> E:
-        """Return ``key`` as the member of ``kind`` with that value."""
+        """Return ``key`` as the member of ``kind`` with that value.
+
+        Args:
+            key: A field name.
+            kind: The enum whose member values are the allowed strings.
+
+        Returns:
+            The member.
+
+        Raises:
+            ValueError: If the value is not one of the members' values.
+        """
         value = self.text(key)
         try:
             return kind(value)
@@ -117,7 +189,18 @@ class JsonObject:
             ) from None
 
     def objects(self, key: str) -> list["JsonObject"]:
-        """Return ``key`` as a list of objects, each knowing its index."""
+        """Return ``key`` as a list of objects, each knowing its index.
+
+        Args:
+            key: A field name.
+
+        Returns:
+            One JsonObject per item, located at ``<key>[<index>]``.
+
+        Raises:
+            ValueError: If the value is not a list (or an item is not an
+                object).
+        """
         value = self.value(key)
         if not isinstance(value, list):
             raise ValueError(f"{self.where(key)}: must be a list")

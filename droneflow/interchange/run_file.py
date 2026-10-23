@@ -29,7 +29,14 @@ RUN_VERSION = 1
 
 
 def move_to_json(move: Move) -> dict[str, object]:
-    """Return one move as plain JSON values."""
+    """Return one move as plain JSON values.
+
+    Args:
+        move: The move.
+
+    Returns:
+        ``drone_id``, ``destination`` and ``connection``.
+    """
     return {
         "drone_id": move.drone_id,
         "destination": move.destination,
@@ -38,7 +45,14 @@ def move_to_json(move: Move) -> dict[str, object]:
 
 
 def drone_to_json(drone: Drone) -> dict[str, object]:
-    """Return one drone's position as plain JSON values."""
+    """Return one drone's position as plain JSON values.
+
+    Args:
+        drone: The drone.
+
+    Returns:
+        ``drone_id``, ``status``, ``zone``, ``connection`` and ``target``.
+    """
     return {
         "drone_id": drone.drone_id,
         "status": drone.status.value,
@@ -49,7 +63,14 @@ def drone_to_json(drone: Drone) -> dict[str, object]:
 
 
 def state_to_json(state: SimulationState) -> dict[str, object]:
-    """Return where the drones are between turns, as plain JSON values."""
+    """Return where the drones are between turns, as plain JSON values.
+
+    Args:
+        state: The state after a turn.
+
+    Returns:
+        ``delivered_count`` and the drones not delivered yet.
+    """
     return {
         "delivered_count": state.delivered_count,
         "drones": [drone_to_json(d) for d in state.active_drones()],
@@ -73,12 +94,21 @@ class RunRecorder:
         self._formatter = TurnLogFormatter()
 
     def begin(self, state: SimulationState) -> None:
-        """Keep the initial state as turn 0."""
+        """Keep the initial state as turn 0.
+
+        Args:
+            state: The state before the first turn.
+        """
         self._nb_drones = len(state.drones)
         self._keep(state, [])
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Keep the turn's moves and the state after it."""
+        """Keep the turn's moves and the state after it.
+
+        Args:
+            state: The state after the turn.
+            moves: The moves made during the turn.
+        """
         self._keep(state, moves)
 
     def close(self) -> None:
@@ -89,6 +119,9 @@ class RunRecorder:
 
         ``complete`` is false when the run stopped before every drone was
         delivered (the simulation failed part-way).
+
+        Returns:
+            The whole run file, as described in the module docstring.
         """
         return {
             "format": RUN_FORMAT,
@@ -99,7 +132,10 @@ class RunRecorder:
         }
 
     def write(self, path: str) -> None:
-        """Write the run so far to ``path``.
+        """Write the run so far to a file.
+
+        Args:
+            path: The file to write.
 
         Raises:
             droneflow.errors.OutputFileError: If the file cannot be
@@ -108,6 +144,12 @@ class RunRecorder:
         write_json(path, self.to_json())
 
     def _keep(self, state: SimulationState, moves: list[Move]) -> None:
+        """Append one turn's entry and remember whether the run is done.
+
+        Args:
+            state: The state after the turn.
+            moves: The moves made during the turn.
+        """
         self._complete = state.is_complete
         self._turns.append({
             "turn": state.turn_number,

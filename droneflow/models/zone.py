@@ -85,6 +85,13 @@ class Zone:
         A restricted zone takes two turns: the drone spends the departure
         turn on the connection and lands on the next one. Any other zone
         is entered on the departure turn.
+
+        Args:
+            depart_turn: The turn the drone leaves its zone.
+
+        Returns:
+            ``depart_turn + 1`` for a restricted zone, else
+            ``depart_turn``.
         """
         if self.zone_type is ZoneType.RESTRICTED:
             return depart_turn + 1
