@@ -1,0 +1,17 @@
+nb_drones: 6
+start_hub: a 0 0 [color=green]
+hub: b 2 0 [color=blue max_drones=2]
+hub: c 4 0 [color=purple max_drones=2]
+hub: d 6 0 [color=orange max_drones=2]
+end_hub: e 8 0 [color=yellow]
+connection: a-b
+connection: b-c
+connection: c-d
+connection: d-e
+connection: a-c
+connection: a-d
+connection: a-e
+connection: b-d
+connection: b-e
+connection: c-e
+connection: c-c

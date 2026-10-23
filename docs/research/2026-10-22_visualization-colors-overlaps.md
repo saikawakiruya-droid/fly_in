@@ -3,9 +3,9 @@
 - 日付: 2026-10-22
 - 依頼: 色の扱いがどうなっているか、透明度のパラメータが使えるか、同じ座標にあるゾーンの扱い、接続が重なるときの描き方
 - 対象: `droneflow/visualization/palette.py`・`graphical_view.py`・`terminal_view.py`、`droneflow/parsing/line_tokenizer.py`
-- 確かめ方: コードを読み、検証用のマップ `_tmp/visual_review/overlap_demo.txt`(a と b が同じ座標 (2,0)、a の色が `#ff000080`、
-  s-c と b-g が他のゾーンの上を通る)をヘッドレス(`SDL_VIDEODRIVER=dummy`)で描いて `_tmp/visual_review/overlap_t1.png` に保存した。
-  配布マップの見た目は `_tmp/visual_review/*.png`(課題の例・challenger・ultimate_challenge・50×50 のメッシュ)。
+- 確かめ方: コードを読み、検証用のマップ `docs/research/2026-10-22_visual_review/overlap_demo.txt`(a と b が同じ座標 (2,0)、a の色が `#ff000080`、
+  s-c と b-g が他のゾーンの上を通る)をヘッドレス(`SDL_VIDEODRIVER=dummy`)で描いて `docs/research/2026-10-22_visual_review/overlap_t1.png` に保存した。
+  配布マップの見た目は `_tmp/visual_review/*.png`(2026-10-23 の整理で、残す画像だけ `docs/research/2026-10-22_visual_review/` に移し、ほかは削除)(課題の例・challenger・ultimate_challenge・50×50 のメッシュ)。
 
 ## 1. 色の扱い
 

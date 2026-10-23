@@ -1,0 +1,15 @@
+nb_drones: 4
+start_hub: s 0 0 [color=green]
+end_hub: g 6 0 [color=yellow]
+hub: a 2 0 [color=#ff000080 max_drones=2]
+hub: b 2 0 [color=blue max_drones=2]
+hub: c 4 0 [color=purple max_drones=2]
+hub: d 3 3 [color=orange]
+connection: s-a
+connection: s-b
+connection: a-c
+connection: s-c [max_link_capacity=2]
+connection: c-g
+connection: b-g
+connection: s-d
+connection: d-g
