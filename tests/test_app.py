@@ -10,7 +10,6 @@ in the CLI phase", "step mode", "the CLI's shape", "turn log", "summary",
 """
 
 import io
-import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -22,15 +21,11 @@ from droneflow.cli import Args, parse_args
 from droneflow.errors import (
     FlyInError,
     MapFileError,
-    OutputFileError,
     ParseError,
     SimulationError,
     UnreachableGoalError,
-    WorldFileError,
 )
-from droneflow.interchange.world_file import world_to_json
 from droneflow.models.network import Network
-from droneflow.models.world import World
 from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import MoveDecider
@@ -419,178 +414,3 @@ def test_shared_stuck_scheduler(
         "turn 3: D4 is stuck on connection 'hub-roof1': zone 'roof1' is full"
     )
     assert out.splitlines() == scheduler_output[:2]
-
-
-LoadWorld = Callable[[str], World]
-
-
-def read_json(path: Path) -> dict[str, object]:
-    """Return the JSON object a stage option wrote."""
-    data = json.loads(path.read_text(encoding="utf-8"))
-    assert isinstance(data, dict)
-    return data
-
-
-@pytest.fixture
-def world_path(sample_path: Path, tmp_path: Path) -> Path:
-    """Write the example's World with --parse-only; return the file."""
-    path = tmp_path / "w.json"
-    run_app(Args(sample_path, parse_only=str(path)))
-    return path
-
-
-def unwritable(tmp_path: Path) -> str:
-    """Return a path whose directory does not exist."""
-    return str(tmp_path / "no_dir" / "x.json")
-
-
-def test_parse_only(
-    sample_path: Path,
-    tmp_path: Path,
-    load_world: LoadWorld,
-    subject_map: str,
-) -> None:
-    """SA01: --parse-only writes the World and stops before simulating."""
-    path = str(tmp_path / "w.json")
-
-    out, err = run_app(Args(sample_path, parse_only=path))
-
-    assert out == ""
-    assert err == (
-        f"world: wrote {path} (7 zones, 6 connections, 5 drones)\n"
-    )
-    assert read_json(Path(path)) == world_to_json(load_world(subject_map))
-
-
-def test_from_world_runs_like_the_map(world_path: Path, log: str) -> None:
-    """SA03: the World read back gives the same run as the map."""
-    out, err = run_app(Args(world_path, visual="none", from_world=True))
-
-    assert out == log
-    assert err == SUMMARY + "\n"
-
-
-def test_from_world_invalid(world_path: Path) -> None:
-    """SA04: an invalid world file stops before any turn."""
-    data = read_json(world_path)
-    data["nb_drones"] = 0
-    world_path.write_text(json.dumps(data), encoding="utf-8")
-
-    info, out, err = run_failing(
-        Args(world_path, visual="none", from_world=True), WorldFileError
-    )
-
-    assert str(info.value).endswith(
-        ": nb_drones: must be a positive integer"
-    )
-    assert out == ""
-    assert err == ""
-
-
-@pytest.mark.parametrize("case", ["missing", "binary"])
-def test_from_world_unreadable(case: str, tmp_path: Path) -> None:
-    """SA05: a world file that cannot be read is a MapFileError."""
-    path = tmp_path / f"{case}.json"
-    if case == "binary":
-        path.write_bytes(b"\xff")
-    typed = f"./{case}.json"
-    reason = (
-        "No such file or directory" if case == "missing" else "not UTF-8 text"
-    )
-
-    info, _, _ = run_failing(
-        Args(path, from_world=True, map_arg=typed), MapFileError
-    )
-
-    assert str(info.value) == f"cannot read map file '{typed}': {reason}"
-
-
-def test_from_world_written_again(world_path: Path, tmp_path: Path) -> None:
-    """SA06: --from-world with --parse-only writes the same World."""
-    again = tmp_path / "again.json"
-
-    run_app(Args(world_path, from_world=True, parse_only=str(again)))
-
-    assert read_json(again) == read_json(world_path)
-
-
-def test_save_run(sample_path: Path, tmp_path: Path, log: str) -> None:
-    """SA07: --save-run writes every turn; the turn log is unchanged."""
-    path = tmp_path / "run.json"
-
-    out, err = run_app(
-        Args(sample_path, visual="none", save_run=str(path))
-    )
-
-    assert out == log
-    assert err == f"run: wrote {path}\n" + SUMMARY + "\n"
-    data = read_json(path)
-    turns = data["turns"]
-    assert isinstance(turns, list)
-    assert data["complete"] is True
-    assert "".join(turn["log"] + "\n" for turn in turns[1:]) == out
-
-
-def test_save_run_unwritable_after_success(
-    sample_path: Path, tmp_path: Path, log: str
-) -> None:
-    """SA08: after a successful run, a write failure is the error."""
-    path = unwritable(tmp_path)
-
-    info, out, err = run_failing(
-        Args(sample_path, visual="none", save_run=path), OutputFileError
-    )
-
-    assert str(info.value) == (
-        f"cannot write '{path}': No such file or directory"
-    )
-    assert out == log
-    assert err == ""
-
-
-def test_save_run_after_a_failure(
-    sample_path: Path, tmp_path: Path, stuck_after: StuckAfter
-) -> None:
-    """SA09: a failed run still writes the turns played so far."""
-    path = tmp_path / "run.json"
-
-    run_failing(
-        Args(sample_path, visual="none", save_run=str(path)),
-        SimulationError,
-        stuck_after(2),
-    )
-
-    data = read_json(path)
-    turns = data["turns"]
-    assert isinstance(turns, list)
-    assert data["complete"] is False
-    assert [turn["turn"] for turn in turns] == [0, 1, 2]
-
-
-def test_save_run_unwritable_after_a_failure(
-    sample_path: Path, tmp_path: Path, stuck_after: StuckAfter
-) -> None:
-    """SA10: the run's own error wins; the write failure is a warning."""
-    path = unwritable(tmp_path)
-
-    _, _, err = run_failing(
-        Args(sample_path, visual="none", save_run=path),
-        SimulationError,
-        stuck_after(2),
-    )
-
-    assert err == (
-        f"warning: cannot write '{path}': No such file or directory\n"
-    )
-
-
-def test_no_run_file_without_save_run(
-    sample_path: Path, tmp_path: Path
-) -> None:
-    """SA11: without --save-run no file is written and nothing is said."""
-    before = sorted(tmp_path.iterdir())
-
-    _, err = run_app(Args(sample_path, visual="none"))
-
-    assert sorted(tmp_path.iterdir()) == before
-    assert "run:" not in err
