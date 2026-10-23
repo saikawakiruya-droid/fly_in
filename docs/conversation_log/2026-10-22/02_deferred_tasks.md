@@ -198,3 +198,6 @@
   CRLF のマップは今までどおり読める(Windows・WSL とも 895件成功)。README 両版の BOM の一文を削除。`.gitattributes` と端末表示の ASCII は残した。
   決定は `docs/decisions.md` 2026-10-23。テスト設計 `docs/research/2026-10-23_test-design-drop-bom.md`。
 - 未決: `test/drop_bom_and_cr` の develop へのマージ・main への反映・push(ユーザーの許可待ち)
+- ユーザーの許可(「おねがい」)で `test/drop_bom_and_cr` を develop にマージ(13ae389)、main に反映(0985274。`map_reader.py` は develop から、
+  README は BOM の一文だけ直接削除)。検証: develop 895件、main の lint・課題の例、WSL で main の全体・部分実行 197/197(配布マップのターン数は変わらず)。
+  push(develop c46d4f9..13ae389、main 6df626c..0985274)。自分用の作業ツリー `fly_in_fix` とマージ済みの自分のブランチ5本を削除。
