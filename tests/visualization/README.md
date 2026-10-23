@@ -9,7 +9,7 @@
 - `conftest.py` — `coord_network`(座標・色つきのネットワーク)。`tty_stream`(`isatty()` が True の `StringIO`)は
   CLI のフェーズで `tests/conftest.py` に移した(Application のテストと共有)
 - `test_palette.py` — 色名の表(VP01〜VP04)
-- `test_terminal_view.py` — `TerminalVisualizer`(VT01〜VT16)
+- `test_terminal_view.py` — `TerminalVisualizer`(VT01〜VT11・VT15・VT16)
 
 ## 書き方の約束
 
