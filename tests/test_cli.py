@@ -14,12 +14,22 @@ from droneflow.cli import Args, parse_args
 
 
 def test_map_only() -> None:
-    """AC01: the only argument is MAP, kept as a Path and as typed."""
+    """AC01: MAP alone, kept as a Path and as typed; no window."""
     args = parse_args(["./m.txt"])
 
     assert args == Args(map_path=Path("m.txt"))
     assert isinstance(args.map_path, Path)
     assert args.map_name == "./m.txt"
+    assert args.graphical is False
+
+
+@pytest.mark.parametrize(
+    "argv", [["--graphical", "m.txt"], ["m.txt", "--graphical"]],
+    ids=["before", "after"],
+)
+def test_graphical_flag(argv: list[str]) -> None:
+    """AC02: --graphical, before or after MAP, asks for the window."""
+    assert parse_args(argv) == Args(map_path=Path("m.txt"), graphical=True)
 
 
 @pytest.mark.parametrize(

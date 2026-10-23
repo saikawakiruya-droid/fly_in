@@ -2,16 +2,20 @@
 
 ``coord_network`` registers zones with coordinates and colors, which
 ``make_network`` leaves at (0, 0) and unset. ``tty_stream`` (a terminal
-stand-in) comes from ``tests/conftest.py``.
+stand-in) comes from ``tests/conftest.py``. matplotlib is switched to
+its Agg backend, which needs no display, before anything imports pyplot.
 """
 
 from typing import Protocol
 
+import matplotlib
 import pytest
 
 from droneflow.models.connection import Connection
 from droneflow.models.network import Network
 from droneflow.models.zone import Zone, ZoneRole, ZoneType
+
+matplotlib.use("Agg")
 
 ZoneSpec = tuple[str, int, int]
 

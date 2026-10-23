@@ -70,8 +70,8 @@ python -m pytest tests/
   1ターン1行で書いた直後に flush、空のターンは書かず flush もしない、close は flush だけでストリームを閉じない、
   整形は `formatter` 属性に委譲(同じ `moves` を渡す)
 
-- `tests/test_cli.py` — 引数(AC01・AC06): 引数は MAP だけで、`Path` と入力どおりの文字列(`map_name`)を持つこと、
-  MAP なし・オプション・余分な引数は終了コード2(文言まで)
+- `tests/test_cli.py` — 引数(AC01・AC02・AC06): MAP は `Path` と入力どおりの文字列(`map_name`)を持ち、既定ではウィンドウなし、
+  `--graphical` は MAP の前後どちらでもよいこと、MAP なし・知らないオプション・余分な引数は終了コード2(文言まで)
 - `tests/test_app.py` — `Application`: stdout が本物のスケジューラの出力(課題の例の5行。`scheduler_output`)と完全一致し、
   ターミナル表示は stderr だけに出ること、ターンの行がそのフレームより先に出ること、マップが読めない(存在しない・
   ディレクトリ・UTF-8 でない)の `MapFileError` と原因、パース・到達不能のエラーはそのまま、途中のエラーでもそれまでの
@@ -227,7 +227,15 @@ python -m pytest tests/
   (今いるゾーン・次の一手が priority なら True、2手先・遠回りの priority・end は False、存在しない名前の
   `ZoneNotFoundError`)
 
-- `tests/visualization/conftest.py` — `coord_network`(座標と色つきでゾーンを登録する。最初が start、最後が end)
+- `tests/visualization/conftest.py` — `coord_network`(座標と色つきでゾーンを登録する。最初が start、最後が end)。
+  matplotlib を Agg バックエンド(ディスプレイ不要)に切り替える
+- `tests/visualization/test_geometry.py` — グラフィカル表示の配置(GM01〜GM06): ゾーンの半径(最も近い2点の距離の0.3、
+  1を超える距離は1とみなす)、同じ座標のゾーンを離すこと、ゾーンの横を通る線はまっすぐ・ゾーンの上を通る線はそれをよける弧
+  (上側から試す)、自己ループはゾーンの上の小さな輪、直線の中点
+- `tests/visualization/test_graphical_view.py` — matplotlib の表示(VG01〜VG09): ゾーンが地図の単位で配置の半径の
+  パッチとして縦横同じ縮尺で描かれること、restricted は四角、ゾーンに重なる接続だけが曲がること、タイトルのターン数と
+  同じ地点のドローンの数、飛行中のドローンは接続の中点、色名の解決(パレット → matplotlib → 灰色)、ディスプレイなしでは
+  `VisualizationError`(図を残さない)、`--graphical` の `main` は終了コード1と1行のエラー、ウィンドウを閉じた後は描かないこと
 - `tests/visualization/test_palette.py` — `rgb`: 表の値(似た赤を区別)・全エントリが 0〜255 の3つ組、大文字小文字を
   区別しないこと、配布マップ(`maps.tar.gz`)の色名17種のうち `rainbow` 以外がすべて表にあること、知らない名前・空・`None` は
   `None`
@@ -238,7 +246,7 @@ python -m pytest tests/
   状態を変えないこと、課題のサンプルマップの E2E
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
-Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization。最小構成版ではターミナル表示だけ)と、CLI / Application / エントリポイント
+Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization。最小構成版ではターミナル表示と、`--graphical` の最小限の matplotlib 表示)と、CLI / Application / エントリポイント
 (`droneflow/cli.py`・`droneflow/app.py`・`droneflow/output/turn_log_printer.py`・`fly_in.py`)。
 `Makefile` は単体テストの対象外(手動で確認する。`docs/research/2026-10-18_test-design-cli-app.md`、develop ブランチ)。
 以降の実装が進み次第、対応するテストを追加していく想定。
