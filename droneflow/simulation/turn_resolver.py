@@ -50,7 +50,11 @@ class TurnResolver:
     """
 
     def __init__(self, network: Network) -> None:
-        """Check moves against ``network``."""
+        """Check moves against ``network``.
+
+        Args:
+            network: The map whose rules the moves must follow.
+        """
         self.network = network
 
     def resolve(
@@ -80,6 +84,18 @@ class TurnResolver:
         return moves
 
     def _arrivals(self, state: SimulationState) -> list[_Step]:
+        """Return a landing step for every drone in flight.
+
+        Args:
+            state: The state before the turn.
+
+        Returns:
+            One arrival step per drone in transit.
+
+        Raises:
+            SimulationError: If a drone in flight has no target or
+                connection.
+        """
         steps: list[_Step] = []
         for drone in state.drones_in_transit():
             link = drone.in_transit_connection
@@ -95,6 +111,19 @@ class TurnResolver:
     def _check_orders(
         self, state: SimulationState, orders: list[MoveOrder]
     ) -> list[_Step]:
+        """Check that each order is for a distinct drone standing in a zone.
+
+        Args:
+            state: The state before the turn.
+            orders: The scheduler's orders.
+
+        Returns:
+            One departure step per order, in order.
+
+        Raises:
+            SimulationError: If a drone gets two orders, does not exist,
+                is delivered or is in flight, or an order is illegal.
+        """
         steps: list[_Step] = []
         ordered: set[int] = set()
         for order in orders:
@@ -115,6 +144,19 @@ class TurnResolver:
         return steps
 
     def _check_order(self, drone: Drone, order: MoveOrder) -> _Step:
+        """Check one order's target zone and the connection to it.
+
+        Args:
+            drone: The drone the order is for, standing in a zone.
+            order: The order to check.
+
+        Returns:
+            The departure step for the order.
+
+        Raises:
+            SimulationError: If the zone is unknown, blocked, the one the
+                drone is in, or not connected to it.
+        """
         label = f"D{drone.drone_id}"
         try:
             zone = self.network.get_zone(order.zone_name)
@@ -146,6 +188,16 @@ class TurnResolver:
     def _check_links(
         self, state: SimulationState, steps: list[_Step]
     ) -> None:
+        """Check that no connection has too many departures this turn.
+
+        Args:
+            state: The state before the turn.
+            steps: The turn's checked steps.
+
+        Raises:
+            SimulationError: If a connection is used by more drones than
+                its ``max_link_capacity``.
+        """
         # Landing drones leave their connection this turn, so only the
         # departures use connection capacity.
         usage: dict[str, int] = {}
@@ -164,6 +216,16 @@ class TurnResolver:
     def _check_zones(
         self, state: SimulationState, steps: list[_Step]
     ) -> None:
+        """Check every zone's drone count at the end of the turn.
+
+        Args:
+            state: The state before the turn.
+            steps: The turn's checked steps.
+
+        Raises:
+            SimulationError: If a zone would hold more drones than its
+                capacity, naming the stuck drone if one cannot land.
+        """
         delta: dict[str, int] = {}
         landing: dict[str, _Step] = {}
         for step in steps:
@@ -198,6 +260,15 @@ class TurnResolver:
 
     @staticmethod
     def _apply(state: SimulationState, step: _Step) -> Move:
+        """Apply one checked step to the state.
+
+        Args:
+            state: The state to change.
+            step: The step to apply.
+
+        Returns:
+            The move as it appears in the output.
+        """
         drone_id = step.drone.drone_id
         if step.is_arrival:
             state.complete_transit(drone_id)

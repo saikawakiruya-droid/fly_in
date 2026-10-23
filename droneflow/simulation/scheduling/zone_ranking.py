@@ -50,6 +50,9 @@ class ZoneRanking:
     def rank(self, zone_name: str) -> int | None:
         """Return the zone's place in decision order.
 
+        Args:
+            zone_name: Name of the zone.
+
         Returns:
             0 for the zone decided first, and so on; None if the zone
             cannot reach the end zone.
@@ -67,6 +70,13 @@ class ZoneRanking:
         shortest next hop is one (``next_hops`` lists priority zones first,
         so this means any shortest next hop is a priority zone). Priority
         zones two or more hops away are not considered.
+
+        Args:
+            zone_name: Name of the zone.
+
+        Returns:
+            True if the zone or its first shortest next hop is a priority
+            zone.
 
         Raises:
             ZoneNotFoundError: If no zone with this name exists.

@@ -92,6 +92,9 @@ class Scheduler:
     def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
         """Decide this turn's moves for the drones standing in zones.
 
+        Args:
+            state: The state after the turns played so far.
+
         Returns:
             At most one order per drone: first the planned moves due this
             turn, then the decided ones in decision order; drones without
@@ -127,6 +130,9 @@ class Scheduler:
         Called again for the same turn, the moves planned for that turn are
         undone first, then the table is prepared from the given state like
         on the first call (its landings replace the previous ones).
+
+        Args:
+            state: The state whose next turn is planned.
         """
         turn = state.turn_number + 1
         if self._planned_turn == turn:
@@ -149,6 +155,15 @@ class Scheduler:
         A drone holding a planned eviction (from an earlier turn, or from
         an earlier decision this turn) first gives it up; it gets it back
         if it cannot move now.
+
+        Args:
+            drone: The drone to decide, standing in a zone.
+            turn: The turn being planned.
+            taker: Takes and records the first hop that fits.
+            board: Where every drone will be.
+
+        Returns:
+            The drone's order, or None if it waits.
         """
         drone_id = drone.drone_id
         here = self._zone_of(drone)
@@ -167,6 +182,16 @@ class Scheduler:
     def _decision_order(
         self, state: SimulationState, ordered: set[int]
     ) -> list[Drone]:
+        """Return the drones still to decide, in decision order.
+
+        Args:
+            state: The state at the start of the turn.
+            ordered: The drones already given a planned move this turn.
+
+        Returns:
+            The drones standing in zones without an order, sorted by the
+            ``ZoneRanking`` of their zone.
+        """
         drones = [
             drone for drone in state.active_drones()
             if drone.status is DroneStatus.AT_ZONE
@@ -176,6 +201,17 @@ class Scheduler:
         return drones
 
     def _decision_key(self, drone: Drone) -> int:
+        """Return the rank of the drone's zone, for sorting.
+
+        Args:
+            drone: A drone standing in a zone.
+
+        Returns:
+            The zone's rank in the ``ZoneRanking``.
+
+        Raises:
+            SimulationError: If the end zone cannot be reached from it.
+        """
         here = self._zone_of(drone)
         rank = self._ranking.rank(here)
         if rank is None:
@@ -187,6 +223,17 @@ class Scheduler:
 
     @staticmethod
     def _zone_of(drone: Drone) -> str:
+        """Return the zone the drone stands in.
+
+        Args:
+            drone: The drone to look at.
+
+        Returns:
+            Its zone's name.
+
+        Raises:
+            SimulationError: If the drone is not in a zone.
+        """
         if drone.current_zone is None:
             raise SimulationError(f"D{drone.drone_id} is not in a zone")
         return drone.current_zone

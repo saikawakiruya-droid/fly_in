@@ -57,7 +57,12 @@ class Args:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Return the argument parser of ``fly_in.py``."""
+    """Build the argument parser of ``fly_in.py``.
+
+    Returns:
+        The parser, with the options of the subject and the additional
+        features.
+    """
     parser = argparse.ArgumentParser(
         prog="fly_in.py",
         description=(
@@ -153,7 +158,18 @@ def parse_args(argv: list[str] | None = None) -> Args:
 
 
 def _delay(text: str) -> float:
-    """Convert a ``--delay`` value, accepting 0 to MAX_DELAY seconds."""
+    """Convert a ``--delay`` value, accepting 0 to MAX_DELAY seconds.
+
+    Args:
+        text: The value as typed on the command line.
+
+    Returns:
+        The delay in seconds.
+
+    Raises:
+        argparse.ArgumentTypeError: If the value is not a number, not
+            finite, or outside 0 to MAX_DELAY.
+    """
     try:
         value = float(text)
     except ValueError:

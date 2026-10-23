@@ -72,7 +72,12 @@ class SimulationState:
     """
 
     def __init__(self, network: Network, nb_drones: int) -> None:
-        """Place ``nb_drones`` drones, numbered from 1, in the start zone."""
+        """Place ``nb_drones`` drones, numbered from 1, in the start zone.
+
+        Args:
+            network: The map to simulate.
+            nb_drones: Number of drones to create.
+        """
         self.network = network
         self.turn_number = 0
         start = network.start_zone.name
@@ -85,15 +90,36 @@ class SimulationState:
         self._link_load: dict[str, int] = {}
 
     def occupancy(self, zone_name: str) -> int:
-        """Return how many undelivered drones are currently in the zone."""
+        """Return how many undelivered drones are currently in the zone.
+
+        Args:
+            zone_name: Name of the zone.
+
+        Returns:
+            The number of drones in the zone (0 if none).
+        """
         return self._occupancy.get(zone_name, 0)
 
     def reserved(self, zone_name: str) -> int:
-        """Return how many drones in flight will arrive in the zone."""
+        """Return how many drones in flight will arrive in the zone.
+
+        Args:
+            zone_name: Name of the zone.
+
+        Returns:
+            The number of drones flying toward the zone (0 if none).
+        """
         return self._reserved.get(zone_name, 0)
 
     def load(self, zone_name: str) -> int:
-        """Return occupancy plus reservations: the room already taken."""
+        """Return occupancy plus reservations: the room already taken.
+
+        Args:
+            zone_name: Name of the zone.
+
+        Returns:
+            ``occupancy(zone_name) + reserved(zone_name)``.
+        """
         return self.occupancy(zone_name) + self.reserved(zone_name)
 
     def link_load(self, connection: Connection) -> int:
@@ -103,22 +129,43 @@ class SimulationState:
         connection then, so they do not take any of its
         ``max_link_capacity`` during that turn: a connection is used only
         on the turn a drone departs across it.
+
+        Args:
+            connection: The connection to look at.
+
+        Returns:
+            The number of drones flying along it (0 if none).
         """
         return self._link_load.get(connection.name, 0)
 
     def active_drones(self) -> list[Drone]:
-        """Return the undelivered drones, in drone_id order."""
+        """Return the undelivered drones, in drone_id order.
+
+        Returns:
+            The drones that have not reached the end zone yet.
+        """
         return [d for d in self.drones.values() if not d.is_delivered]
 
     def drones_in_transit(self) -> list[Drone]:
-        """Return the drones in flight toward a restricted zone."""
+        """Return the drones in flight toward a restricted zone.
+
+        Returns:
+            The drones on a connection, in drone_id order.
+        """
         return [
             d for d in self.drones.values()
             if d.status is DroneStatus.IN_TRANSIT
         ]
 
     def drones_at(self, zone_name: str) -> list[Drone]:
-        """Return the undelivered drones currently in the zone."""
+        """Return the undelivered drones currently in the zone.
+
+        Args:
+            zone_name: Name of the zone.
+
+        Returns:
+            The drones in the zone, in drone_id order.
+        """
         return [
             d for d in self.active_drones() if d.current_zone == zone_name
         ]
@@ -137,6 +184,10 @@ class SimulationState:
         """Move a drone standing in a zone straight into another zone.
 
         Entering the end zone delivers the drone.
+
+        Args:
+            drone_id: The drone to move; it must be in a zone.
+            zone_name: The zone it enters.
         """
         drone = self._drone_at_zone(drone_id)
         self._leave(drone)
@@ -149,6 +200,11 @@ class SimulationState:
 
         The drone counts in ``reserved(zone_name)`` until it lands on the
         next turn.
+
+        Args:
+            drone_id: The drone to move; it must be in a zone.
+            connection: The connection it flies along.
+            zone_name: The restricted zone it lands in next turn.
         """
         drone = self._drone_at_zone(drone_id)
         self._leave(drone)
@@ -159,7 +215,14 @@ class SimulationState:
         self._add(self._link_load, connection.name, 1)
 
     def complete_transit(self, drone_id: int) -> None:
-        """Land a drone in flight in the zone it was flying to."""
+        """Land a drone in flight in the zone it was flying to.
+
+        Args:
+            drone_id: The drone to land.
+
+        Raises:
+            SimulationError: If the drone is not in flight.
+        """
         drone = self.drones[drone_id]
         target = drone.transit_target
         link = drone.in_transit_connection
@@ -173,17 +236,39 @@ class SimulationState:
         self._arrive(drone, target)
 
     def _drone_at_zone(self, drone_id: int) -> Drone:
+        """Return a drone that must be standing in a zone.
+
+        Args:
+            drone_id: The drone to look up.
+
+        Returns:
+            The drone.
+
+        Raises:
+            SimulationError: If the drone is not in a zone.
+        """
         drone = self.drones[drone_id]
         if drone.status is not DroneStatus.AT_ZONE:
             raise SimulationError(f"drone D{drone_id} is not in a zone")
         return drone
 
     def _leave(self, drone: Drone) -> None:
+        """Take a drone out of its zone's occupancy.
+
+        Args:
+            drone: The drone leaving its zone.
+        """
         if drone.current_zone is not None:
             self._add(self._occupancy, drone.current_zone, -1)
         drone.current_zone = None
 
     def _arrive(self, drone: Drone, zone_name: str) -> None:
+        """Put a drone in a zone, delivering it if it is the end zone.
+
+        Args:
+            drone: The drone arriving.
+            zone_name: The zone it arrives in.
+        """
         drone.current_zone = zone_name
         if self.network.get_zone(zone_name).role is ZoneRole.END:
             drone.status = DroneStatus.DELIVERED
@@ -193,6 +278,13 @@ class SimulationState:
 
     @staticmethod
     def _add(counts: dict[str, int], key: str, delta: int) -> None:
+        """Add ``delta`` to a count, dropping the key when it reaches 0.
+
+        Args:
+            counts: The counts to change.
+            key: The zone or connection name.
+            delta: The amount to add (negative to subtract).
+        """
         value = counts.get(key, 0) + delta
         if value:
             counts[key] = value

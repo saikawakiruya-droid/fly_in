@@ -26,11 +26,18 @@ class MapReader:
     """
 
     def __init__(self, path: str | Path) -> None:
-        """Keep the path of the file to read."""
+        """Keep the path of the file to read.
+
+        Args:
+            path: The map file.
+        """
         self.path = Path(path)
 
     def __iter__(self) -> Iterator[SourceLine]:
         """Yield every line, numbered from 1, without its line ending.
+
+        Yields:
+            Each line of the file, in order.
 
         Raises:
             OSError: If the file cannot be opened.

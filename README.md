@@ -447,7 +447,8 @@ What is drawn:
   would run over another zone is drawn as an arc around it.
 - **Drones** as dots: white in a zone, cyan when on a connection (drawn at
   its middle, toward a restricted zone), with a gold ring if they moved this
-  turn. Several drones at one point are one badge with their count. Each
+  turn. Several drones at one point are one badge with their count;
+  delivered drones stay at the end zone the same way. Each
   move of the turn leaves a gold **trail** along the connection it used.
 - A **status bar** with the turn, the moves, the delivered count and the
   drones in flight, the controls and the current delay; a **footer** with
@@ -475,7 +476,8 @@ goes on to the end, so the turn log on standard output is still complete. On
 large maps, zones shrink to dots and labels are left out when zoomed out too
 far to read them; zooming in brings them back.
 
-If pygame is not installed, or no window can be opened (e.g. no display),
+If pygame-ce is not installed (the original pygame lacks functions the
+view uses), or no window can be opened (e.g. no display),
 the program stops with one error line and exit code 1, for example
 `error: the graphical view needs pygame (pygame-ce): run 'make install' or
 'pip install pygame-ce', or use --visual terminal`.

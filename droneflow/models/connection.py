@@ -29,11 +29,24 @@ class Connection:
         return f"{self.zone_a}-{self.zone_b}"
 
     def involves(self, zone_name: str) -> bool:
-        """Return whether the zone is one of this connection's endpoints."""
+        """Return whether the zone is one of this connection's endpoints.
+
+        Args:
+            zone_name: The zone to look for.
+
+        Returns:
+            True if the zone is ``zone_a`` or ``zone_b``.
+        """
         return zone_name == self.zone_a or zone_name == self.zone_b
 
     def other_end(self, zone_name: str) -> str:
         """Return the endpoint opposite the given zone name.
+
+        Args:
+            zone_name: One of this connection's endpoints.
+
+        Returns:
+            The other endpoint (the same name for a self-loop).
 
         Raises:
             ValueError: If zone_name is not one of this connection's

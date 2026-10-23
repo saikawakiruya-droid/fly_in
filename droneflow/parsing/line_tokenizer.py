@@ -32,11 +32,26 @@ class LineTokenizer:
     """Checks a line's syntax against the MapFormat and splits it up."""
 
     def __init__(self, map_format: MapFormat) -> None:
-        """Check lines against ``map_format``."""
+        """Check lines against ``map_format``.
+
+        Args:
+            map_format: The line kinds the map may contain.
+        """
         self._format = map_format
 
     def tokenize_header(self, src: SourceLine) -> RawLine:
-        """Tokenize the mandatory first line (``nb_drones: <n>``)."""
+        """Tokenize the mandatory first line (``nb_drones: <n>``).
+
+        Args:
+            src: The first line of the file.
+
+        Returns:
+            The header split into its parts.
+
+        Raises:
+            droneflow.errors.ParseError: If the line is not the header, or
+                its parts do not match the header's usage.
+        """
         spec = self._format.header
         text = src.text.strip()
         keyword, separator, rest = text.partition(":")
@@ -48,7 +63,19 @@ class LineTokenizer:
         return self._split(src.number, spec, rest, text)
 
     def tokenize(self, src: SourceLine) -> RawLine | None:
-        """Tokenize a body line; blank lines and comments return None."""
+        """Tokenize a body line; blank lines and comments return None.
+
+        Args:
+            src: A line after the header.
+
+        Returns:
+            The line split into its parts, or None for a blank line or a
+            comment.
+
+        Raises:
+            droneflow.errors.ParseError: If the keyword is unknown or the
+                parts do not match its usage.
+        """
         text = src.text.strip()
         if not text or text.startswith("#"):
             return None
@@ -61,6 +88,21 @@ class LineTokenizer:
     def _split(
         self, number: int, spec: LineSpec, rest: str, text: str
     ) -> RawLine:
+        """Split the text after the keyword into tokens and metadata.
+
+        Args:
+            number: The line number, for errors.
+            spec: The kind of line the keyword named.
+            rest: The text after ``keyword:``.
+            text: The whole stripped line, quoted in errors.
+
+        Returns:
+            The checked line with its tokens and metadata.
+
+        Raises:
+            droneflow.errors.ParseError: If a metadata key is not allowed
+                for this kind of line, or the token count is wrong.
+        """
         main, metadata = self._split_metadata(number, rest)
         unknown = set(metadata) - spec.metadata_keys
         if unknown:
@@ -79,6 +121,17 @@ class LineTokenizer:
 
         A key may appear at most once per block; a repeated key is a
         ParseError rather than "last one wins".
+
+        Args:
+            number: The line number, for errors.
+            rest: The text after ``keyword:``.
+
+        Returns:
+            The main part and the metadata as a key-to-value dict.
+
+        Raises:
+            droneflow.errors.ParseError: If the block or one of its entries
+                is malformed, or a key is repeated.
         """
         match = _METADATA_BLOCK.fullmatch(rest)
         if match is None:
