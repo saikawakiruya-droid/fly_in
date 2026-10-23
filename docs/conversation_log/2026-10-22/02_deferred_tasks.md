@@ -191,3 +191,10 @@
 - 5(片付け): `fly_in_scheduling` の作業ツリーを外し(git の削除は D: で失敗したのでフォルダは手で削除)、develop にマージ済みのローカルブランチ56本を
   `git branch -d` で削除(別セッションのマージ済み `feature/review_guide` を含む)。main に取り込み済みの `feature/readme_rewrite` も削除。
   残したもの: main・develop・`feature/capacity_info`(練習用)・未マージの自分のブランチ3本・別セッションが使用中の `test/huge_mesh_maps`。リモートとタグは触っていない。
+- ユーザー判断: Windows 由来は「BOM と `\r` を外す」、マージは「速さのキーと CLAUDE.md の2つだけ先に push」。
+- 1 と 3 を develop にマージ(c46d4f9。決定記録の末尾の競合は両方を残して解消)、main に反映(6df626c。コードと CLAUDE.md は develop から、
+  README は速さのキーの行だけ直接直した)、検証(develop 895件、main の lint・課題の例)のうえ push(develop ce56156..c46d4f9、main 85f4bea..6df626c)。
+- BOM と `\r`(`fix/drop_bom_and_cr`・`test/drop_bom_and_cr`): `MapReader` を `utf-8`・`rstrip("\n")` に。BOM つきのマップは1行目のエラー、
+  CRLF のマップは今までどおり読める(Windows・WSL とも 895件成功)。README 両版の BOM の一文を削除。`.gitattributes` と端末表示の ASCII は残した。
+  決定は `docs/decisions.md` 2026-10-23。テスト設計 `docs/research/2026-10-23_test-design-drop-bom.md`。
+- 未決: `test/drop_bom_and_cr` の develop へのマージ・main への反映・push(ユーザーの許可待ち)
