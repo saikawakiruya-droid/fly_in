@@ -1531,3 +1531,16 @@ sequenceDiagram
 - 理由: ユーザー判断。BOM を付けるのは主に Windows のエディタで、採点は Linux。2026-10-22「Windows 対応を消す」と同じ方針。
   `.gitattributes` は、この開発環境(Windows で編集し WSL で `make`)で Makefile が CRLF になって壊れるのを防ぐので残す。
 - 検討した代替案: `\r` だけ外す(BOM は 2026-10-21 の判断どおり残す)、`.gitattributes` も外す(開発時に Makefile が壊れるおそれ)。
+
+## 2026-10-23: 本家 pygame しか無いときも「pygame-ce が要る」のエラーにする
+
+- 決定内容(ユーザーの依頼「直しておいて」、範囲は「エラーの案内を直す」を選択):
+  1. `graphical_view.py` で `import pygame` の直後に `pygame.IS_CE` を確かめ、pygame-ce でなければ `ModuleNotFoundError(name="pygame")` を出す。
+  2. `Application._graphical_view` はこれまでどおり pygame の `ModuleNotFoundError` を `VisualizationError` に包むので、
+     pygame が無いときと同じ1行(`the graphical view needs pygame (pygame-ce): run 'make install' or 'pip install pygame-ce', ...`)になる。
+- 理由: 描画は pygame-ce にしかない関数(`pygame.draw.aacircle` など。2026-10-22 の決定)を使う。本家 pygame でも import は通るため、
+  描画の途中で `AttributeError` の「内部エラー」になり、何をすればよいか分からなかった(bugs.md 2026-10-23)。
+- 検討した代替案:
+  - `graphical_view.py` から直接 `VisualizationError` を出す。文言が `app.py` と二重になるため見送った。
+  - `aacircle` を使わず本家 pygame でも動くようにする。なめらかな描画をやめることになり、requirements も pygame-ce のままなので見送った。
+  - システムの `python3` に pygame-ce を入れる。環境の問題で、`.venv`(`make install`)を使えば済むので見送った。

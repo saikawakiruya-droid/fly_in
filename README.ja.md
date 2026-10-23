@@ -404,7 +404,8 @@ in flight: D4 hub-roof1 -> roof1
 閉じるだけで、シミュレーションは最後まで続くので、標準出力のターンログは完全なままです。大きなマップでは、
 読めないほど縮小するとゾーンは小さな点になりラベルは省かれ、拡大すると戻ります。
 
-pygame がインストールされていない、またはウィンドウを開けない(例: ディスプレイが無い)場合、プログラムは
+pygame-ce がインストールされていない(本家の pygame には表示で使う関数が無いため、本家だけでも同じ)、
+またはウィンドウを開けない(例: ディスプレイが無い)場合、プログラムは
 エラー行を 1 行出して終了コード 1 で止まります。例:
 `error: the graphical view needs pygame (pygame-ce): run 'make install' or
 'pip install pygame-ce', or use --visual terminal`。
