@@ -603,6 +603,53 @@ def test_drones_at_one_point_are_a_badge(
     assert len(rects) == badges * 2  # the fill and its ring
 
 
+def test_delivered_drone_is_at_the_goal(
+    headless: Headless, line: Network, place: Place
+) -> None:
+    """VO08: a delivered drone's point is the goal, not None."""
+    state = place(line, 1, at={1: "g"})
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+
+    view.begin(state)
+    window = view._window
+    assert window is not None
+    point = window.drone_point(state.drones[1])
+    view.close()
+
+    assert point == window.layout.position("g")
+
+
+@pytest.mark.parametrize(("count", "badges"), [(1, 0), (5, 1)])
+def test_delivered_drones_are_a_badge(
+    count: int,
+    badges: int,
+    headless: Headless,
+    line: Network,
+    place: Place,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """VO09: delivered drones are drawn at the goal like VO07."""
+    state = place(line, count, at={i: "g" for i in range(1, count + 1)})
+    view = GraphicalVisualizer(delay=0, hold_final=False)
+    view.begin(state)
+    window = view._window
+    assert window is not None
+    rects: list[object] = []
+    original = pygame.draw.rect
+
+    def spy(*args: object, **kwargs: object) -> object:
+        if kwargs.get("border_radius"):
+            rects.append(args)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pygame.draw, "rect", spy)
+    window._draw_drones(state, set())
+    view.close()
+
+    assert state.delivered_count == count
+    assert len(rects) == badges * 2  # the fill and its ring
+
+
 @pytest.fixture
 def opened(
     headless: Headless, load_world: LoadWorld, subject_map: str
