@@ -21,8 +21,8 @@ class SourceLine:
 class MapReader:
     """Reads a map file and yields its lines as SourceLine objects.
 
-    The file is read as UTF-8; a byte order mark at its start, as some
-    editors write, is skipped.
+    The file is read as UTF-8 text. Text mode turns CR LF and CR line
+    endings into LF on any system, so only the LF has to be stripped.
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -36,6 +36,6 @@ class MapReader:
             OSError: If the file cannot be opened.
             UnicodeDecodeError: If the file is not UTF-8 text.
         """
-        with open(self.path, encoding="utf-8-sig") as f:
+        with open(self.path, encoding="utf-8") as f:
             for number, text in enumerate(f, start=1):
-                yield SourceLine(number, text.rstrip("\r\n"))
+                yield SourceLine(number, text.rstrip("\n"))

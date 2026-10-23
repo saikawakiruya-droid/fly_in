@@ -25,7 +25,7 @@ Fly-in は、Python で書いたドローン群のルーティングシミュレ
 
 ### Input format
 
-マップは UTF-8 のテキストファイルです(先頭の BOM は読み飛ばします)。
+マップは UTF-8 のテキストファイルです。
 
 ```text
 nb_drones: 5
