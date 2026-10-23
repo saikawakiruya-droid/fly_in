@@ -461,8 +461,8 @@ Controls:
 | --- | --- |
 | Space | Pause / resume. |
 | Right arrow | Next turn now, without waiting for the delay (also while paused and in step mode). |
-| Up / `+` | Faster (halves the delay, down to 0.05 s). |
-| Down / `-` | Slower (doubles the delay, up to 5 s). |
+| Up / `+` | Faster (halves the delay; below 0.05 s it goes to 0, no wait). |
+| Down / `-` | Slower (doubles the delay, from 0.05 s when it is 0, up to 60 s like `--delay`). |
 | Mouse wheel | Zoom around the mouse (from 0.5x up to a zoom where the closest zones are readable). Zones and text keep their size; only the distances grow. |
 | Left drag | Move the map. |
 | `f` | Fit the whole map again. |
