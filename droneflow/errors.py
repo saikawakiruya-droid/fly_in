@@ -71,6 +71,14 @@ class UnreachableGoalError(FlyInError):
         )
 
 
+class VisualizationError(FlyInError):
+    """Raised when the graphical view cannot be used.
+
+    For example when matplotlib is not installed, or when no window can
+    be opened (no display).
+    """
+
+
 class MapFileError(FlyInError):
     """Raised when the map file cannot be opened or read as text.
 

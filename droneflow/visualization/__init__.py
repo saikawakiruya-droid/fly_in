@@ -1,1 +1,1 @@
-"""Visual feedback: colored terminal output."""
+"""Visual feedback: colored terminal output and a matplotlib window."""
