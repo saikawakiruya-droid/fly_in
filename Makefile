@@ -1,8 +1,7 @@
 # Fly-in: common tasks (subject chapter III.2).
 #
 #   make install        create .venv (if absent) and install requirements.txt
-#   make run            run the default map; override with MAP=... ARGS=...
-#                       e.g. make run MAP=maps/x.txt ARGS="--visual none"
+#   make run            run the default map; override with MAP=...
 #   make debug          the same, under pdb
 #   make clean          remove caches (__pycache__, .mypy_cache, ...)
 #   make lint           flake8 + mypy with the flags the subject requires
@@ -12,7 +11,6 @@
 
 VENV := .venv
 MAP ?= maps/subject_example.txt
-ARGS ?=
 
 PYTHON_SYS ?= python3
 PYTHON := $(VENV)/bin/python
@@ -36,10 +34,10 @@ $(STAMP): requirements.txt
 	$(MAKE) install
 
 run: $(STAMP)
-	$(PYTHON) fly_in.py $(MAP) $(ARGS)
+	$(PYTHON) fly_in.py $(MAP)
 
 debug: $(STAMP)
-	$(PYTHON) -m pdb fly_in.py $(MAP) $(ARGS)
+	$(PYTHON) -m pdb fly_in.py $(MAP)
 
 clean:
 	find . -path ./$(VENV) -prune -o -type d \

@@ -2,11 +2,8 @@
 
 ``Application(args, out, err)`` writes to two ``StringIO`` objects, so the
 turn log (stdout) and everything else (stderr) are compared as text.
-Step mode is not run: the views are built with ``_make_views()`` and
-inspected. Decisions 2026-10-18 "visualization
-in the CLI phase", "step mode", "the CLI's shape", "turn log", "summary",
-"error handling", "close failures are a warning" and 2026-10-17
-"terminal view on stderr".
+Decisions 2026-10-18 "the CLI's shape", "turn log", "summary", "error
+handling" and 2026-10-17 "terminal view on stderr".
 """
 
 import io
@@ -30,7 +27,6 @@ from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.scheduling.scheduler import Scheduler
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
-from droneflow.visualization.terminal_view import TerminalVisualizer
 
 WriteMap = Callable[[str], Path]
 SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]
@@ -82,18 +78,6 @@ def sample_path(write_map: WriteMap, subject_map: str) -> Path:
     return write_map(subject_map)
 
 
-@pytest.fixture
-def fail_close(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make TerminalVisualizer.close flush as usual, then fail."""
-    original = TerminalVisualizer.close
-
-    def close(self: TerminalVisualizer) -> None:
-        original(self)
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(TerminalVisualizer, "close", close)
-
-
 class RecordingView:
     """Records how many turn lines stdout held at each call."""
 
@@ -132,14 +116,6 @@ def record_terminal(
     return view
 
 
-def test_none_writes_only_the_log(sample_path: Path, log: str) -> None:
-    """AA01: --visual none: stdout is the log, stderr the summary."""
-    out, err = run_app(Args(sample_path, visual="none"))
-
-    assert out == log
-    assert err == SUMMARY + "\n"
-
-
 def test_terminal_keeps_stdout_identical(
     sample_path: Path, log: str
 ) -> None:
@@ -167,26 +143,6 @@ def test_log_lines_come_before_each_frame(
     assert view.at_close == [5]
 
 
-def test_terminal_view_assembly(sample_path: Path) -> None:
-    """AA04: the terminal view writes to err."""
-    out, err = io.StringIO(), io.StringIO()
-    app = Application(Args(sample_path, "terminal"), out, err)
-
-    views = app._make_views()
-
-    assert [v.name for v in views] == ["terminal"]
-    terminal = views[0].view
-    assert isinstance(terminal, TerminalVisualizer)
-    assert terminal.stream is err
-
-
-def test_none_builds_no_view(sample_path: Path) -> None:
-    """AA05: none builds no view."""
-    app = Application(Args(sample_path, "none"))
-
-    assert app._make_views() == []
-
-
 @pytest.mark.parametrize("case", ["missing", "directory", "not-utf8"])
 def test_unreadable_map(case: str, tmp_path: Path) -> None:
     """AA06: OS and decoding errors become MapFileError with a cause."""
@@ -198,7 +154,7 @@ def test_unreadable_map(case: str, tmp_path: Path) -> None:
         path = tmp_path / "latin1.txt"
         path.write_bytes(b"nb_drones: 1\n\xff\n")
 
-    info, out, err = run_failing(Args(path, "none"), MapFileError)
+    info, out, err = run_failing(Args(path), MapFileError)
 
     exc = info.value
     assert isinstance(exc, MapFileError)
@@ -250,36 +206,6 @@ def test_map_errors_pass_through(
     assert err == ""
 
 
-@pytest.mark.usefixtures("fail_close")
-def test_close_failure_after_success_is_a_warning(
-    sample_path: Path, log: str
-) -> None:
-    """AA11: a failing close after a good run only adds a warning."""
-    out, err = run_app(Args(sample_path))
-
-    assert out == log
-    assert err.splitlines()[-2:] == [
-        "warning: could not close the terminal view: boom",
-        SUMMARY,
-    ]
-
-
-@pytest.mark.usefixtures("fail_close")
-def test_close_failure_keeps_the_original_error(
-    sample_path: Path, stuck_after: StuckAfter
-) -> None:
-    """AA12: a failing close does not replace the run's own error."""
-    info, out, err = run_failing(
-        Args(sample_path), SimulationError, stuck_after(0)
-    )
-
-    assert type(info.value) is SimulationError
-    assert str(info.value).startswith("turn 1: no drone moved")
-    assert "warning: could not close the terminal view: boom" in err
-    assert "summary:" not in err
-    assert out == ""
-
-
 def test_failed_run_keeps_the_log_so_far(
     sample_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -316,10 +242,9 @@ def test_printer_failures_are_not_guarded(
 
     monkeypatch.setattr(TurnLogPrinter, "close", close)
 
-    info, _, err = run_failing(Args(sample_path, "none"), OSError)
+    info, _, err = run_failing(Args(sample_path), OSError)
 
     assert info.value is failure
-    assert "warning:" not in err
     assert "summary:" not in err
 
 
@@ -328,7 +253,7 @@ def test_map_path_shown_as_typed(
 ) -> None:
     """AA15 (designed as AA09, part 1): errors show the path as typed."""
     monkeypatch.chdir(tmp_path)
-    args = parse_args(["./no_such//map.txt", "--visual", "none"])
+    args = parse_args(["./no_such//map.txt"])
 
     info, _, _ = run_failing(args, MapFileError)
 
@@ -345,7 +270,7 @@ def test_map_with_bom_is_rejected(tmp_path: Path, subject_map: str) -> None:
     path = tmp_path / "map.txt"
     path.write_bytes(b"\xef\xbb\xbf" + subject_map.encode())
 
-    info, out, _ = run_failing(Args(path, visual="none"), ParseError)
+    info, out, _ = run_failing(Args(path), ParseError)
 
     assert info.value.args[0] == (
         "line 1: the first line must be 'nb_drones: <n>'"
@@ -372,7 +297,7 @@ def test_make_scheduler_builds_the_decider(sample_path: Path) -> None:
             return [MoveOrder(1, "corridorA")] if self.turn == 1 else []
 
     info, out, err = run_failing(
-        Args(sample_path, visual="none"), SimulationError, Recording
+        Args(sample_path), SimulationError, Recording
     )
 
     assert len(made) == 1
@@ -382,7 +307,7 @@ def test_make_scheduler_builds_the_decider(sample_path: Path) -> None:
         "turn 2: no drone moved, so the simulation cannot progress"
     )
     assert out == "D1-corridorA\n"
-    assert err == ""
+    assert "summary:" not in err
 
 
 def test_shared_stuck_scheduler(
@@ -390,7 +315,7 @@ def test_shared_stuck_scheduler(
 ) -> None:
     """AI02: the conftest's ``stuck_after`` stops a real run part-way."""
     info, out, _ = run_failing(
-        Args(sample_path, visual="none"), SimulationError, stuck_after(2)
+        Args(sample_path), SimulationError, stuck_after(2)
     )
 
     assert str(info.value) == (

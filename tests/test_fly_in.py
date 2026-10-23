@@ -3,11 +3,10 @@
 ``fly_in.main(argv)`` runs in the test process and ``capsys`` reads what
 it wrote. Two cases run ``fly_in.py`` in a real subprocess to check the
 exit status and the ``__main__`` wiring.
-Decisions 2026-10-18 "error handling", "close failures are a warning",
-"last resort for unexpected exceptions" and "the CLI's shape".
+Decisions 2026-10-18 "error handling", "last resort for unexpected
+exceptions" and "the CLI's shape".
 """
 
-import functools
 import subprocess
 import sys
 from collections.abc import Callable
@@ -16,16 +15,11 @@ from pathlib import Path
 import pytest
 
 import fly_in
-from droneflow.app import Application
-from droneflow.models.network import Network
 from droneflow.output.turn_log_printer import TurnLogPrinter
-from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.state import Move, SimulationState
 from droneflow.visualization.terminal_view import TerminalVisualizer
 
 WriteMap = Callable[[str], Path]
-StuckAfter = Callable[[int], Callable[[Network, Pathfinder], MoveDecider]]
 
 ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = (
@@ -34,7 +28,6 @@ SUMMARY = (
 )
 COMMENT_FIRST_MAP = "# c\nnb_drones: 1\n"
 UNREACHABLE_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: g 1 1\n"
-CLOSE_WARNING = "warning: could not close the terminal view: boom"
 
 
 def call_main(*argv: str) -> int:
@@ -69,27 +62,16 @@ def raising_app(
     monkeypatch.setattr(fly_in, "Application", RaisingApp)
 
 
-@pytest.fixture
-def fail_close(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make TerminalVisualizer.close flush as usual, then fail."""
-    original = TerminalVisualizer.close
-
-    def close(self: TerminalVisualizer) -> None:
-        original(self)
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(TerminalVisualizer, "close", close)
-
-
 def test_success(
     sample_path: Path, log: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """AM01: a good run returns 0; stdout is the log, stderr the summary."""
-    assert call_main(str(sample_path), "--visual", "none") == 0
+    assert call_main(str(sample_path)) == 0
 
     captured = capsys.readouterr()
     assert captured.out == log
-    assert captured.err == SUMMARY + "\n"
+    assert captured.err.startswith("=== Turn 0 (start)")
+    assert captured.err.splitlines()[-1] == SUMMARY
 
 
 @pytest.mark.parametrize("case", ["missing", "parse", "unreachable"])
@@ -113,7 +95,7 @@ def test_fly_in_errors(
         path = write_map(UNREACHABLE_MAP)
         expected = "error: goal 'g' is unreachable from 's'"
 
-    assert call_main(str(path), "--visual", "none") == 1
+    assert call_main(str(path)) == 1
 
     captured = capsys.readouterr()
     assert captured.err == expected + "\n"
@@ -132,7 +114,7 @@ def test_bad_arguments_exit_2_before_anything(
     monkeypatch.setattr(fly_in, "Application", NeverBuilt)
 
     with pytest.raises(SystemExit) as info:
-        call_main("m.txt", "--visual", "graphical")
+        call_main("m.txt", "--visual")
 
     assert info.value.code == 2
     assert "usage:" in capsys.readouterr().err
@@ -203,7 +185,7 @@ def test_last_resort(
         raising_app(monkeypatch, PermissionError("denied"))
         expected = "error: internal error: PermissionError: denied"
 
-    assert call_main(str(sample_path), "--visual", "none") == 1
+    assert call_main(str(sample_path)) == 1
 
     captured = capsys.readouterr()
     lines = captured.err.splitlines()
@@ -211,41 +193,6 @@ def test_last_resort(
     assert lines[0] == expected
     assert "Traceback" not in captured.err
     assert captured.out == ""
-
-
-@pytest.mark.usefixtures("fail_close")
-def test_close_failure_after_success(
-    sample_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """AM10 (1): a failing close does not turn success into failure."""
-    assert call_main(str(sample_path)) == 0
-
-    assert capsys.readouterr().err.splitlines()[-2:] == [
-        CLOSE_WARNING,
-        SUMMARY,
-    ]
-
-
-@pytest.mark.usefixtures("fail_close")
-def test_close_failure_after_failure(
-    sample_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    stuck_after: StuckAfter,
-) -> None:
-    """AM10 (2): the warning comes first, then the run's own error."""
-    monkeypatch.setattr(
-        fly_in,
-        "Application",
-        functools.partial(Application, make_scheduler=stuck_after(0)),
-    )
-
-    assert call_main(str(sample_path)) == 1
-
-    assert capsys.readouterr().err.splitlines()[-2:] == [
-        CLOSE_WARNING,
-        "error: turn 1: no drone moved, so the simulation cannot progress",
-    ]
 
 
 def run_script(*argv: str) -> subprocess.CompletedProcess[str]:
@@ -273,7 +220,7 @@ def test_script_success(scheduler_output: list[str]) -> None:
 
 def test_script_error() -> None:
     """AE02: a missing map is one line on stderr and exit status 1."""
-    result = run_script("no_such_map.txt", "--visual", "none")
+    result = run_script("no_such_map.txt")
 
     assert result.returncode == 1
     assert result.stderr == (
