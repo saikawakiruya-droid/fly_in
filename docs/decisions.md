@@ -1518,3 +1518,16 @@ sequenceDiagram
   CLAUDE.md は「main では README から tests の記述を取り除く」と、逆向きの書き方のままだった。結果は同じだが、手順が実態と違って読める。
 - 検討した代替案: そのままにする(結果は同じなので害はないが、次に README を直すとき、どちらを元にするかで迷う)。
 - 関連: `../cordection/CLAUDE.md` には main/develop の差分の節がないので、同じ変更は不要。
+
+## 2026-10-23: BOM の読み飛ばしと、効いていない `\r` の除去を外す(Windows 由来の残り)
+
+- 決定内容(ユーザーの質問「README に Windows 用の動作が残っているが、コードにも残っていないか」への回答のうち、推奨案を採用):
+  1. `MapReader` は `encoding="utf-8"` で読む(BOM を読み飛ばさない)。BOM つきのマップは、1行目が `nb_drones:` でないものとして
+     `line 1: the first line must be 'nb_drones: <n>'` になる。2026-10-21「全体レビュー…」の4(BOM の読み飛ばしだけを入れる)を改める。
+  2. 行末は `rstrip("\n")` だけにする。テキストモードはどの OS でも CR LF と CR を LF に直すので、`\r` を消す処理はもともと効いていなかった。
+     CRLF のマップは今までどおり読める。
+  3. README 両版の「先頭の BOM は読み飛ばす」を消す。BOM のテスト(BM01〜BM04)は、BOM つきは1行目のエラー・CRLF は読める、を確かめる形に変える。
+  4. `.gitattributes`(Makefile を LF に固定)と、端末表示の ASCII は残す。
+- 理由: ユーザー判断。BOM を付けるのは主に Windows のエディタで、採点は Linux。2026-10-22「Windows 対応を消す」と同じ方針。
+  `.gitattributes` は、この開発環境(Windows で編集し WSL で `make`)で Makefile が CRLF になって壊れるのを防ぐので残す。
+- 検討した代替案: `\r` だけ外す(BOM は 2026-10-21 の判断どおり残す)、`.gitattributes` も外す(開発時に Makefile が壊れるおそれ)。

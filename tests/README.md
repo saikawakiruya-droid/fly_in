@@ -44,8 +44,8 @@ python -m pytest tests/
   重複(ゾーン名・接続・start/end hub)の即時検出、start/end hub欠落、不正な
   ゾーンタイプ・メタデータキー・メタデータ構文・座標・ゾーン名、未定義ゾーンへの
   接続参照、空ファイル、自己ループ接続・座標重複の許容(いずれもParseErrorにしない)、
-  先頭の BOM(BM01〜BM03: 先頭の1つだけ読み飛ばす・CRLF と重なっても読める・2つ目や途中の行の BOM は従来どおり
-  ParseError)、
+  BOM と改行(BM01〜BM03、2026-10-23 に変更: BOM は読み飛ばさず1行目の ParseError・CRLF のマップは LF と同じ World・
+  2つ目や途中の行の BOM もその行の ParseError)、
   start/end hubの禁止オプション(`zone=blocked` は行番号つきの ParseError。コメント・空行を挟んだ
   物理行番号、他のメタデータとの組み合わせ・書き順、普通の hub の blocked と start/end の他の
   ゾーンタイプは許容、以前は経路探索で失敗したマップがパースで失敗すること)、start/end の
@@ -99,7 +99,7 @@ python -m pytest tests/
   `VisualizationError` とマップのエラーが先なこと、pygame 以外の import の失敗は包まない、close の失敗は警告だけ・
   元のエラーを隠さない、途中のエラーでもそれまでのログとビューの後始末が残る、ターンログ側の失敗は包まない、
   エラーのパスは入力どおり。`make_scheduler` の注入(AI01: `(network, pathfinder)` で1回作りエンジンに渡す、
-  AI02: 共有の `stuck_after` で本物の実行を途中で止める)、BOM つきのマップが入口から通ること(BM04)。
+  AI02: 共有の `stuck_after` で本物の実行を途中で止める)、BOM つきのマップは入口で1行目の ParseError(BM04)。
   追加機能(SA01〜SA11): `--parse-only` はパーサーだけ(stdout は空・表示を作らない)、`--from-world` はふつうの実行と同じ出力、
   不正・読めない World のファイル、World の書き直し、`--save-run` の記録とターンログの一致、成功後の書き込みの失敗はエラー、
   途中の失敗でもそこまでを書き、書けなくても元のエラーのまま(警告)

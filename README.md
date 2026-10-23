@@ -30,7 +30,7 @@ and passes `flake8` and `mypy --strict`.
 
 ### Input format
 
-A map is a UTF-8 text file (a byte order mark at its start is skipped):
+A map is a UTF-8 text file:
 
 ```text
 nb_drones: 5
