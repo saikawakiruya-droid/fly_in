@@ -1555,3 +1555,18 @@ sequenceDiagram
   4. ターミナル表示・`run.json` は変えない(goal は `N in` / `delivered_count` のまま)。
 - 理由: goal に着くとドローンの点が消え、数は goal の下の `N in` と上部の `delivered N/M` にしか出ず、着いたのが見えにくかった。
 - 検討した代替案: 1機ずつ点を描く(機の多いマップでは重なって読めない)、goal のラベルの文字を大きくする(位置で見えない)。
+
+## 2026-10-23: docstring をすべて Google スタイルにそろえる(A-Maze-ing の課題の書き方に合わせる)
+
+- 決定内容(ユーザーの依頼「amazeing の課題に合わせて docstring 見直して」。範囲は「すべて Google スタイルに」を選択):
+  1. A-Maze-ing の課題 III.1 の「Include docstrings in functions and classes following PEP 257 (e.g., Google or NumPy style) to document
+     purpose, parameters, and returns.」に合わせ、`fly_in.py` と `droneflow/` の全関数(非公開の `_` つきも含む)に docstring を付ける。
+  2. 形は今のコードで使っている Google スタイル: 1行目は命令形の要約(`Return ...`)、引数があれば `Args:`(`self` / `cls` は除く。
+     `__init__` の引数は `__init__` の docstring に書く)、`None` 以外を返すなら `Returns:`(ジェネレータは `Yields:`)、
+     その関数が直接 `raise` する例外は `Raises:`。`@property` は要約だけでよい(Google スタイルでは属性として扱う)。
+  3. コードは変えない(docstring を除いた AST が変更前と同じことを確かめる)。既存の説明文は残し、引数の説明は `Args:` に移す。
+  4. `tests/` は対象外(提出物ではなく、課題の要件もプロジェクトのコードに対するもの)。
+  5. 足りない箇所の数え方: `ast` で関数ごとに docstring・`Args:`・`Returns:` の有無を調べる(作業前: 326 関数のうち docstring なし 47、
+     `Args:` なし 204、`Returns:` なし 137)。
+- 理由: ユーザー判断。Fly-in の課題も「PEP 257 準拠の docstring」を求めており、引数と戻り値の書き方を一つにそろえると評価で説明しやすい。
+- 検討した代替案: 公開の関数だけそろえる、一覧だけ作って自分で直す(ユーザーが「すべて」を選んだ)。NumPy スタイル(今のコードの形と違う)。
