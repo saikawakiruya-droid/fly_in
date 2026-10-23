@@ -20,7 +20,11 @@ class MapValidator:
     """
 
     def __init__(self, rules: Sequence[Rule]) -> None:
-        """Start an empty network checked by ``rules``."""
+        """Start an empty network checked by ``rules``.
+
+        Args:
+            rules: The checks applied to every entry, in order.
+        """
         self._rules = list(rules)
         self._network = Network()
         self._nb_drones: int | None = None
@@ -28,6 +32,9 @@ class MapValidator:
 
     def accept(self, raw: RawLine) -> None:
         """Validate one tokenized line and record what it declares.
+
+        Args:
+            raw: The tokenized line.
 
         Raises:
             droneflow.errors.ParseError: If a field is invalid or a rule is
@@ -44,6 +51,9 @@ class MapValidator:
 
     def finish(self) -> World:
         """Check what only the whole file can show and return the World.
+
+        Returns:
+            The network built so far and the declared drone count.
 
         Raises:
             droneflow.errors.ParseError: If the header or a required hub is
@@ -65,6 +75,11 @@ class MapValidator:
         return World(network=self._network, nb_drones=self._nb_drones)
 
     def _store(self, entry: Entry) -> None:
+        """Record a checked entry: the drone count, a zone or a connection.
+
+        Args:
+            entry: The entry built from one line.
+        """
         if isinstance(entry, DroneCount):
             self._nb_drones = entry.value
         elif isinstance(entry, Zone):

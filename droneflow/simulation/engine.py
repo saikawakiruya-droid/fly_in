@@ -13,7 +13,14 @@ class MoveDecider(Protocol):
     """Anything that decides each turn's moves (the ``Scheduler``)."""
 
     def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
-        """Return the orders for the turn after ``state``."""
+        """Return the orders for the turn after ``state``.
+
+        Args:
+            state: The current state.
+
+        Returns:
+            The orders for drones standing in zones.
+        """
         ...
 
 
@@ -24,6 +31,12 @@ def default_turn_limit(world: World) -> int:
     bound proved for every schedule: sending the drones one at a time is
     always possible and needs about two turns per zone per drone, so
     ``2 * zones * nb_drones`` turns is far more than any real run takes.
+
+    Args:
+        world: The parsed map and drone count.
+
+    Returns:
+        ``2 * zones * nb_drones`` (at least one zone is counted).
     """
     return 2 * max(len(world.network.zones), 1) * world.nb_drones
 
@@ -95,6 +108,9 @@ class SimulationEngine:
 
     def _play_turn(self) -> list[Move]:
         """Order, check and apply one turn; return its moves.
+
+        Returns:
+            The turn's moves, in drone_id order (never empty).
 
         Raises:
             SimulationError: On an illegal order, a turn where nothing

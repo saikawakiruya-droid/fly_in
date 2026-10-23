@@ -36,7 +36,15 @@ WORLD_VERSION = 1
 
 
 def world_to_json(world: World) -> dict[str, object]:
-    """Return the World as plain JSON values."""
+    """Return the World as plain JSON values.
+
+    Args:
+        world: The World to write.
+
+    Returns:
+        The format, the version, the drone count, the zones and the
+        connections.
+    """
     network = world.network
     return {
         "format": WORLD_FORMAT,
@@ -67,6 +75,12 @@ def world_to_json(world: World) -> dict[str, object]:
 
 def world_from_json(data: object) -> World:
     """Rebuild the World from what ``world_to_json`` returns.
+
+    Args:
+        data: The decoded JSON of a world file.
+
+    Returns:
+        The World, checked with the parser's rules.
 
     Raises:
         ValueError: If a field is missing or invalid, or the map breaks a
@@ -104,6 +118,15 @@ def _zone(item: JsonObject) -> Zone:
 
     Hubs need a positive ``max_drones``; start and end ignore it, as on a
     map line, and may not be blocked.
+
+    Args:
+        item: One entry of ``zones``.
+
+    Returns:
+        The zone.
+
+    Raises:
+        ValueError: If the name is invalid, or start or end is blocked.
     """
     name = item.text("name")
     try:
@@ -138,7 +161,17 @@ def _check(
     network: Network,
     where: str,
 ) -> None:
-    """Apply the parser's rules to ``entry``, naming where it is."""
+    """Apply the parser's rules to ``entry``, naming where it is.
+
+    Args:
+        rules: The parser's rules.
+        entry: The zone or connection about to be added.
+        network: The network built so far.
+        where: Where the entry is in the file, for the message.
+
+    Raises:
+        ValueError: If a rule rejects the entry.
+    """
     for rule in rules:
         try:
             rule.check(entry, network)
@@ -168,6 +201,9 @@ class WorldFile:
     def write(self, world: World) -> None:
         """Write the World.
 
+        Args:
+            world: The World to write.
+
         Raises:
             droneflow.errors.OutputFileError: If the file cannot be
                 written.
@@ -176,6 +212,9 @@ class WorldFile:
 
     def read(self) -> World:
         """Read the World back.
+
+        Returns:
+            The World.
 
         Raises:
             WorldFileError: If the file is not JSON, or not a valid world.

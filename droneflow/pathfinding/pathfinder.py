@@ -33,6 +33,9 @@ class Pathfinder:
     def __init__(self, network: Network) -> None:
         """Precompute distances and check that the goal is reachable.
 
+        Args:
+            network: The network to route drones through.
+
         Raises:
             UnreachableGoalError: If the end zone cannot be reached from the
                 start zone.
@@ -45,6 +48,9 @@ class Pathfinder:
 
     def distance(self, zone_name: str) -> int | None:
         """Return the turns needed to reach the end zone from this zone.
+
+        Args:
+            zone_name: The zone to start from.
 
         Returns:
             The shortest turn count, or None if the end zone is unreachable
@@ -63,6 +69,9 @@ class Pathfinder:
         come first among these equally short hops; a longer priority detour
         is never included. Otherwise the order follows connection
         declaration order.
+
+        Args:
+            zone_name: The zone the drone is in.
 
         Returns:
             The qualifying hops, or an empty list if this zone is the end
@@ -90,6 +99,9 @@ class Pathfinder:
         The hops are ordered by that total cost, then by connection
         declaration order.
 
+        Args:
+            zone_name: The zone the drone is in.
+
         Returns:
             The qualifying hops, or an empty list if this zone is the end
             zone or cannot reach it.
@@ -113,6 +125,12 @@ class Pathfinder:
         That is the turns to enter the hop's zone plus that zone's own
         distance.
 
+        Args:
+            hop: A move to a neighboring zone.
+
+        Returns:
+            The total turn count to the end zone through the hop.
+
         Raises:
             ValueError: If the end zone cannot be reached from the hop's
                 zone (never the case for ``next_hops`` and
@@ -129,6 +147,12 @@ class Pathfinder:
         Each move comes with its ``route_cost``. Self-loops are left out,
         and so is everything when this zone is the end zone or cannot
         reach it. The order is connection declaration order.
+
+        Args:
+            zone_name: The zone the drone is in.
+
+        Returns:
+            ``(route_cost, hop)`` pairs, one per neighboring zone.
 
         Raises:
             ZoneNotFoundError: If no zone with this name exists.

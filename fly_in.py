@@ -44,7 +44,15 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run(args: Args) -> int:
-    """Run the application, turning expected failures into exit codes."""
+    """Run the application, turning expected failures into exit codes.
+
+    Args:
+        args: The parsed command-line arguments.
+
+    Returns:
+        0 on success, 1 on a FlyInError or a closed standard output, 130
+        if the user pressed Ctrl+C.
+    """
     try:
         Application(args).run()
     except FlyInError as exc:

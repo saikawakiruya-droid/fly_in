@@ -35,17 +35,31 @@ class _GuardedView:
     """
 
     def __init__(self, name: str, view: TurnObserver) -> None:
-        """Wrap ``view``, called ``name`` in warnings."""
+        """Wrap a view.
+
+        Args:
+            name: Short name of the view, used in warnings.
+            view: The view to forward to.
+        """
         self.name = name
         self.view = view
         self.error: Exception | None = None
 
     def begin(self, state: SimulationState) -> None:
-        """Forward to the view."""
+        """Forward to the view.
+
+        Args:
+            state: The state before the first turn.
+        """
         self.view.begin(state)
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Forward to the view."""
+        """Forward to the view.
+
+        Args:
+            state: The state after the turn.
+            moves: The moves made during the turn.
+        """
         self.view.render(state, moves)
 
     def close(self) -> None:
@@ -139,6 +153,9 @@ class Application:
     def _load_world(self) -> World:
         """Parse the map file, or read the world file (``--from-world``).
 
+        Returns:
+            The World to simulate.
+
         Raises:
             MapFileError: If the file cannot be opened or is not UTF-8
                 text.
@@ -159,6 +176,10 @@ class Application:
     def _save_world(self, world: World, path: str) -> None:
         """Write the World for ``--parse-only`` and say so on stderr.
 
+        Args:
+            world: The parsed World.
+            path: The JSON file to write.
+
         Raises:
             OutputFileError: If the file cannot be written.
         """
@@ -177,6 +198,10 @@ class Application:
         After a failed run, the turns played so far are written, and a
         write failure is only a warning, so that it does not replace the
         error that stopped the run.
+
+        Args:
+            recorder: The recorder that saw every turn.
+            failed: Whether the run stopped with an error.
 
         Raises:
             OutputFileError: If the file cannot be written after a
@@ -201,6 +226,9 @@ class Application:
         With ``both``, only the graphical window waits for the user in
         step mode; the terminal view just follows it.
 
+        Returns:
+            The views, each wrapped so that a failing close is kept.
+
         Raises:
             VisualizationError: If the graphical view is requested but
                 pygame is not installed.
@@ -220,6 +248,9 @@ class Application:
     def _graphical_view(self) -> TurnObserver:
         """Import pygame lazily and build the graphical view.
 
+        Returns:
+            The graphical view, set up from the arguments.
+
         Raises:
             VisualizationError: If pygame is not installed.
         """
@@ -238,7 +269,11 @@ class Application:
         )
 
     def _warn_close_failures(self, views: list[_GuardedView]) -> None:
-        """Write one warning line per view whose ``close`` failed."""
+        """Write one warning line per view whose ``close`` failed.
+
+        Args:
+            views: The views, after they were closed.
+        """
         for view in views:
             if view.error is not None:
                 self.err.write(

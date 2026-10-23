@@ -20,12 +20,19 @@ class DistanceMap:
     """
 
     def __init__(self, network: Network) -> None:
-        """Run the search once over ``network``."""
+        """Run the search once over the network.
+
+        Args:
+            network: The network to measure.
+        """
         self.network = network
         self._distances = self._compute()
 
     def distance(self, zone_name: str) -> int | None:
         """Return the turns needed to go from this zone to the end zone.
+
+        Args:
+            zone_name: The zone to start from.
 
         Returns:
             The shortest turn count, 0 for the end zone itself, or None if
@@ -39,7 +46,12 @@ class DistanceMap:
         return self._distances.get(zone_name)
 
     def _compute(self) -> dict[str, int]:
-        """Run Dijkstra from the end zone and return every distance found."""
+        """Run Dijkstra from the end zone and return every distance found.
+
+        Returns:
+            The distance of every zone that can reach the end zone; empty
+            if the end zone itself cannot be entered.
+        """
         end = self.network.end_zone
         if not end.zone_type.is_traversable:
             return {}

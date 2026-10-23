@@ -14,7 +14,12 @@ class ParseError(FlyInError):
     """
 
     def __init__(self, line_number: int, reason: str) -> None:
-        """Build ``line <n>: <reason>``."""
+        """Build ``line <n>: <reason>``.
+
+        Args:
+            line_number: 1-based line number where the problem was found.
+            reason: Human readable description of what went wrong.
+        """
         self.line_number = line_number
         self.reason = reason
         super().__init__(f"line {line_number}: {reason}")
@@ -28,7 +33,11 @@ class ZoneNotFoundError(FlyInError):
     """
 
     def __init__(self, zone_name: str) -> None:
-        """Build ``zone not found: <name>``."""
+        """Build ``zone not found: <name>``.
+
+        Args:
+            zone_name: The name that was looked up and not found.
+        """
         self.zone_name = zone_name
         super().__init__(f"zone not found: {zone_name}")
 
@@ -49,7 +58,12 @@ class UnreachableGoalError(FlyInError):
     """
 
     def __init__(self, zone_name: str, goal_name: str) -> None:
-        """Build ``goal '<end>' is unreachable from '<zone>'``."""
+        """Build ``goal '<end>' is unreachable from '<zone>'``.
+
+        Args:
+            zone_name: The zone the goal was looked for from.
+            goal_name: The name of the end zone.
+        """
         self.zone_name = zone_name
         self.goal_name = goal_name
         super().__init__(
@@ -67,7 +81,12 @@ class MapFileError(FlyInError):
     """
 
     def __init__(self, path: str, reason: str) -> None:
-        """Build ``cannot read map file '<path>': <reason>``."""
+        """Build ``cannot read map file '<path>': <reason>``.
+
+        Args:
+            path: The map file path as given on the command line.
+            reason: Why it could not be read.
+        """
         self.path = path
         self.reason = reason
         super().__init__(f"cannot read map file '{path}': {reason}")
@@ -91,7 +110,12 @@ class WorldFileError(FlyInError):
     """
 
     def __init__(self, path: str, reason: str) -> None:
-        """Build ``invalid world file '<path>': <reason>``."""
+        """Build ``invalid world file '<path>': <reason>``.
+
+        Args:
+            path: The world file path as given on the command line.
+            reason: What is wrong, starting with where in the file.
+        """
         self.path = path
         self.reason = reason
         super().__init__(f"invalid world file '{path}': {reason}")
@@ -107,7 +131,12 @@ class OutputFileError(FlyInError):
     """
 
     def __init__(self, path: str, reason: str) -> None:
-        """Build ``cannot write '<path>': <reason>``."""
+        """Build ``cannot write '<path>': <reason>``.
+
+        Args:
+            path: The file path as given on the command line.
+            reason: Why it could not be written.
+        """
         self.path = path
         self.reason = reason
         super().__init__(f"cannot write '{path}': {reason}")

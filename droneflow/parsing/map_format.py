@@ -30,7 +30,17 @@ Entry = Zone | Connection | DroneCount
 
 
 def to_int(raw: str) -> int:
-    """Convert to an integer."""
+    """Convert to an integer.
+
+    Args:
+        raw: The raw string from the map line.
+
+    Returns:
+        The integer value.
+
+    Raises:
+        ValueError: If ``raw`` is not an integer.
+    """
     try:
         return int(raw)
     except ValueError:
@@ -38,7 +48,17 @@ def to_int(raw: str) -> int:
 
 
 def to_positive_int(raw: str) -> int:
-    """Convert to an integer greater than zero."""
+    """Convert to an integer greater than zero.
+
+    Args:
+        raw: The raw string from the map line.
+
+    Returns:
+        The positive integer value.
+
+    Raises:
+        ValueError: If ``raw`` is not an integer, or is zero or less.
+    """
     value = to_int(raw)
     if value <= 0:
         raise ValueError(f"must be a positive integer, got {value}")
@@ -46,14 +66,34 @@ def to_positive_int(raw: str) -> int:
 
 
 def to_zone_name(raw: str) -> str:
-    """Accept a zone name; dashes are reserved for connection syntax."""
+    """Accept a zone name; dashes are reserved for connection syntax.
+
+    Args:
+        raw: The raw string from the map line.
+
+    Returns:
+        ``raw`` unchanged.
+
+    Raises:
+        ValueError: If ``raw`` contains a dash.
+    """
     if "-" in raw:
         raise ValueError(f"must not contain '-', got {raw!r}")
     return raw
 
 
 def to_zone_type(raw: str) -> ZoneType:
-    """Convert to one of the four zone types."""
+    """Convert to one of the four zone types.
+
+    Args:
+        raw: The raw string from the map line.
+
+    Returns:
+        The matching ZoneType.
+
+    Raises:
+        ValueError: If ``raw`` is not a zone type's value.
+    """
     try:
         return ZoneType(raw)
     except ValueError:
@@ -62,7 +102,14 @@ def to_zone_type(raw: str) -> ZoneType:
 
 
 def to_text(raw: str) -> str:
-    """Accept the raw string as is."""
+    """Accept the raw string as is.
+
+    Args:
+        raw: The raw string from the map line.
+
+    Returns:
+        ``raw`` unchanged.
+    """
     return raw
 
 
@@ -75,7 +122,17 @@ class Endpoints:
 
 
 def to_endpoints(raw: str) -> Endpoints:
-    """Split ``<name1>-<name2>`` into its two zone names."""
+    """Split ``<name1>-<name2>`` into its two zone names.
+
+    Args:
+        raw: The raw string from the map line.
+
+    Returns:
+        The two zone names.
+
+    Raises:
+        ValueError: If ``raw`` is not two non-empty names joined by one dash.
+    """
     parts = raw.split("-")
     if len(parts) != 2 or not all(parts):
         raise ValueError(f"must look like <name1>-<name2>, got {raw!r}")
@@ -98,6 +155,12 @@ class FieldSpec:
 
     def read(self, raw: str | None) -> object:
         """Convert ``raw``, or return the default when it is absent.
+
+        Args:
+            raw: The raw string, or None if the field is absent.
+
+        Returns:
+            The converted value, or the default.
 
         Raises:
             ValueError: If the conversion fails; the message names the field.
@@ -133,11 +196,22 @@ class FieldValues:
     """
 
     def __init__(self, values: Mapping[str, object]) -> None:
-        """Keep the values by field name."""
+        """Keep the values by field name.
+
+        Args:
+            values: The converted values, by field name.
+        """
         self._values = dict(values)
 
     def get(self, name: str, kind: type[T]) -> T:
         """Return the value of ``name``, which must be a ``kind``.
+
+        Args:
+            name: The field name.
+            kind: The type the value must have.
+
+        Returns:
+            The value.
 
         Raises:
             TypeError: If the value is missing or of another type.
@@ -152,6 +226,13 @@ class FieldValues:
 
     def get_optional(self, name: str, kind: type[T]) -> T | None:
         """Return the value of ``name`` (a ``kind``), or None if unset.
+
+        Args:
+            name: The field name.
+            kind: The type the value must have when set.
+
+        Returns:
+            The value, or None.
 
         Raises:
             TypeError: If the value is set but of another type.
@@ -194,6 +275,13 @@ class LineSpec:
     ) -> Entry:
         """Convert the raw tokens and build the model object.
 
+        Args:
+            positional: The required tokens, in order.
+            metadata: The ``key=value`` pairs from the bracketed block.
+
+        Returns:
+            The Zone, Connection or DroneCount the line declares.
+
         Raises:
             ValueError: If any field fails to convert, or a metadata value
                 is one this kind of line forbids.
@@ -216,11 +304,22 @@ class ZoneBuilder:
     """Builds a Zone with a fixed role from converted field values."""
 
     def __init__(self, role: ZoneRole) -> None:
-        """Build zones with this role."""
+        """Build zones with this role.
+
+        Args:
+            role: The role of every zone this builder makes.
+        """
         self._role = role
 
     def __call__(self, values: FieldValues) -> Zone:
-        """Build the Zone; start_hub / end_hub ignore ``max_drones``."""
+        """Build the Zone; start_hub / end_hub ignore ``max_drones``.
+
+        Args:
+            values: The converted fields of a zone line.
+
+        Returns:
+            The zone, with this builder's role.
+        """
         is_hub = self._role is ZoneRole.HUB
         return Zone(
             name=values.get("name", str),
@@ -234,7 +333,14 @@ class ZoneBuilder:
 
 
 def build_connection(values: FieldValues) -> Connection:
-    """Build a Connection from converted field values."""
+    """Build a Connection from converted field values.
+
+    Args:
+        values: The converted fields of a ``connection:`` line.
+
+    Returns:
+        The connection.
+    """
     endpoints = values.get("endpoints", Endpoints)
     return Connection(
         endpoints.zone_a,
@@ -244,7 +350,14 @@ def build_connection(values: FieldValues) -> Connection:
 
 
 def build_drone_count(values: FieldValues) -> DroneCount:
-    """Build a DroneCount from converted field values."""
+    """Build a DroneCount from converted field values.
+
+    Args:
+        values: The converted fields of the ``nb_drones:`` line.
+
+    Returns:
+        The declared drone count.
+    """
     return DroneCount(values.get("n", int))
 
 
@@ -252,12 +365,24 @@ class MapFormat:
     """The complete set of line kinds a map file may contain."""
 
     def __init__(self, header: LineSpec, body: Sequence[LineSpec]) -> None:
-        """Keep the first line's spec and the specs of the other lines."""
+        """Keep the first line's spec and the specs of the other lines.
+
+        Args:
+            header: The spec of the first line.
+            body: The specs of the lines after it.
+        """
         self.header = header
         self._body = {spec.keyword: spec for spec in body}
 
     def find(self, keyword: str) -> LineSpec | None:
-        """Return the spec for a body line keyword, or None if unknown."""
+        """Return the spec for a body line keyword, or None if unknown.
+
+        Args:
+            keyword: The word before the colon.
+
+        Returns:
+            The matching spec, or None.
+        """
         return self._body.get(keyword)
 
 
@@ -277,6 +402,16 @@ def _zone_spec(
     role: ZoneRole,
     forbidden: Sequence[ForbiddenOption] = (),
 ) -> LineSpec:
+    """Return the spec of a zone line (start_hub, end_hub or hub).
+
+    Args:
+        keyword: The word before the colon.
+        role: The role of the zones this line declares.
+        forbidden: Metadata values this kind of line rejects.
+
+    Returns:
+        The line's spec.
+    """
     return LineSpec(
         keyword=keyword,
         usage="<name> <x> <y>",

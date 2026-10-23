@@ -25,6 +25,14 @@ def zone_title(zone: Zone, measure: Measure, max_width: int) -> str:
     The start and end zones get `` (start)`` / `` (end)`` after the name.
     The suffix is never cut and does not count toward ``max_width``, so
     their names get as much room as any other zone's.
+
+    Args:
+        zone: The zone to name.
+        measure: Returns the width of a text in pixels.
+        max_width: The width the name must fit, in pixels.
+
+    Returns:
+        The (possibly cut) name, plus the role suffix if any.
     """
     suffix = ROLE_SUFFIX.get(zone.role, "")
     return fit_text(zone.name, measure, max_width) + suffix
@@ -35,6 +43,14 @@ def fit_text(text: str, measure: Measure, max_width: int) -> str:
 
     At least one character and the ``~`` are kept, even if they do not
     fit.
+
+    Args:
+        text: The text to fit.
+        measure: Returns the width of a text in pixels.
+        max_width: The width to fit, in pixels.
+
+    Returns:
+        The text unchanged if it fits, otherwise cut and ending in ``~``.
     """
     if measure(text) <= max_width:
         return text
@@ -51,6 +67,13 @@ def load_label(state: SimulationState, zone: Zone) -> str | None:
     turn), so a restricted zone about to be left and entered on the same
     turn reads ``1/1 +1`` rather than over capacity. The end zone shows
     how many drones were delivered, the start zone how many are in it.
+
+    Args:
+        state: The current simulation state.
+        zone: The zone to label.
+
+    Returns:
+        The label text, or None for a blocked zone.
     """
     if zone.zone_type is ZoneType.BLOCKED:
         return None
@@ -72,6 +95,15 @@ def fit_items(items: Sequence[str], measure: Measure, max_width: int) -> str:
     Items are kept whole and in order. Nothing given gives ``-``. The
     number of items kept is found by bisection, so a turn with thousands
     of moves is measured only a few times.
+
+    Args:
+        items: The texts to join, in order.
+        measure: Returns the width of a text in pixels.
+        max_width: The width to fit, in pixels.
+
+    Returns:
+        All items joined if they fit, else the first ones and
+        ``... +K more`` (at least that part, even if it does not fit).
     """
     if not items:
         return "-"
@@ -89,6 +121,14 @@ def fit_items(items: Sequence[str], measure: Measure, max_width: int) -> str:
 
 
 def _shortened(items: Sequence[str], count: int) -> str:
-    """Return the first ``count`` items and how many were left out."""
+    """Return the first ``count`` items and how many were left out.
+
+    Args:
+        items: All the items.
+        count: How many items to keep.
+
+    Returns:
+        The kept items and ``... +K more``, joined with spaces.
+    """
     rest = f"... +{len(items) - count} more"
     return " ".join([*items[:count], rest])

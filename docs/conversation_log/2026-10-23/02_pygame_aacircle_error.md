@@ -33,6 +33,20 @@
 
 - Makefile の `MAP ?= maps/subject_example.txt` が既定で、`make run MAP=maps/x.txt ARGS="--visual both"` で変える(`ARGS` はその他のオプション)。
 
+## 依頼5: A-Maze-ing の課題に合わせて docstring を見直す
+
+- A-Maze-ing の課題(`pm/new_pm/a_maze_ing.pdf` III.1): 「PEP 257(例: Google / NumPy スタイル)で目的・引数・戻り値を書く」。
+- 調べた結果: 326 関数のうち docstring なし 47(すべて非公開)、`Args:` なし 204、`Returns:` なし 137。
+- ユーザーの選択: すべて Google スタイルに。先に `fix/require_pygame_ce` と `feature/goal_drone_badge` を develop にマージしてよい(push はしない)。
+- マージ: decisions.md の末尾で衝突したので、両方の記録を残して解決。pytest 900 件通過。
+- `feature/google_docstrings` を切り、decisions.md に決定を追記。ファイルを4組に分けてサブエージェントで並行して直す
+  (docstring 以外が変わっていないことは、docstring を除いた AST の比較で確かめる)。
+- 結果: 4組とも完了し、組ごとにコミット(7ecfb58, db813fe, 7759d82, 247c78d)。docstring なし・`Args:` なし・`Returns:` なしはすべて 0、
+  全引数が `Args:` に載っていることも確認。docstring を除いた AST は develop と同じ。flake8 通過、pytest 900 件通過。
+  mypy はこの環境(Windows のアプリ制御で DLL が読めない)では未実行。develop へのマージと main への反映は未(許可待ち)。
+- サブエージェントの報告で、自分の読みで書いた箇所: `Evictor._keep_seats` の Returns(失敗時は表が途中まで変わり、`make_room` が戻す)、
+  `_draw_fill_bar` の説明の1文、`TurnLogPrinter.begin/render` の `state` は「(unused)」。
+
 ## 作成・変更したファイル
 
 - `docs/bugs.md`(追記・対応済みに更新)

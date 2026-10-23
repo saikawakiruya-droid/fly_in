@@ -19,11 +19,18 @@ class MapParser:
     """
 
     def __init__(self, path: str | Path) -> None:
-        """Keep the path of the map file to parse."""
+        """Keep the path of the map file to parse.
+
+        Args:
+            path: The map file.
+        """
         self.path = Path(path)
 
     def parse(self) -> World:
         """Parse the map file into a validated World.
+
+        Returns:
+            The network and drone count the file declares.
 
         Raises:
             droneflow.errors.ParseError: If the file violates any parser

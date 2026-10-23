@@ -58,11 +58,26 @@ class TurnLedger:
         self._link_use: dict[str, int] = {}
 
     def arrival_turn(self, zone: Zone) -> int:
-        """Return the turn a drone ordered into the zone now would enter it."""
+        """Return the turn a drone ordered into the zone now would enter it.
+
+        Args:
+            zone: The zone to enter.
+
+        Returns:
+            The planning turn, or the one after it for a restricted zone.
+        """
         return zone.arrival_turn(self.planning_turn)
 
     def link_free(self, connection: Connection, turn: int) -> bool:
-        """Return whether one more drone can depart across it on that turn."""
+        """Return whether one more drone can depart across it on that turn.
+
+        Args:
+            connection: The connection to depart across.
+            turn: The turn of departure.
+
+        Returns:
+            True if its departures that turn are below its capacity.
+        """
         used = sum(
             1 for move in self._table.due(turn)
             if connection.involves(move.from_zone)
@@ -76,6 +91,13 @@ class TurnLedger:
         """Return whether the zone has a seat on every turn from first_turn.
 
         Only turns up to ``horizon`` need checking: no load changes later.
+
+        Args:
+            zone: The zone to look at.
+            first_turn: The first turn the seat is needed.
+
+        Returns:
+            True if one more drone fits on every turn from ``first_turn``.
         """
         return all(
             self.fits(zone, turn, 1)
@@ -83,14 +105,32 @@ class TurnLedger:
         )
 
     def fits(self, zone: Zone, turn: int, extra: int) -> bool:
-        """Return whether ``extra`` more drones fit in the zone that turn."""
+        """Return whether ``extra`` more drones fit in the zone that turn.
+
+        Args:
+            zone: The zone to look at.
+            turn: The turn to check.
+            extra: The number of drones to add.
+
+        Returns:
+            True if they fit (always for a zone without a capacity).
+        """
         capacity = zone.capacity
         if capacity is None:
             return True
         return self.projected_load(zone.name, turn) + extra <= capacity
 
     def projected_load(self, zone_name: str, turn: int) -> int:
-        """Return the zone's projected load at the end of that turn."""
+        """Return the zone's projected load at the end of that turn.
+
+        Args:
+            zone_name: Name of the zone.
+            turn: The turn to look at.
+
+        Returns:
+            The drones in it now, plus entries, minus departures up to
+            ``turn``.
+        """
         load = self.state.occupancy(zone_name)
         for step in range(self.planning_turn, turn + 1):
             load += (
@@ -101,18 +141,39 @@ class TurnLedger:
         return load
 
     def horizon(self) -> int:
-        """Return the last turn on which any counted load changes."""
+        """Return the last turn on which any counted load changes.
+
+        Returns:
+            The table's last turn, and at least the turn after this one.
+        """
         return max(self._table.last_turn(), self.planning_turn + 1)
 
     def record(self, from_zone: str, hop: Hop) -> None:
-        """Count an order moving a drone from ``from_zone`` along ``hop``."""
+        """Count an order moving a drone from ``from_zone`` along ``hop``.
+
+        Args:
+            from_zone: The zone the drone leaves.
+            hop: The connection and zone it moves to.
+        """
         self._count(from_zone, hop, 1)
 
     def cancel(self, from_zone: str, hop: Hop) -> None:
-        """Undo a ``record`` of the same order."""
+        """Undo a ``record`` of the same order.
+
+        Args:
+            from_zone: The zone the drone was to leave.
+            hop: The connection and zone it was to move to.
+        """
         self._count(from_zone, hop, -1)
 
     def _count(self, from_zone: str, hop: Hop, sign: int) -> None:
+        """Add (sign 1) or take back (sign -1) one order's counts.
+
+        Args:
+            from_zone: The zone the drone leaves.
+            hop: The connection and zone it moves to.
+            sign: 1 to record the order, -1 to cancel it.
+        """
         self._add(self._zone_change, (from_zone, self.planning_turn), -sign)
         self._add(
             self._zone_change,
@@ -125,4 +186,11 @@ class TurnLedger:
     @staticmethod
     def _add(counts: dict[tuple[str, int], int], key: tuple[str, int],
              delta: int) -> None:
+        """Add ``delta`` to a count.
+
+        Args:
+            counts: The counts to change.
+            key: The zone name and turn.
+            delta: The amount to add (negative to subtract).
+        """
         counts[key] = counts.get(key, 0) + delta

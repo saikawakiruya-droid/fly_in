@@ -43,6 +43,9 @@ _NAMED_RGB: dict[str, RGB] = {
 def rgb(name: str | None) -> RGB | None:
     """Return the RGB triple for a color name, ignoring case.
 
+    Args:
+        name: A color name from the map, or None.
+
     Returns:
         The color, or None if the name is None or not in the table.
     """
