@@ -449,7 +449,8 @@ What is drawn:
   would run over another zone is drawn as an arc around it.
 - **Drones** as dots: white in a zone, cyan when on a connection (drawn at
   its middle, toward a restricted zone), with a gold ring if they moved this
-  turn. Several drones at one point are one badge with their count. Each
+  turn. Several drones at one point are one badge with their count;
+  delivered drones stay at the end zone the same way. Each
   move of the turn leaves a gold **trail** along the connection it used.
 - A **status bar** with the turn, the moves, the delivered count and the
   drones in flight, the controls and the current delay; a **footer** with
