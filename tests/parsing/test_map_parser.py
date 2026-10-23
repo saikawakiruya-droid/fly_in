@@ -494,7 +494,7 @@ def test_metadata_blocks_without_duplicates_still_parse(
     assert connection.max_link_capacity == 3
 
 
-# --- byte order mark (utf-8-sig) --------------------------------------
+# --- byte order mark and line endings ---------------------------------
 
 
 BOM = b"\xef\xbb\xbf"
@@ -507,27 +507,35 @@ def write_bytes(tmp_path: Path, data: bytes) -> Path:
     return path
 
 
-def test_leading_bom_is_skipped(tmp_path: Path) -> None:
-    """BM01: a map saved with a byte order mark parses as without one."""
+def test_leading_bom_is_a_line_1_error(tmp_path: Path) -> None:
+    """BM01: a byte order mark is not skipped (2026-10-23); the first
+    line then does not start with ``nb_drones:``."""
     path = write_bytes(tmp_path, BOM + SUBJECT_SAMPLE_MAP.encode())
 
-    world = MapParser(path).parse()
+    with pytest.raises(ParseError) as info:
+        MapParser(path).parse()
 
-    assert world.nb_drones == 5
-    assert next(iter(world.network.zones)) == "hub"
+    assert str(info.value) == (
+        "line 1: the first line must be 'nb_drones: <n>'"
+    )
 
 
-def test_bom_with_crlf_line_ends(tmp_path: Path) -> None:
-    """BM02: a byte order mark and CRLF line ends together still parse."""
+def test_crlf_line_ends(tmp_path: Path) -> None:
+    """BM02: CRLF line ends parse like LF ones (text mode turns them
+    into LF, so the reader only strips the LF)."""
     text = SUBJECT_SAMPLE_MAP.replace("\n", "\r\n")
-    path = write_bytes(tmp_path, BOM + text.encode())
+    crlf = MapParser(write_bytes(tmp_path, text.encode())).parse()
+    lf = MapParser(write_bytes(tmp_path, SUBJECT_SAMPLE_MAP.encode())).parse()
 
-    assert MapParser(path).parse().nb_drones == 5
+    assert list(crlf.network.zones.values()) == list(
+        lf.network.zones.values()
+    )
+    assert list(crlf.network.connections) == list(lf.network.connections)
 
 
-def test_only_one_leading_bom_is_skipped(tmp_path: Path) -> None:
-    """BM03: a second byte order mark, or one at the start of another line,
-    is an error as before."""
+def test_byte_order_marks_are_errors(tmp_path: Path) -> None:
+    """BM03: two byte order marks at the start, or one at the start of
+    another line, are errors on their line."""
     twice = write_bytes(tmp_path, BOM + BOM + SUBJECT_SAMPLE_MAP.encode())
     with pytest.raises(ParseError) as first:
         MapParser(twice).parse()

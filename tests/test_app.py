@@ -445,17 +445,17 @@ def test_map_path_shown_as_typed(
 # --- byte order mark, injected schedulers -----------------------------
 
 
-def test_map_with_bom_runs(
-    tmp_path: Path, subject_map: str, scheduler_output: list[str]
-) -> None:
-    """BM04: a map saved with a byte order mark runs end to end."""
+def test_map_with_bom_is_rejected(tmp_path: Path, subject_map: str) -> None:
+    """BM04: a map saved with a byte order mark stops at line 1."""
     path = tmp_path / "map.txt"
     path.write_bytes(b"\xef\xbb\xbf" + subject_map.encode())
 
-    out, err = run_app(Args(path, visual="none"))
+    info, out, _ = run_failing(Args(path, visual="none"), ParseError)
 
-    assert out.splitlines() == scheduler_output
-    assert err == SUMMARY + "\n"
+    assert info.value.args[0] == (
+        "line 1: the first line must be 'nb_drones: <n>'"
+    )
+    assert out == ""
 
 
 def test_make_scheduler_builds_the_decider(sample_path: Path) -> None:
