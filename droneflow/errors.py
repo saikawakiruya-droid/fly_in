@@ -71,6 +71,14 @@ class UnreachableGoalError(FlyInError):
         )
 
 
+class VisualizationError(FlyInError):
+    """Raised when the graphical view cannot be used.
+
+    For example when matplotlib is not installed, or when no window can
+    be opened (no display).
+    """
+
+
 class MapFileError(FlyInError):
     """Raised when the map file cannot be opened or read as text.
 
@@ -90,53 +98,3 @@ class MapFileError(FlyInError):
         self.path = path
         self.reason = reason
         super().__init__(f"cannot read map file '{path}': {reason}")
-
-
-class VisualizationError(FlyInError):
-    """Raised when the requested visualization cannot be used.
-
-    For example when the graphical view is asked for but pygame is not
-    installed, or when no window can be opened.
-    """
-
-
-class WorldFileError(FlyInError):
-    """Raised when a world file (written by ``--parse-only``) is invalid.
-
-    Attributes:
-        path: The world file path as given on the command line.
-        reason: What is wrong, starting with where in the file (e.g.
-            ``zones[2].max_drones: must be a positive integer``).
-    """
-
-    def __init__(self, path: str, reason: str) -> None:
-        """Build ``invalid world file '<path>': <reason>``.
-
-        Args:
-            path: The world file path as given on the command line.
-            reason: What is wrong, starting with where in the file.
-        """
-        self.path = path
-        self.reason = reason
-        super().__init__(f"invalid world file '{path}': {reason}")
-
-
-class OutputFileError(FlyInError):
-    """Raised when a file asked for on the command line cannot be written.
-
-    Attributes:
-        path: The file path as given on the command line.
-        reason: Why it could not be written (e.g. "No such file or
-            directory").
-    """
-
-    def __init__(self, path: str, reason: str) -> None:
-        """Build ``cannot write '<path>': <reason>``.
-
-        Args:
-            path: The file path as given on the command line.
-            reason: Why it could not be written.
-        """
-        self.path = path
-        self.reason = reason
-        super().__init__(f"cannot write '{path}': {reason}")

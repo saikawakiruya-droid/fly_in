@@ -1,59 +1,40 @@
-"""Tests for droneflow.app (Application), with no pygame needed.
+"""Tests for droneflow.app (Application).
 
 ``Application(args, out, err)`` writes to two ``StringIO`` objects, so the
 turn log (stdout) and everything else (stderr) are compared as text.
-Missing pygame is simulated through ``sys.modules``; graphical runs live
-in ``test_app_graphical.py``. Step mode is not run: the views are built
-with ``_make_views()`` and inspected. Decisions 2026-10-18 "visualization
-in the CLI phase", "step mode", "the CLI's shape", "turn log", "summary",
-"error handling", "close failures are a warning" and 2026-10-17
-"terminal view on stderr".
+Decisions 2026-10-18 "the CLI's shape", "turn log", "summary", "error
+handling" and 2026-10-17 "terminal view on stderr".
 """
 
 import io
-import json
-import sys
-import types
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from droneflow.app import Application
-from droneflow.cli import Args, VisualMode, parse_args
+from droneflow.cli import Args, parse_args
 from droneflow.errors import (
     FlyInError,
     MapFileError,
-    OutputFileError,
     ParseError,
     SimulationError,
     UnreachableGoalError,
-    VisualizationError,
-    WorldFileError,
 )
-from droneflow.interchange.world_file import world_to_json
 from droneflow.models.network import Network
-from droneflow.models.world import World
 from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.scheduling.scheduler import Scheduler
 from droneflow.simulation.state import Move, MoveOrder, SimulationState
-from droneflow.visualization.terminal_view import TerminalVisualizer
 
 WriteMap = Callable[[str], Path]
-TtyStream = Callable[..., io.StringIO]
 SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]
 StuckAfter = Callable[[int], SchedulerMaker]
 
-GRAPHICAL_MODULE = "droneflow.visualization.graphical_view"
 SUMMARY = (
     "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
     "3.40 moves per turn"
-)
-NO_PYGAME = (
-    "the graphical view needs pygame (pygame-ce): run 'make install' or "
-    "'pip install pygame-ce', or use --visual terminal"
 )
 COMMENT_FIRST_MAP = "# c\nnb_drones: 1\n"
 UNREACHABLE_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: g 1 1\n"
@@ -97,25 +78,6 @@ def sample_path(write_map: WriteMap, subject_map: str) -> Path:
     return write_map(subject_map)
 
 
-@pytest.fixture
-def no_pygame(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make ``import pygame`` fail as if pygame were not installed."""
-    monkeypatch.setitem(sys.modules, "pygame", None)
-    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
-
-
-@pytest.fixture
-def fail_close(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make TerminalVisualizer.close flush as usual, then fail."""
-    original = TerminalVisualizer.close
-
-    def close(self: TerminalVisualizer) -> None:
-        original(self)
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(TerminalVisualizer, "close", close)
-
-
 class RecordingView:
     """Records how many turn lines stdout held at each call."""
 
@@ -147,19 +109,11 @@ def record_terminal(
     """Put a RecordingView where the terminal view would be built."""
     view = RecordingView(out)
 
-    def factory(stream: object = None, step: bool = False) -> RecordingView:
+    def factory(stream: object = None) -> RecordingView:
         return view
 
     monkeypatch.setattr("droneflow.app.TerminalVisualizer", factory)
     return view
-
-
-def test_none_writes_only_the_log(sample_path: Path, log: str) -> None:
-    """AA01: --visual none: stdout is the log, stderr the summary."""
-    out, err = run_app(Args(sample_path, visual="none"))
-
-    assert out == log
-    assert err == SUMMARY + "\n"
 
 
 def test_terminal_keeps_stdout_identical(
@@ -189,46 +143,6 @@ def test_log_lines_come_before_each_frame(
     assert view.at_close == [5]
 
 
-@pytest.mark.parametrize(
-    ("step", "delay", "expected_step"),
-    [(True, 0.5, True), (False, 0.5, False), (False, 3.0, False)],
-    ids=["step", "no-step", "delay-ignored"],
-)
-def test_terminal_view_assembly(
-    step: bool,
-    delay: float,
-    expected_step: bool,
-    sample_path: Path,
-    tty_stream: TtyStream,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AA04: the terminal view writes to err and steps with --step."""
-    monkeypatch.setattr(sys, "stdin", tty_stream())
-    out, err = io.StringIO(), io.StringIO()
-    app = Application(
-        Args(sample_path, "terminal", delay=delay, step=step), out, err
-    )
-
-    views = app._make_views()
-
-    assert [v.name for v in views] == ["terminal"]
-    terminal = views[0].view
-    assert isinstance(terminal, TerminalVisualizer)
-    assert terminal.step is expected_step
-    assert terminal.stream is err
-
-
-def test_none_builds_no_view(
-    sample_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AA05: none builds no view and never imports pygame's view."""
-    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
-    app = Application(Args(sample_path, "none", delay=3, step=True))
-
-    assert app._make_views() == []
-    assert GRAPHICAL_MODULE not in sys.modules
-
-
 @pytest.mark.parametrize("case", ["missing", "directory", "not-utf8"])
 def test_unreadable_map(case: str, tmp_path: Path) -> None:
     """AA06: OS and decoding errors become MapFileError with a cause."""
@@ -240,7 +154,7 @@ def test_unreadable_map(case: str, tmp_path: Path) -> None:
         path = tmp_path / "latin1.txt"
         path.write_bytes(b"nb_drones: 1\n\xff\n")
 
-    info, out, err = run_failing(Args(path, "none"), MapFileError)
+    info, out, err = run_failing(Args(path), MapFileError)
 
     exc = info.value
     assert isinstance(exc, MapFileError)
@@ -292,121 +206,6 @@ def test_map_errors_pass_through(
     assert err == ""
 
 
-@pytest.mark.parametrize("visual", ["graphical", "both"])
-@pytest.mark.usefixtures("no_pygame")
-def test_missing_pygame(visual: VisualMode, sample_path: Path) -> None:
-    """AA08: no pygame: VisualizationError before anything is shown."""
-    info, out, err = run_failing(
-        Args(sample_path, visual), VisualizationError
-    )
-
-    assert str(info.value) == NO_PYGAME
-    cause = info.value.__cause__
-    assert isinstance(cause, ModuleNotFoundError)
-    assert cause.name == "pygame"
-    assert out == ""
-    assert err == ""
-
-
-@pytest.mark.parametrize("visual", ["graphical", "both"])
-def test_original_pygame_is_a_missing_pygame_ce(
-    visual: VisualMode, sample_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AA16: the original pygame (no IS_CE) gets the same pygame hint."""
-    monkeypatch.setitem(sys.modules, "pygame", types.ModuleType("pygame"))
-    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
-
-    info, out, err = run_failing(
-        Args(sample_path, visual), VisualizationError
-    )
-
-    assert str(info.value) == NO_PYGAME
-    cause = info.value.__cause__
-    assert isinstance(cause, ModuleNotFoundError)
-    assert cause.name == "pygame"
-    assert out == ""
-    assert err == ""
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        (None, MapFileError),
-        (COMMENT_FIRST_MAP, ParseError),
-        (UNREACHABLE_MAP, UnreachableGoalError),
-    ],
-    ids=["missing", "parse", "unreachable"],
-)
-@pytest.mark.usefixtures("no_pygame")
-def test_map_errors_come_before_missing_pygame(
-    text: str | None,
-    expected: type[FlyInError],
-    write_map: WriteMap,
-    tmp_path: Path,
-) -> None:
-    """AA09: map errors are reported before the pygame hint."""
-    path = tmp_path / "missing.txt" if text is None else write_map(text)
-
-    info, _, _ = run_failing(Args(path, "graphical"), expected)
-
-    assert type(info.value) is expected
-
-
-def test_other_import_errors_are_not_wrapped(
-    sample_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AA10: only a missing pygame becomes the pygame hint.
-
-    A stand-in pygame module is installed so the failing import is the
-    palette, whether or not pygame is really installed.
-    """
-    pygame = types.ModuleType("pygame")
-    setattr(pygame, "IS_CE", True)
-    monkeypatch.setitem(sys.modules, "pygame", pygame)
-    monkeypatch.setitem(
-        sys.modules, "droneflow.visualization.palette", None
-    )
-    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
-
-    info, out, err = run_failing(
-        Args(sample_path, "graphical"), ModuleNotFoundError
-    )
-
-    assert isinstance(info.value, ModuleNotFoundError)
-    assert info.value.name == "droneflow.visualization.palette"
-    assert out == ""
-
-
-@pytest.mark.usefixtures("fail_close")
-def test_close_failure_after_success_is_a_warning(
-    sample_path: Path, log: str
-) -> None:
-    """AA11: a failing close after a good run only adds a warning."""
-    out, err = run_app(Args(sample_path))
-
-    assert out == log
-    assert err.splitlines()[-2:] == [
-        "warning: could not close the terminal view: boom",
-        SUMMARY,
-    ]
-
-
-@pytest.mark.usefixtures("fail_close")
-def test_close_failure_keeps_the_original_error(
-    sample_path: Path, stuck_after: StuckAfter
-) -> None:
-    """AA12: a failing close does not replace the run's own error."""
-    info, out, err = run_failing(
-        Args(sample_path), SimulationError, stuck_after(0)
-    )
-
-    assert type(info.value) is SimulationError
-    assert str(info.value).startswith("turn 1: no drone moved")
-    assert "warning: could not close the terminal view: boom" in err
-    assert "summary:" not in err
-    assert out == ""
-
-
 def test_failed_run_keeps_the_log_so_far(
     sample_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -443,10 +242,9 @@ def test_printer_failures_are_not_guarded(
 
     monkeypatch.setattr(TurnLogPrinter, "close", close)
 
-    info, _, err = run_failing(Args(sample_path, "none"), OSError)
+    info, _, err = run_failing(Args(sample_path), OSError)
 
     assert info.value is failure
-    assert "warning:" not in err
     assert "summary:" not in err
 
 
@@ -455,7 +253,7 @@ def test_map_path_shown_as_typed(
 ) -> None:
     """AA15 (designed as AA09, part 1): errors show the path as typed."""
     monkeypatch.chdir(tmp_path)
-    args = parse_args(["./no_such//map.txt", "--visual", "none"])
+    args = parse_args(["./no_such//map.txt"])
 
     info, _, _ = run_failing(args, MapFileError)
 
@@ -472,7 +270,7 @@ def test_map_with_bom_is_rejected(tmp_path: Path, subject_map: str) -> None:
     path = tmp_path / "map.txt"
     path.write_bytes(b"\xef\xbb\xbf" + subject_map.encode())
 
-    info, out, _ = run_failing(Args(path, visual="none"), ParseError)
+    info, out, _ = run_failing(Args(path), ParseError)
 
     assert info.value.args[0] == (
         "line 1: the first line must be 'nb_drones: <n>'"
@@ -499,7 +297,7 @@ def test_make_scheduler_builds_the_decider(sample_path: Path) -> None:
             return [MoveOrder(1, "corridorA")] if self.turn == 1 else []
 
     info, out, err = run_failing(
-        Args(sample_path, visual="none"), SimulationError, Recording
+        Args(sample_path), SimulationError, Recording
     )
 
     assert len(made) == 1
@@ -509,7 +307,7 @@ def test_make_scheduler_builds_the_decider(sample_path: Path) -> None:
         "turn 2: no drone moved, so the simulation cannot progress"
     )
     assert out == "D1-corridorA\n"
-    assert err == ""
+    assert "summary:" not in err
 
 
 def test_shared_stuck_scheduler(
@@ -517,198 +315,10 @@ def test_shared_stuck_scheduler(
 ) -> None:
     """AI02: the conftest's ``stuck_after`` stops a real run part-way."""
     info, out, _ = run_failing(
-        Args(sample_path, visual="none"), SimulationError, stuck_after(2)
+        Args(sample_path), SimulationError, stuck_after(2)
     )
 
     assert str(info.value) == (
         "turn 3: D4 is stuck on connection 'hub-roof1': zone 'roof1' is full"
     )
     assert out.splitlines() == scheduler_output[:2]
-
-
-LoadWorld = Callable[[str], World]
-
-
-def read_json(path: Path) -> dict[str, object]:
-    """Return the JSON object a stage option wrote."""
-    data = json.loads(path.read_text(encoding="utf-8"))
-    assert isinstance(data, dict)
-    return data
-
-
-@pytest.fixture
-def world_path(sample_path: Path, tmp_path: Path) -> Path:
-    """Write the example's World with --parse-only; return the file."""
-    path = tmp_path / "w.json"
-    run_app(Args(sample_path, parse_only=str(path)))
-    return path
-
-
-def unwritable(tmp_path: Path) -> str:
-    """Return a path whose directory does not exist."""
-    return str(tmp_path / "no_dir" / "x.json")
-
-
-def test_parse_only(
-    sample_path: Path,
-    tmp_path: Path,
-    load_world: LoadWorld,
-    subject_map: str,
-) -> None:
-    """SA01: --parse-only writes the World and stops before simulating."""
-    path = str(tmp_path / "w.json")
-
-    out, err = run_app(Args(sample_path, parse_only=path))
-
-    assert out == ""
-    assert err == (
-        f"world: wrote {path} (7 zones, 6 connections, 5 drones)\n"
-    )
-    assert read_json(Path(path)) == world_to_json(load_world(subject_map))
-
-
-@pytest.mark.usefixtures("no_pygame")
-def test_parse_only_builds_no_view(sample_path: Path, tmp_path: Path) -> None:
-    """SA02: no view is built, so a missing pygame does not matter."""
-    path = str(tmp_path / "w.json")
-
-    out, err = run_app(
-        Args(sample_path, visual="graphical", parse_only=path)
-    )
-
-    assert out == ""
-    assert err.startswith(f"world: wrote {path} ")
-
-
-def test_from_world_runs_like_the_map(world_path: Path, log: str) -> None:
-    """SA03: the World read back gives the same run as the map."""
-    out, err = run_app(Args(world_path, visual="none", from_world=True))
-
-    assert out == log
-    assert err == SUMMARY + "\n"
-
-
-def test_from_world_invalid(world_path: Path) -> None:
-    """SA04: an invalid world file stops before any turn."""
-    data = read_json(world_path)
-    data["nb_drones"] = 0
-    world_path.write_text(json.dumps(data), encoding="utf-8")
-
-    info, out, err = run_failing(
-        Args(world_path, visual="none", from_world=True), WorldFileError
-    )
-
-    assert str(info.value).endswith(
-        ": nb_drones: must be a positive integer"
-    )
-    assert out == ""
-    assert err == ""
-
-
-@pytest.mark.parametrize("case", ["missing", "binary"])
-def test_from_world_unreadable(case: str, tmp_path: Path) -> None:
-    """SA05: a world file that cannot be read is a MapFileError."""
-    path = tmp_path / f"{case}.json"
-    if case == "binary":
-        path.write_bytes(b"\xff")
-    typed = f"./{case}.json"
-    reason = (
-        "No such file or directory" if case == "missing" else "not UTF-8 text"
-    )
-
-    info, _, _ = run_failing(
-        Args(path, from_world=True, map_arg=typed), MapFileError
-    )
-
-    assert str(info.value) == f"cannot read map file '{typed}': {reason}"
-
-
-def test_from_world_written_again(world_path: Path, tmp_path: Path) -> None:
-    """SA06: --from-world with --parse-only writes the same World."""
-    again = tmp_path / "again.json"
-
-    run_app(Args(world_path, from_world=True, parse_only=str(again)))
-
-    assert read_json(again) == read_json(world_path)
-
-
-def test_save_run(sample_path: Path, tmp_path: Path, log: str) -> None:
-    """SA07: --save-run writes every turn; the turn log is unchanged."""
-    path = tmp_path / "run.json"
-
-    out, err = run_app(
-        Args(sample_path, visual="none", save_run=str(path))
-    )
-
-    assert out == log
-    assert err == f"run: wrote {path}\n" + SUMMARY + "\n"
-    data = read_json(path)
-    turns = data["turns"]
-    assert isinstance(turns, list)
-    assert data["complete"] is True
-    assert "".join(turn["log"] + "\n" for turn in turns[1:]) == out
-
-
-def test_save_run_unwritable_after_success(
-    sample_path: Path, tmp_path: Path, log: str
-) -> None:
-    """SA08: after a successful run, a write failure is the error."""
-    path = unwritable(tmp_path)
-
-    info, out, err = run_failing(
-        Args(sample_path, visual="none", save_run=path), OutputFileError
-    )
-
-    assert str(info.value) == (
-        f"cannot write '{path}': No such file or directory"
-    )
-    assert out == log
-    assert err == ""
-
-
-def test_save_run_after_a_failure(
-    sample_path: Path, tmp_path: Path, stuck_after: StuckAfter
-) -> None:
-    """SA09: a failed run still writes the turns played so far."""
-    path = tmp_path / "run.json"
-
-    run_failing(
-        Args(sample_path, visual="none", save_run=str(path)),
-        SimulationError,
-        stuck_after(2),
-    )
-
-    data = read_json(path)
-    turns = data["turns"]
-    assert isinstance(turns, list)
-    assert data["complete"] is False
-    assert [turn["turn"] for turn in turns] == [0, 1, 2]
-
-
-def test_save_run_unwritable_after_a_failure(
-    sample_path: Path, tmp_path: Path, stuck_after: StuckAfter
-) -> None:
-    """SA10: the run's own error wins; the write failure is a warning."""
-    path = unwritable(tmp_path)
-
-    _, _, err = run_failing(
-        Args(sample_path, visual="none", save_run=path),
-        SimulationError,
-        stuck_after(2),
-    )
-
-    assert err == (
-        f"warning: cannot write '{path}': No such file or directory\n"
-    )
-
-
-def test_no_run_file_without_save_run(
-    sample_path: Path, tmp_path: Path
-) -> None:
-    """SA11: without --save-run no file is written and nothing is said."""
-    before = sorted(tmp_path.iterdir())
-
-    _, err = run_app(Args(sample_path, visual="none"))
-
-    assert sorted(tmp_path.iterdir()) == before
-    assert "run:" not in err

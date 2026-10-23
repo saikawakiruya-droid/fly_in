@@ -18,9 +18,6 @@
 python -m pytest tests/
 ```
 
-`tests/visualization/test_graphical_view.py` と `tests/test_app_graphical.py` は pygame(pygame-ce)が必要。入っていなければ
-この2ファイルだけ skip され、ほかのテストは pygame なしで走る。グラフィカル表示のテストはヘッドレス(`SDL_VIDEODRIVER=dummy`)で動くので、画面は要らない。
-
 ## 現在のカバレッジ範囲
 
 - `tests/models/test_zone.py` — `ZoneType.turn_cost` / `is_traversable`、
@@ -74,45 +71,18 @@ python -m pytest tests/
   整形は `formatter` 属性に委譲(同じ `moves` を渡す)
 - `tests/output/test_summary.py` — `RunSummary`(AS01〜AS03): 課題の例の数値と文言(7ターン・5.00・2.14)、
   配達ターン=最後に出たターン(接続名の項目も1手)、ターンなし・ドローンなしでゼロ除算しないこと
-- `tests/interchange/test_json_file.py` — `JsonObject` と `write_json`(JO01〜JO11): 場所つきのエラー(`zones[1].name: ...`)、
-  整数は bool・小数・文字列を拒否、正の整数、null を許すもの、列挙値(許される値の一覧)、オブジェクトのリスト、
-  書き出しの形(UTF-8・インデント2・最後に改行・ASCII 以外をそのまま)、書けないパスの `OutputFileError`(入力どおりの表示名)
-- `tests/interchange/test_world_file.py` — World の JSON(WF01〜WF09): 往復で同じ World(宣言順)、JSON の形、
-  課題の例を1か所だけ書き換えた不正な World 19件(型・正の整数・ゾーン名の `-`・パーサーの規則・blocked の start/end・
-  end の欠落。メッセージまで)、start/end の `max_drones` は無視、`WorldFile` の往復、JSON でない・不正なファイルの
-  `WorldFileError`、開けない・UTF-8 でないものは呼び出し側に任せる
-- `tests/interchange/test_run_file.py` — 実行の記録(RR01〜RR10): 移動と状態の形(配達前の機の位置だけ。配達済みは数だけ、
-  飛行中の機。ゾーン・接続の数は出さない)、課題の例を通しで記録(ターン0〜5、ログが `scheduler_output`)、README の抜粋と同じターン2、
-  途中で止まった実行は `complete: false`、状態を変えない、`to_json` は写し、`write`、`close` は何も書かない
 
-- `tests/test_cli.py` — 引数(AC01〜AC09): 既定値(terminal・0.5秒・ステップなし)、`--visual` の4つの値と誤った値
-  (大文字小文字を区別)、`--delay` の受理(0 ちょうど・`-0`・`=` の書き方)と拒否(負・nan・inf・数でない・60 秒超、
-  文言まで)、MAP なし・`--debug`・余分な引数の終了コード2、関係のないモードでの `--step`、`--help`(stdout・終了コード0・既定値)、
-  入力どおりのパス(`map_name`。比較には使わない)、`VISUAL_MODES` が `VisualMode` の値と同じ順(NT10)。
-  追加機能のオプション(SC01〜SC05): 既定は無効、JSON のパスは入力どおりの文字列、`--parse-only` と `--save-run` は排他、
-  `--from-world` と `--parse-only` は併用できる、ヘルプの見出し
-- `tests/test_app.py` — `Application`(pygame 不要。AA01〜AA16): none / terminal で stdout が本物のスケジューラの出力
-  (課題の例の5行。`scheduler_output`)と完全一致し、
-  stderr はターミナル表示とまとめの1行、ターンの行がそのフレームより先に出ること、ステップ実行のビューの組み立て
-  (`_make_views`)、none はビューを作らず pygame の表示を import しない、マップが読めない(存在しない・ディレクトリ・
-  UTF-8 でない)の `MapFileError` と原因、パース・到達不能のエラーはそのまま、pygame がない(`sys.modules` で再現)・本家 pygame しか無い(`IS_CE` が無い。AA16)の
-  `VisualizationError` とマップのエラーが先なこと、pygame 以外の import の失敗は包まない、close の失敗は警告だけ・
-  元のエラーを隠さない、途中のエラーでもそれまでのログとビューの後始末が残る、ターンログ側の失敗は包まない、
-  エラーのパスは入力どおり。`make_scheduler` の注入(AI01: `(network, pathfinder)` で1回作りエンジンに渡す、
-  AI02: 共有の `stuck_after` で本物の実行を途中で止める)、BOM つきのマップは入口で1行目の ParseError(BM04)。
-  追加機能(SA01〜SA11): `--parse-only` はパーサーだけ(stdout は空・表示を作らない)、`--from-world` はふつうの実行と同じ出力、
-  不正・読めない World のファイル、World の書き直し、`--save-run` の記録とターンログの一致、成功後の書き込みの失敗はエラー、
-  途中の失敗でもそこまでを書き、書けなくても元のエラーのまま(警告)
-- `tests/test_app_graphical.py` — `Application` のグラフィカル(AG01〜AG04)。ヘッドレス(`SDL_VIDEODRIVER=dummy`)・
-  `--delay 0` 相当・`_Window.wait_for_quit` のスパイ・番犬(QUIT)で動かし、pygame が無ければファイルごと skip:
-  graphical / both でも stdout が同じで最後の画面を待つ配線があること、ビューの組み立て(both ではグラフィカルだけが
-  ステップ実行)、窓が開けない(存在しないドライバ)の `VisualizationError` と both でのターミナルの後始末、main での1行のエラー
-- `tests/test_fly_in.py` — エントリポイント(AM01〜AM06・AM08〜AM10・AE01〜AE02。AM07 は Windows 対応を消したときに削除): `main(argv)` の例外表(正常 0、`FlyInError` 1、
-  引数の誤り 2 で `Application` を作らない、Ctrl+C 130(実行中の割り込みでもログとビューの後始末が残る)、閉じたパイプは
-  何も出さず 1(`BrokenPipeError` だけ。ほかの `OSError` は最後の砦の1行)、予期しない例外は
-  `internal error` の1行、`FLYIN_DEBUG=1` のときだけ送出、close の失敗と終了コード・行の順序)。`_silence_stdout` は
-  常にスパイに差し替える。サブプロセスは2回だけ(課題の例の正常終了と、存在しないマップのエラー)。
-  追加機能(SM01〜SM03): 書けない `--parse-only`・JSON でない World のファイルは終了コード 1 の1行、パーサー → ファイル → シミュレーションの通し
+- `tests/test_cli.py` — 引数(AC01・AC02・AC06): MAP は `Path` と入力どおりの文字列(`map_name`)を持ち、既定ではウィンドウなし、
+  `--graphical` は MAP の前後どちらでもよいこと、MAP なし・知らないオプション・余分な引数は終了コード2(文言まで)
+- `tests/test_app.py` — `Application`: stdout が本物のスケジューラの出力(課題の例の5行。`scheduler_output`)と完全一致し、
+  ターミナル表示と最後の要約行は stderr だけに出ること、ターンの行がそのフレームより先に出ること、マップが読めない(存在しない・
+  ディレクトリ・UTF-8 でない)の `MapFileError` と原因、パース・到達不能のエラーはそのまま、途中のエラーでもそれまでの
+  ログとビューの後始末が残る、ターンログ側の失敗は包まない、エラーのパスは入力どおり。`make_scheduler` の注入
+  (AI01: `(network, pathfinder)` で1回作りエンジンに渡す、AI02: 共有の `stuck_after` で本物の実行を途中で止める)、
+  BOM つきのマップは入口で1行目の ParseError(BM04)
+- `tests/test_fly_in.py` — エントリポイント: `main(argv)` の例外表(正常 0、`FlyInError` 1、引数の誤り 2 で
+  `Application` を作らない、Ctrl+C 130(実行中の割り込みでもログとビューの後始末が残る)、予期しない例外は
+  `internal error` の1行)。サブプロセスは2回だけ(課題の例の正常終了と、存在しないマップのエラー)
 
 - `tests/conftest.py` — 全テスト共通のフィクスチャ: `make_network`(`"s-a a-g"` のような記述から
   `Network` をコード内で組む。記述順=接続の宣言順=接続名。hub の `max_drones` は既定 1(パーサーと同じ)で
@@ -259,39 +229,26 @@ python -m pytest tests/
   (今いるゾーン・次の一手が priority なら True、2手先・遠回りの priority・end は False、存在しない名前の
   `ZoneNotFoundError`)
 
-- `tests/visualization/conftest.py` — `coord_network`(座標と色つきでゾーンを登録する。最初が start、最後が end)
+- `tests/visualization/conftest.py` — `coord_network`(座標と色つきでゾーンを登録する。最初が start、最後が end)。
+  matplotlib を Agg バックエンド(ディスプレイ不要)に切り替える
+- `tests/visualization/test_geometry.py` — グラフィカル表示の配置(GM01〜GM06): ゾーンの半径(最も近い2点の距離の0.3、
+  1を超える距離は1とみなす)、同じ座標のゾーンを離すこと、ゾーンの横を通る線はまっすぐ・ゾーンの上を通る線はそれをよける弧
+  (上側から試す)、自己ループはゾーンの上の小さな輪、直線の中点
+- `tests/visualization/test_graphical_view.py` — matplotlib の表示(VG01〜VG10): ゾーンが地図の単位で配置の半径の
+  パッチとして縦横同じ縮尺で描かれること、restricted は四角、ゾーンに重なる接続だけが曲がること、タイトルのターン数と
+  同じ地点のドローンの数、飛行中のドローンは接続の中点・その接続だけ水色で2倍の太さ(着陸後は元に戻る)、色名の解決(パレット → matplotlib → 灰色)、ディスプレイなしでは
+  `VisualizationError`(図を残さない)、`--graphical` の `main` は終了コード1と1行のエラー、ウィンドウを閉じた後は描かないこと
 - `tests/visualization/test_palette.py` — `rgb`: 表の値(似た赤を区別)・全エントリが 0〜255 の3つ組、大文字小文字を
   区別しないこと、配布マップ(`maps.tar.gz`)の色名17種のうち `rainbow` 以外がすべて表にあること、知らない名前・空・`None` は
-  `None`、エンジン・ターミナル表示・simulation.observer・palette を import しても pygame が読まれないこと(サブプロセス)
+  `None`
 - `tests/visualization/test_terminal_view.py` — `TerminalVisualizer`: 既定の出力先が stderr(stdout は空)、begin の見出し・
   凡例・ゾーンの表・`drones:`、`frame` は書かずに行を返し render がそれを書くこと、restricted(接続名・予約 `+1`・飛行中)・
   blocked(`--`)・end(配達数)の表示、ドローンIDの範囲表記、幅での折り返しと長い名前の省略、色の強制 on/off・自動判定
   (端末かどうか・`NO_COLOR` は空でない値のときだけ)、知らない色・色なしは塗らない、close は flush するだけ、
-  ステップ実行(最後のターン以外で Enter を待つ・端末でない入力や `step=False` では読まない・EOF で以後待たない)、
   状態を変えないこと、課題のサンプルマップの E2E
-- `tests/visualization/test_labels.py` — グラフィカル表示の文字(VL01〜VL14。pygame 不要、幅は `len` で測る): start/end の名前に
-  `(start)`/`(end)`(長い名前は名前だけを切る)、`~` での切り方、ゾーンの数字は在室数/容量で到着予定は `+N`(`1/1 +1`)、start は在室数・
-  end は配達数・blocked はなし、下の行の移動の一覧(収まらなければ `... +K more`、空は `-`、3,000 件でも測るのは 20 回以下)
-- `tests/visualization/test_geometry.py` — 表示の幾何(GE01〜GE19。pygame 不要): 同じ座標のゾーンを円周上に離す(2つは左右・間は直径の 1.1 倍)、
-  最近接距離(x で並べて打ち切る。乱数の300点で全組み合わせと一致)、2次ベジェの弧(両端・真ん中・向き)、経路の一部(真ん中まで・逆順)、
-  点と折れ線の距離、格子での近くの検索、接続の経路(邪魔がなければ直線・途中のゾーンは弧で避ける・両端は避けない・避けきれなければ最も離れるもの)
-- `tests/visualization/test_camera.py` — 表示の倍率と位置(CA01〜CA08。pygame 不要): 最初は全体表示、画面と地図の座標の往復、
-  カーソルの下の点を動かさない拡大、倍率の上下限、移動、全体表示に戻す、画面の中かの判定
-- `tests/visualization/test_graphical_view.py` — `GraphicalVisualizer` をヘッドレス(`SDL_VIDEODRIVER=dummy`)で:
-  構築では窓を開かない、begin で開き close で閉じる、`_Layout` の座標変換(y は上向き・縮退した配置)、`zone_rgb` の
-  色の引き方、課題のサンプルマップ・restricted だけのマップを最後まで描いて閉じる、途中で閉じても(×・Esc・q)計算は続く、
-  ステップ実行(一時停止で始まる・右矢印で1ターン・Space で自動再生・最後のフレームは待たない)、上下の矢印での待ち時間の
-  変更と上下限、close は何度でも・close の後は窓を開かない、`hold_final` の最後の画面での待ちと待たない場合、マウスでの
-  詳細表示、import で stdout に何も出ないこと(サブプロセス)。pygame が無ければファイルごと skip。入力イベントは
-  呼び出しの前に積み、番犬のタイマー(QUIT)でハングを防ぐ。実時間の sleep や経過時間のアサーションは使わない。
-  重なりの改善(VO01〜VO05): 同じ座標のゾーンがどちらも見えてマウスで見つかる(VG04 の同じ点も3点に分かれる)、他のゾーンの上を通る接続は弧、
-  飛行中の機は弧の真ん中、移動の軌跡は使った接続の弧に沿い、着陸は弧の真ん中から先。自己接続の輪(VO06)、同じ点のドローンは件数の札(VO07)。goal の配達済みの機も goal の位置に描き、同じく点か件数の札(VO08・VO09)。
-  拡大縮小(VZ01〜VZ08): ホイールで拡大縮小、ドラッグで移動、`f` で全体表示、ほかのキーは扱わない、縮小で名前を省き点にする、
-  拡大してもマウスの下のゾーンが分かる、拡大で名前の幅が広がる、画面外は描かない。
-  速さのキー(DK01〜DK07、VG11 を変更): 速くは半分で 0.05 秒を下回ると 0、遅くは2倍で 0 からは 0.05 秒・上限 60 秒、どちらも逆向きに働かない
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
-Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization)と、CLI / Application / エントリポイント
+Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization。最小構成版ではターミナル表示と、`--graphical` の最小限の matplotlib 表示)と、CLI / Application / エントリポイント
 (`droneflow/cli.py`・`droneflow/app.py`・`droneflow/output/turn_log_printer.py`・`droneflow/output/summary.py`・`fly_in.py`)。
 `Makefile` は単体テストの対象外(手動で確認する。`docs/research/2026-10-18_test-design-cli-app.md`、develop ブランチ)。
 以降の実装が進み次第、対応するテストを追加していく想定。

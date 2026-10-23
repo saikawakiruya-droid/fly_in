@@ -1,4 +1,4 @@
-"""Tests for droneflow.visualization.palette (rgb), without pygame.
+"""Tests for droneflow.visualization.palette (rgb).
 
 Color names are looked up in the package's own table, ignoring case, and
 unknown names give None instead of an error (decisions 2026-10-17
@@ -7,8 +7,6 @@ unknown names give None instead of an error (decisions 2026-10-17
 """
 
 import re
-import subprocess
-import sys
 import tarfile
 from pathlib import Path
 
@@ -62,24 +60,3 @@ def test_provided_map_colors(subject_map: str) -> None:
 def test_unknown_names_give_none(name: str | None) -> None:
     """VP04 (1): unknown names, the empty name and None give None."""
     assert rgb(name) is None
-
-
-def test_core_modules_do_not_import_pygame() -> None:
-    """VP04 (2): the engine and the non-graphical views need no pygame."""
-    code = (
-        "import sys\n"
-        "import droneflow.simulation.engine\n"
-        "import droneflow.visualization.terminal_view\n"
-        "import droneflow.simulation.observer\n"
-        "import droneflow.visualization.palette\n"
-        "print('pygame' in sys.modules)\n"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=True,
-    )
-    assert result.stdout.strip() == "False"

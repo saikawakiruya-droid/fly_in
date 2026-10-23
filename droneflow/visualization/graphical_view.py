@@ -1,1041 +1,318 @@
-"""GraphicalVisualizer: optional graphical rendering of the simulation.
+"""GraphicalVisualizer: the run drawn turn by turn with matplotlib.
 
-This is the only module that imports pygame (pygame-ce); the rest of the
-package works without it. Nothing is opened until the first ``begin`` or
-``render`` call.
+This is the only module that imports matplotlib. Zones are drawn in map
+units with the radius the connections are routed round, and x and y keep
+the same scale, so a connection bends only where it would cross a zone
+on screen, and zooming in (matplotlib's toolbar) makes the zones bigger.
 """
 
 import math
-import os
-from typing import NamedTuple
+import time
 
-# pygame prints a banner to standard output on import, which would corrupt
-# the turn log; this must be set before the import below.
-os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.artist import Artist
+from matplotlib.collections import LineCollection, PatchCollection
+from matplotlib.colors import is_color_like, to_rgb
+from matplotlib.patches import Circle, Patch, RegularPolygon
 
-import pygame  # noqa: E402
-
-# The drawing uses pygame-ce additions (e.g. pygame.draw.aacircle). The
-# original pygame imports fine but lacks them, so report it as a missing
-# pygame-ce; the application turns this into its install hint.
-if not getattr(pygame, "IS_CE", False):
-    raise ModuleNotFoundError(
-        "the graphical view needs pygame-ce, not pygame", name="pygame"
-    )
-
-from ..errors import VisualizationError  # noqa: E402
-from ..models.connection import Connection  # noqa: E402
-from ..models.drone import Drone  # noqa: E402
-from ..models.network import Network  # noqa: E402
-from ..models.zone import Zone, ZoneRole, ZoneType  # noqa: E402
-from ..simulation.state import Move, SimulationState  # noqa: E402
-from .camera import ZOOM_STEP, Camera, visible  # noqa: E402
-from .geometry import (  # noqa: E402
+from ..errors import VisualizationError
+from ..models.drone import Drone
+from ..models.network import Network
+from ..models.zone import Zone, ZoneRole, ZoneType
+from ..simulation.state import Move, SimulationState
+from .geometry import (
     Path,
-    PointGrid,
-    closest_distance,
+    Point,
     middle,
     route,
     spread_duplicates,
-    sub_path,
+    zone_radius,
 )
-from .labels import fit_items, load_label, zone_title  # noqa: E402
-from .palette import DEFAULT_ZONE_RGB, RGB, rgb  # noqa: E402
+from .palette import rgb
 
-Point = tuple[int, int]
+Color = tuple[float, float, float]
 
-_BACKGROUND: RGB = (24, 27, 34)
-_LINK: RGB = (85, 92, 108)
-_LINK_BUSY: RGB = (150, 160, 185)
-_TEXT: RGB = (225, 228, 235)
-_TEXT_DIM: RGB = (140, 146, 160)
-_TRAIL: RGB = (255, 215, 0)
-_DRONE: RGB = (250, 250, 250)
-_DRONE_MOVED: RGB = (255, 215, 0)
-_DRONE_FLYING: RGB = (0, 220, 255)
-_OUTLINE: RGB = (10, 10, 14)
-_PRIORITY_RING: RGB = (255, 200, 0)
-_RESTRICTED_RING: RGB = (255, 90, 60)
-_ENDPOINT_RING: RGB = (245, 245, 245)
-_BLOCKED_FILL: RGB = (60, 60, 66)
-_BAR_EMPTY: RGB = (55, 60, 72)
-_BAR_ARRIVING: RGB = (110, 170, 200)
+DELAY = 0.5
+"""Seconds each turn stays on screen."""
+_TICK = 0.02
+"""Seconds between two looks at the window's events while waiting."""
 
-_HUD_HEIGHT = 34
-_FOOTER_HEIGHT = 26
-_MARGIN = 60
-_FPS = 60
-_MIN_STEP = 0.05
-"""Shortest delay above 0 that the speed keys go through, in seconds."""
-_MAX_DELAY = 60.0
-"""Longest delay, in seconds: the same limit as ``--delay``."""
-_MAX_STRETCH = 2.0
-_LABEL_ROOM = 72
-_HELP = (
-    "space: pause  right: step  up/down: speed  "
-    "wheel: zoom  drag: move  f: fit  esc: quit"
-)
-_READABLE_SPACING = 120
-"""Screen pixels between the closest zones at the deepest zoom."""
-_MIN_MAX_ZOOM = 8.0
-"""Every map can be zoomed in at least this far."""
-_LABEL_SPACING = 40
-"""Screen pixels between the closest zones below which labels are left out."""
+_BACKGROUND = "#181b22"
+_LINK = "#555c6c"
+_LINK_WIDTH = 1.5
+_TEXT = "#e1e4eb"
+_DRONE = "#fafafa"
+_DRONE_FLYING = "#00dcff"
+_OUTLINE = "#0a0a0e"
+_BLOCKED_FILL = "#3c3c42"
+_DEFAULT_FILL = "#8c92a0"
+_ENDPOINT_RING = "#f5f5f5"
+_RESTRICTED_RING = "#ff5a3c"
+_PRIORITY_RING = "#ffc800"
+_KEY = ("white ring: start/end   square, red ring: restricted   "
+        "gold ring: priority   gray: blocked   "
+        "cyan: drones in flight and their connection")
+_MAX_NAMED_ZONES = 60
+"""Maps with more zones are drawn without zone names."""
 
 
-class _Layout:
-    """Maps zone coordinates to window pixels, scaled to fit.
+def zone_color(name: str | None) -> Color | str:
+    """Return a zone's fill for its ``color=`` value.
 
-    The map's y axis points up (math orientation): a larger y is drawn
-    higher in the window.
+    Args:
+        name: The color name from the map, or None.
 
-    Each axis is scaled to fill the window, but one axis is never
-    stretched more than ``_MAX_STRETCH`` times the other, so long flat
-    maps get room for their labels without losing their shape entirely.
+    Returns:
+        The palette's color, else matplotlib's color of that name, else
+        a neutral gray.
+    """
+    known = rgb(name)
+    if known is not None:
+        return known[0] / 255, known[1] / 255, known[2] / 255
+    if name is not None and is_color_like(name.lower()):
+        return to_rgb(name.lower())
+    return _DEFAULT_FILL
 
-    Zones declared at the same position are spread around it, and each
-    connection gets a path: a straight line, or an arc where the line
-    would run over another zone (see ``geometry``).
+
+class MapScene:
+    """The network drawn on an axes, and the drones redrawn each turn.
+
+    Attributes:
+        lines: Every connection's line, in ``network.connections`` order.
+        points: Each zone's center, in map units (shared positions are
+            spread apart).
+        radius: The radius every zone is drawn with, in map units.
+        paths: Each connection's line, by connection name.
     """
 
-    def __init__(self, network: Network, size: Point) -> None:
-        """Fit every zone inside the window, below the status bar.
+    def __init__(self, axes: Axes, network: Network) -> None:
+        """Draw the connections, the zones and their names.
 
         Args:
-            network: The network to lay out.
-            size: The window size in pixels.
+            axes: The axes to draw on.
+            network: The network to draw.
         """
-        zones = list(network.zones.values())
-        width, height = size
-        left, right = _MARGIN, width - _MARGIN
-        top = _HUD_HEIGHT + _MARGIN // 2
-        bottom = height - _FOOTER_HEIGHT - _LABEL_ROOM
-        min_x = min((z.x for z in zones), default=0)
-        max_y = max((z.y for z in zones), default=0)
-        span_x = max((z.x for z in zones), default=0) - min_x
-        span_y = max_y - min((z.y for z in zones), default=0)
-        scale_x = (right - left) / span_x if span_x else math.inf
-        scale_y = (bottom - top) / span_y if span_y else math.inf
-        if math.isinf(scale_x) and math.isinf(scale_y):
-            scale_x = scale_y = 1.0
-        scale_x = min(scale_x, scale_y * _MAX_STRETCH)
-        scale_y = min(scale_y, scale_x * _MAX_STRETCH)
-        offset_x = (left + right - span_x * scale_x) / 2
-        offset_y = (top + bottom - span_y * scale_y) / 2
-        self._points: dict[str, Point] = {
-            z.name: (
-                round(offset_x + (z.x - min_x) * scale_x),
-                round(offset_y + (max_y - z.y) * scale_y),
-            )
-            for z in zones
-        }
-        # The size comes from the declared positions, so that spreading
-        # zones that share one does not shrink every zone on the map.
-        nearest = closest_distance(self._points.values(), 100.0)
-        self.radius = int(max(9, min(28, nearest * 0.3)))
-        self._points = spread_duplicates(self._points, self.radius)
-        self.spacing = closest_distance(self._points.values(), 100.0)
-        grid = PointGrid(self._points, self.radius * 4)
-        placed: list[Path] = []
-        self._paths: dict[str, Path] = {
+        self.axes = axes
+        self.radius = zone_radius(
+            (z.x, z.y) for z in network.zones.values()
+        )
+        self.points = spread_duplicates(
+            {z.name: (z.x, z.y) for z in network.zones.values()},
+            self.radius,
+        )
+        self.paths: dict[str, Path] = {
             link.name: route(
-                self.position(link.zone_a),
-                self.position(link.zone_b),
-                (link.zone_a, link.zone_b),
-                grid,
+                self.points[link.zone_a],
+                self.points[link.zone_b],
+                (p for name, p in self.points.items()
+                 if name not in (link.zone_a, link.zone_b)),
                 self.radius,
-                nearest,
-                placed,
             )
             for link in network.connections
         }
-
-    def position(self, zone_name: str) -> Point:
-        """Return the pixel center of a zone.
-
-        Args:
-            zone_name: The zone's name.
-
-        Returns:
-            The zone's center, in map pixels.
-        """
-        return self._points[zone_name]
-
-    def path(self, connection: Connection) -> Path:
-        """Return the connection's line, from zone_a to zone_b.
-
-        Args:
-            connection: The connection to look up.
-
-        Returns:
-            The connection's path, in map pixels.
-        """
-        return self._paths[connection.name]
-
-    def midpoint(self, connection: Connection) -> Point:
-        """Return the pixel middle of a connection, along its path.
-
-        Args:
-            connection: The connection to look up.
-
-        Returns:
-            The middle of the connection's path, in map pixels.
-        """
-        return middle(self.path(connection))
-
-    def zone_at(
-        self, point: tuple[float, float], reach: float | None = None
-    ) -> str | None:
-        """Return the zone under a map point, if any.
-
-        Args:
-            point: The point, in map pixels.
-            reach: How far from a zone's center still counts, in map
-                pixels; defaults to the zone radius (zoom 1).
-
-        Returns:
-            The name of a zone within reach, or None if there is none.
-        """
-        px, py = point
-        limit = self.radius if reach is None else reach
-        for name, (x, y) in self._points.items():
-            if math.hypot(px - x, py - y) <= limit:
-                return name
-        return None
-
-
-def zone_rgb(color_name: str | None) -> RGB:
-    """Return a zone's display color: palette, then pygame's names.
-
-    Unknown names and a missing color give ``DEFAULT_ZONE_RGB``.
-
-    Args:
-        color_name: The zone's ``color=`` value, or None.
-
-    Returns:
-        The RGB color to fill the zone with.
-    """
-    known = rgb(color_name)
-    if known is not None:
-        return known
-    if color_name is not None:
-        try:
-            color = pygame.Color(color_name.lower())
-        except ValueError:
-            return DEFAULT_ZONE_RGB
-        return color.r, color.g, color.b
-    return DEFAULT_ZONE_RGB
-
-
-class _Frame(NamedTuple):
-    """The last frame drawn, kept so it can be drawn again."""
-
-    state: SimulationState
-    moves: list[Move]
-    note: str
-
-
-class _Window:
-    """The pygame window: drawing one frame and waiting between turns."""
-
-    def __init__(self, network: Network, size: Point, delay: float) -> None:
-        """Open the window and prepare fonts and the layout.
-
-        Args:
-            network: The network to draw.
-            size: The window size in pixels.
-            delay: Seconds each turn stays on screen in auto-play.
-        """
-        pygame.display.init()
-        pygame.font.init()
-        self.screen = pygame.display.set_mode(size)
-        pygame.display.set_caption("Fly-in")
-        self.layout = _Layout(network, size)
-        self.font = pygame.font.Font(None, 18)
-        self.big_font = pygame.font.Font(None, 26)
-        self.clock = pygame.time.Clock()
-        self.links: dict[str, Connection] = {
-            c.name: c for c in network.connections
-        }
-        self.delay = delay
-        self.paused = False
-        self._frame: _Frame | None = None
-        self._trails: list[Path] = []
-        self._hover: tuple[str, Point] | None = None
-        self.camera = Camera(max(
-            _MIN_MAX_ZOOM, _READABLE_SPACING / max(self.layout.spacing, 1.0)
-        ))
-        self._drag: Point | None = None
-
-    def drone_point(self, drone: Drone) -> Point | None:
-        """Return where a drone is, in map pixels (delivered: the end).
-
-        Args:
-            drone: The drone to place.
-
-        Returns:
-            Its zone's center, the middle of the connection it is flying
-            along, or None if neither is known.
-        """
-        if drone.in_transit_connection is not None:
-            link = self.links.get(drone.in_transit_connection)
-            return None if link is None else self.layout.midpoint(link)
-        if drone.current_zone is None:
-            return None
-        return self.layout.position(drone.current_zone)
-
-    def show(
-        self,
-        state: SimulationState,
-        moves: list[Move],
-        trails: list[Path],
-        note: str = "",
-    ) -> None:
-        """Draw a frame and remember it, so it can be redrawn later.
-
-        Args:
-            state: The state to draw.
-            moves: The moves of the turn, to highlight.
-            trails: The paths the moves took, in map pixels.
-            note: Text shown before the controls in the status bar.
-        """
-        self._frame = _Frame(state, moves, note)
-        self._trails = trails
-        self.redraw()
-
-    def redraw(self, note: str | None = None) -> None:
-        """Draw the remembered frame again, optionally with a new note.
-
-        Args:
-            note: A new note to show and keep, or None to keep the old.
-        """
-        if self._frame is None:
-            return
-        if note is not None:
-            self._frame = self._frame._replace(note=note)
-        state, moves, shown_note = self._frame
-        self.screen.fill(_BACKGROUND)
-        self._draw_links(state)
-        for trail in self._trails:
-            self._polyline(_TRAIL, [self._at(p) for p in trail], 3)
-        radius, labels = self._detail()
-        for zone in state.network.zones.values():
-            center = self._at(self.layout.position(zone.name))
-            if visible(center, self._size(), radius + _LABEL_ROOM):
-                self._draw_zone(state, zone, center, radius, labels)
-        self._draw_drones(state, {m.drone_id for m in moves})
-        self._draw_status(state, moves, shown_note)
-        if self._hover is not None:
-            self._draw_tooltip(state, *self._hover)
-        pygame.display.flip()
-
-    def wait(self) -> bool:
-        """Wait the turn delay while handling input.
-
-        Returns:
-            False if the user asked to quit, True to go on.
-        """
-        deadline = pygame.time.get_ticks() + int(self.delay * 1000)
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return False
-                if self._view_event(event):
-                    continue
-                if event.type != pygame.KEYDOWN:
-                    continue
-                if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                    return False
-                if event.key == pygame.K_RIGHT:
-                    return True
-                if event.key == pygame.K_SPACE:
-                    self.paused = not self.paused
-                    deadline = pygame.time.get_ticks() + int(
-                        self.delay * 1000
-                    )
-                elif event.key in (pygame.K_UP, pygame.K_PLUS,
-                                   pygame.K_EQUALS, pygame.K_KP_PLUS):
-                    self.delay = faster(self.delay)
-                elif event.key in (pygame.K_DOWN, pygame.K_MINUS,
-                                   pygame.K_KP_MINUS):
-                    self.delay = slower(self.delay)
-                self.redraw()
-            if not self.paused and pygame.time.get_ticks() >= deadline:
-                return True
-            self.clock.tick(_FPS)
-
-    def wait_for_quit(self) -> None:
-        """Keep the last frame on screen until the window is closed."""
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT or (
-                    event.type == pygame.KEYDOWN
-                    and event.key in (pygame.K_ESCAPE, pygame.K_q)
-                ):
-                    return
-                self._view_event(event)
-            self.clock.tick(_FPS)
-
-    @staticmethod
-    def close() -> None:
-        """Close the window and shut pygame's display down."""
-        pygame.display.quit()
-        pygame.font.quit()
-
-    def _view_event(self, event: pygame.event.Event) -> bool:
-        """Handle the mouse and the ``f`` key; return whether it did.
-
-        The wheel zooms around the mouse, dragging with the left button
-        moves the map, ``f`` shows the whole map again, and moving the
-        mouse shows the details of the zone under it.
-
-        Args:
-            event: The pygame event to handle.
-
-        Returns:
-            True if the event was one of these, False otherwise.
-        """
-        if event.type == pygame.MOUSEWHEEL:
-            factor = ZOOM_STEP if event.y > 0 else 1 / ZOOM_STEP
-            self.camera.zoom_at(pygame.mouse.get_pos(), factor)
-        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            self._drag = event.pos
-            return True
-        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-            self._drag = None
-            return True
-        elif event.type == pygame.MOUSEMOTION:
-            if self._drag is not None:
-                self.camera.pan(
-                    event.pos[0] - self._drag[0],
-                    event.pos[1] - self._drag[1],
-                )
-                self._drag = event.pos
-            self._track_mouse(event.pos)
-            return True
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_f:
-            self.camera.fit()
-        else:
-            return False
-        self.redraw()
-        return True
-
-    def _at(self, point: Point) -> Point:
-        """Return where a map point is drawn on screen.
-
-        Args:
-            point: A point in map pixels.
-
-        Returns:
-            The point in screen pixels.
-        """
-        return self.camera.to_screen(point)
-
-    def _size(self) -> Point:
-        """Return the window size.
-
-        Returns:
-            The window's width and height in pixels.
-        """
-        size: Point = self.screen.get_size()
-        return size
-
-    def _detail(self) -> tuple[int, bool]:
-        """Return the zone radius to draw and whether labels fit.
-
-        Zones keep their size on screen at every zoom. Zoomed out so far
-        that they would overlap, they shrink to small dots, and the names
-        and counts are left out once there is no room for them.
-
-        Returns:
-            The radius in screen pixels, and True if labels are drawn.
-        """
-        spacing = self.layout.spacing * self.camera.zoom
-        radius = self.layout.radius
-        if spacing < radius * 2.2:
-            radius = max(3, int(spacing * 0.35))
-        return radius, spacing >= _LABEL_SPACING
-
-    def _polyline(self, color: RGB, points: list[Point], width: int) -> None:
-        """Draw a line through the points, with smoothed edges.
-
-        Args:
-            color: The line color.
-            points: The points to join, in screen pixels.
-            width: The line width in pixels.
-        """
-        pygame.draw.lines(self.screen, color, False, points, width)
-        pygame.draw.aalines(self.screen, color, False, points)
-
-    def _track_mouse(self, position: Point) -> None:
-        """Show details of the zone under the mouse, if it changed.
-
-        Args:
-            position: The mouse position, in screen pixels.
-        """
-        mx, my = self.camera.to_map(position)
-        reach = self._detail()[0] / self.camera.zoom
-        name = self.layout.zone_at((mx, my), reach)
-        hover = None if name is None else (name, position)
-        old = None if self._hover is None else self._hover[0]
-        self._hover = hover
-        if name != old or name is not None:
-            self.redraw()
-
-    def _draw_links(self, state: SimulationState) -> None:
-        """Draw every connection on screen, busy ones in another color.
-
-        Thicker lines mean a larger capacity; a capacity above 1 is
-        written next to the middle when labels fit.
-
-        Args:
-            state: The state to draw.
-        """
-        labels = self._detail()[1]
-        for link in state.network.connections:
-            busy = state.link_load(link) > 0
-            width = 1 + min(link.max_link_capacity, 4)
-            color = _LINK_BUSY if busy else _LINK
-            path = [self._at(p) for p in self.layout.path(link)]
-            if not _on_screen(path, self._size()):
-                continue
-            self._polyline(color, path, width)
-            if labels and link.max_link_capacity > 1:
-                mid_x, mid_y = self._at(self.layout.midpoint(link))
-                self._text(
-                    f"x{link.max_link_capacity}",
-                    (mid_x + 6, mid_y - 14),
-                    _TEXT_DIM,
-                )
-
-    def _draw_zone(
-        self,
-        state: SimulationState,
-        zone: Zone,
-        center: Point,
-        radius: int,
-        labels: bool,
-    ) -> None:
-        """Draw one zone at a screen point; its labels only if they fit.
-
-        Args:
-            state: The state to draw.
-            zone: The zone to draw.
-            center: The zone's center, in screen pixels.
-            radius: The radius to draw with, in pixels.
-            labels: Whether to draw the name and the count.
-        """
-        fill = zone_rgb(zone.color)
-        if zone.zone_type is ZoneType.BLOCKED:
-            fill = _BLOCKED_FILL
-        if zone.zone_type is ZoneType.RESTRICTED:
-            rect = pygame.Rect(0, 0, radius * 2, radius * 2)
-            rect.center = center
-            pygame.draw.rect(self.screen, fill, rect)
-            pygame.draw.rect(
-                self.screen, _RESTRICTED_RING, rect, min(3, radius // 2)
-            )
-        else:
-            pygame.draw.aacircle(self.screen, fill, center, radius)
-            ring = _OUTLINE
-            if zone.zone_type is ZoneType.PRIORITY:
-                ring = _PRIORITY_RING
-            if zone.role in (ZoneRole.START, ZoneRole.END):
-                ring = _ENDPOINT_RING
-            pygame.draw.aacircle(
-                self.screen, ring, center, radius, min(3, radius // 2)
-            )
-        if zone.zone_type is ZoneType.BLOCKED:
-            self._draw_cross(center, radius)
-        if not labels:
-            return
-        self._draw_fill_bar(state, zone, center, radius)
-        label = zone_title(
-            zone,
-            self._width,
-            max(int(self.layout.spacing * self.camera.zoom) - 8, 24),
+        self._drones: list[Artist] = []
+        self._links = list(network.connections)
+        axes.set_facecolor(_BACKGROUND)
+        axes.set_axis_off()
+        axes.set_aspect("equal", adjustable="datalim")
+        self.lines = LineCollection(
+            list(self.paths.values()), colors=_LINK, linewidths=_LINK_WIDTH,
+            zorder=1,
         )
-        self._text(label, (center[0], center[1] + radius + 16), _TEXT, True)
+        axes.add_collection(self.lines)
+        zones = list(network.zones.values())
+        axes.add_collection(PatchCollection(
+            [self._shape(zone) for zone in zones],
+            facecolors=[_fill(zone) for zone in zones],
+            edgecolors=[_ring(zone) for zone in zones],
+            linewidths=2, zorder=2,
+        ))
+        if len(zones) <= _MAX_NAMED_ZONES:
+            for zone in zones:
+                x, y = self.points[zone.name]
+                axes.text(x, y - self.radius * 1.15, zone.name, ha="center",
+                          va="top", color=_TEXT, fontsize=8, zorder=3)
+        axes.autoscale_view()
+        axes.margins(0.08)
 
-    def _draw_cross(self, center: Point, radius: int) -> None:
-        """Draw the cross that marks a blocked zone.
+    def show(self, state: SimulationState) -> None:
+        """Draw the drones of a state and its turn number.
 
-        Args:
-            center: The zone's center, in screen pixels.
-            radius: The zone's radius, in pixels.
-        """
-        cx, cy = center
-        size = int(radius * 0.6)
-        for dx in (-size, size):
-            pygame.draw.line(
-                self.screen, _RESTRICTED_RING,
-                (cx - dx, cy - size), (cx + dx, cy + size), 3,
-            )
-            pygame.draw.aaline(
-                self.screen, _RESTRICTED_RING,
-                (cx - dx, cy - size), (cx + dx, cy + size),
-            )
-
-    def _draw_fill_bar(
-        self, state: SimulationState, zone: Zone, center: Point, radius: int
-    ) -> None:
-        """Draw the zone's occupancy against its capacity under the zone.
-
-        The bar shows the drones in the zone in a color that turns red
-        when full, then the drones arriving next turn in a pale color.
-        Zones without a capacity get only the count, blocked ones nothing.
+        One drone is a dot; several at the same point are one bigger dot
+        holding their number. Delivered drones stay in the end zone, and
+        drones flying to a restricted zone are drawn cyan, in the middle
+        of their connection, which is drawn cyan and twice as thick.
 
         Args:
-            state: The state to draw.
-            zone: The zone to draw the bar for.
-            center: The zone's center, in screen pixels.
-            radius: The zone's radius, in pixels.
+            state: The state to show.
         """
-        label = load_label(state, zone)
-        if label is None:
-            return
-        top = center[1] + radius + 3
-        if (capacity := zone.capacity) is not None:
-            bar = pygame.Rect(center[0] - radius, top, radius * 2, 6)
-            pygame.draw.rect(self.screen, _BAR_EMPTY, bar)
-            here = min(state.occupancy(zone.name) / capacity, 1.0)
-            ahead = min(state.load(zone.name) / capacity, 1.0)
-            self._fill(bar, 0.0, ahead, _BAR_ARRIVING)
-            self._fill(bar, 0.0, here, _load_color(here))
-        self._text(label, (center[0], top + 26), _TEXT_DIM, True)
-
-    def _fill(
-        self, bar: pygame.Rect, start: float, end: float, color: RGB
-    ) -> None:
-        """Fill the part of the bar between two fractions of its width.
-
-        Args:
-            bar: The whole bar.
-            start: Where the part starts, as a fraction of the width.
-            end: Where the part ends, as a fraction of the width.
-            color: The fill color.
-        """
-        if end <= start:
-            return
-        part = bar.copy()
-        part.left = bar.left + round(bar.width * start)
-        part.width = max(1, round(bar.width * (end - start)))
-        pygame.draw.rect(self.screen, color, part)
-
-    def _draw_drones(self, state: SimulationState, moved: set[int]) -> None:
-        """Draw every drone on screen, grouped by the point it is at.
-
-        Args:
-            state: The state to draw.
-            moved: The ids of the drones that moved this turn.
-        """
+        busy = [state.link_load(link) > 0 for link in self._links]
+        self.lines.set_color([_DRONE_FLYING if b else _LINK for b in busy])
+        self.lines.set_linewidth(
+            [_LINK_WIDTH * 2 if b else _LINK_WIDTH for b in busy]
+        )
+        for artist in self._drones:
+            artist.remove()
         groups: dict[Point, list[Drone]] = {}
         for drone in state.drones.values():
-            point = self.drone_point(drone)
-            if point is not None:
-                groups.setdefault(point, []).append(drone)
-        size = self._size()
-        for point, drones in groups.items():
-            center = self._at(point)
-            if visible(center, size, 20):
-                self._draw_group(center, drones, moved)
+            if drone.in_transit_connection is not None:
+                point = middle(self.paths[drone.in_transit_connection])
+            elif drone.current_zone is not None:
+                point = self.points[drone.current_zone]
+            else:
+                continue
+            groups.setdefault(point, []).append(drone)
+        self._drones = []
+        for (x, y), drones in groups.items():
+            flying = drones[0].in_transit_connection is not None
+            self._drones.append(self.axes.scatter(
+                [x], [y], s=40 if len(drones) == 1 else 170,
+                c=_DRONE_FLYING if flying else _DRONE,
+                edgecolors=_OUTLINE, zorder=4,
+            ))
+            if len(drones) > 1:
+                self._drones.append(self.axes.text(
+                    x, y, str(len(drones)), ha="center", va="center",
+                    color=_OUTLINE, fontsize=7, zorder=5,
+                ))
+        self.axes.set_title(
+            f"Turn {state.turn_number}   "
+            f"delivered {state.delivered_count}/{len(state.drones)}",
+            loc="left", color=_TEXT,
+        )
 
-    def _draw_group(
-        self, center: Point, drones: list[Drone], moved: set[int]
-    ) -> None:
-        """Draw the drones at one point: a dot, or a badge with the count.
-
-        One drone is a dot. Several drones at the same point are one
-        badge holding their number, not one dot each. The fill is the
-        in-flight color if they are on a connection, and the ring is the
-        moved color if any of them moved this turn.
+    def _shape(self, zone: Zone) -> Patch:
+        """Return a zone's shape: a square if restricted, else a circle.
 
         Args:
-            center: The point, in screen pixels.
-            drones: The drones at that point.
-            moved: The ids of the drones that moved this turn.
-        """
-        color = _DRONE
-        if any(d.in_transit_connection is not None for d in drones):
-            color = _DRONE_FLYING
-        ring = _OUTLINE
-        if any(d.drone_id in moved for d in drones):
-            ring = _DRONE_MOVED
-        if len(drones) == 1:
-            pygame.draw.aacircle(self.screen, ring, center, 5)
-            pygame.draw.aacircle(self.screen, color, center, 3)
-            return
-        label = self.font.render(str(len(drones)), True, _OUTLINE)
-        badge = pygame.Rect(0, 0, label.get_width() + 10, 16)
-        badge.center = center
-        pygame.draw.rect(self.screen, color, badge, border_radius=8)
-        pygame.draw.rect(self.screen, ring, badge, 2, border_radius=8)
-        self.screen.blit(label, label.get_rect(center=badge.center))
-
-    def _draw_status(
-        self, state: SimulationState, moves: list[Move], note: str
-    ) -> None:
-        """Draw the status bar at the top and the moves at the bottom.
-
-        Args:
-            state: The state to draw.
-            moves: The moves of the turn.
-            note: Text shown before the controls.
-        """
-        width, height = self.screen.get_size()
-        pygame.draw.rect(
-            self.screen, _OUTLINE, pygame.Rect(0, 0, width, _HUD_HEIGHT)
-        )
-        status = (
-            f"Turn {state.turn_number}   moved {len(moves)}   "
-            f"delivered {state.delivered_count}/{len(state.drones)}"
-            f"   in flight {len(state.drones_in_transit())}"
-        )
-        self.screen.blit(
-            self.big_font.render(status, True, _TEXT), (10, 8)
-        )
-        controls = f"{_HELP}   delay {self.delay:.2f}s"
-        if self.paused:
-            controls = "PAUSED   " + controls
-        if note:
-            controls = f"{note}   {controls}"
-        surface = self.font.render(controls, True, _TEXT_DIM)
-        self.screen.blit(surface, (width - surface.get_width() - 10, 11))
-        move_text = fit_items(
-            [move.text for move in moves], self._width, width - 20
-        )
-        self.screen.blit(
-            self.font.render(move_text, True, _TEXT_DIM),
-            (10, height - _FOOTER_HEIGHT + 6),
-        )
-
-    def _draw_tooltip(
-        self, state: SimulationState, name: str, at: Point
-    ) -> None:
-        """Draw a box with the full details of one zone near the mouse.
-
-        Args:
-            state: The state to draw.
-            name: The zone's name.
-            at: The mouse position, in screen pixels.
-        """
-        zone = state.network.zones[name]
-        here = [d.drone_id for d in state.drones_at(name)]
-        if zone.role is ZoneRole.END:
-            count = f"delivered: {state.delivered_count}"
-        elif (capacity := zone.capacity) is None:
-            count = f"drones: {len(here)} (no limit)"
-        else:
-            count = f"drones: {state.occupancy(name)}/{capacity}"
-            if state.reserved(name):
-                count += f" (+{state.reserved(name)} arriving)"
-        ids = " ".join(f"D{i}" for i in here[:10])
-        if len(here) > 10:
-            ids += f" +{len(here) - 10}"
-        lines = [
-            f"{name} [{zone.role.value}, {zone.zone_type.value}]",
-            f"color: {zone.color or 'none'}   {count}",
-        ]
-        if ids:
-            lines.append(ids)
-        surfaces = [self.font.render(line, True, _TEXT) for line in lines]
-        box = pygame.Rect(
-            0, 0,
-            max(s.get_width() for s in surfaces) + 16,
-            sum(s.get_height() for s in surfaces) + 12,
-        )
-        box.topleft = (at[0] + 14, at[1] + 14)
-        box.clamp_ip(self.screen.get_rect())
-        pygame.draw.rect(self.screen, _OUTLINE, box)
-        pygame.draw.rect(self.screen, _TEXT_DIM, box, 1)
-        y = box.top + 6
-        for surface in surfaces:
-            self.screen.blit(surface, (box.left + 8, y))
-            y += surface.get_height()
-
-    def _width(self, text: str) -> int:
-        """Return the width of text in the small font, in pixels.
-
-        Args:
-            text: The text to measure.
+            zone: The zone to draw.
 
         Returns:
-            The width in pixels.
+            The shape, inside the clearance the connections keep.
         """
-        width: int = self.font.size(text)[0]
-        return width
-
-    def _text(
-        self, text: str, at: Point, color: RGB, centered: bool = False
-    ) -> None:
-        """Draw text in the small font.
-
-        Args:
-            text: The text to draw.
-            at: Its top-left corner, or its center if ``centered``.
-            color: The text color.
-            centered: Whether ``at`` is the center of the text.
-        """
-        surface = self.font.render(text, True, color)
-        if centered:
-            rect = surface.get_rect(center=at)
-            self.screen.blit(surface, rect)
-        else:
-            self.screen.blit(surface, at)
+        center = self.points[zone.name]
+        if zone.zone_type is ZoneType.RESTRICTED:
+            return RegularPolygon(center, 4, radius=self.radius * 1.15,
+                                  orientation=math.pi / 4)
+        return Circle(center, self.radius)
 
 
-def faster(delay: float) -> float:
-    """Return the delay after one press of the "faster" key.
-
-    It halves the delay, and goes to 0 (no wait) once that would be
-    shorter than ``_MIN_STEP``. A delay of 0 stays 0: the key never makes
-    the playback slower.
+def _fill(zone: Zone) -> Color | str:
+    """Return a zone's fill: its color, or dark gray when blocked.
 
     Args:
-        delay: The current delay, in seconds.
+        zone: The zone to fill.
 
     Returns:
-        The new delay, in seconds.
+        The fill color.
     """
-    half = delay / 2
-    return 0.0 if half < _MIN_STEP else half
+    if zone.zone_type is ZoneType.BLOCKED:
+        return _BLOCKED_FILL
+    return zone_color(zone.color)
 
 
-def slower(delay: float) -> float:
-    """Return the delay after one press of the "slower" key.
-
-    It doubles the delay (from 0, it starts at ``_MIN_STEP``) up to
-    ``_MAX_DELAY``, the largest ``--delay``. A delay already at the
-    maximum stays there: the key never makes the playback faster.
+def _ring(zone: Zone) -> str:
+    """Return the color of a zone's outline, which marks its kind.
 
     Args:
-        delay: The current delay, in seconds.
+        zone: The zone to outline.
 
     Returns:
-        The new delay, in seconds.
+        White for the start and end, red for restricted, gold for
+        priority, dark otherwise.
     """
-    return min(_MAX_DELAY, max(_MIN_STEP, delay * 2))
-
-
-def _on_screen(path: list[Point], size: Point) -> bool:
-    """Return whether any part of a path's box is on screen.
-
-    Args:
-        path: The path, in screen pixels.
-        size: The window size in pixels.
-
-    Returns:
-        True if the path's bounding box overlaps the window.
-    """
-    xs = [x for x, _ in path]
-    ys = [y for _, y in path]
-    return (
-        max(xs) >= 0 and min(xs) <= size[0]
-        and max(ys) >= 0 and min(ys) <= size[1]
-    )
-
-
-def _load_color(fraction: float) -> RGB:
-    """Return green for a lightly used zone, orange, then red when full.
-
-    Args:
-        fraction: The zone's occupancy over its capacity.
-
-    Returns:
-        Red from 1, orange from 0.5, green below.
-    """
-    if fraction >= 1.0:
-        return 230, 60, 50
-    if fraction >= 0.5:
-        return 245, 160, 40
-    return 70, 200, 90
+    if zone.role in (ZoneRole.START, ZoneRole.END):
+        return _ENDPOINT_RING
+    if zone.zone_type is ZoneType.RESTRICTED:
+        return _RESTRICTED_RING
+    if zone.zone_type is ZoneType.PRIORITY:
+        return _PRIORITY_RING
+    return _OUTLINE
 
 
 class GraphicalVisualizer:
-    """Renders the network and drone positions in a graphical window.
+    """Shows the run in a matplotlib window, one turn every ``delay``.
 
-    The window opens on the first ``begin`` or ``render``. After each
-    frame (except the final one when paused or ``hold_final``) it waits
-    ``delay`` seconds while handling input: Space pauses
-    or resumes, the right arrow steps one turn, up/down (or +/-) change
-    the delay, and Esc, q or the window's close button quit. Quitting
-    only closes the window: later calls do nothing and the simulation
-    carries on to the end, so the turn log is still complete.
+    The window opens when the view is made. Closing it stops the drawing
+    and the waiting; the simulation then finishes at once, so the turn
+    log is still complete. After a finished run the window stays open
+    until it is closed.
+
+    Attributes:
+        figure: The window's figure.
+        scene: The network drawn in it.
+        delay: Seconds each turn stays on screen.
     """
 
-    def __init__(
-        self,
-        delay: float = 0.5,
-        size: Point = (1200, 800),
-        hold_final: bool = True,
-        step: bool = False,
-    ) -> None:
-        """Store the settings; no window is opened yet.
+    def __init__(self, network: Network, delay: float = DELAY) -> None:
+        """Open the window and draw the network.
 
         Args:
-            delay: Seconds each turn stays on screen in auto-play,
-                clamped to 0..60.
-            size: Window size in pixels.
-            hold_final: After the last turn, keep the window open until
-                the user closes it (only if the run completed).
-            step: Step mode: start paused and advance one turn per right
-                arrow press (Space still switches to auto-play).
+            network: The network to draw.
+            delay: Seconds each turn stays on screen.
+
+        Raises:
+            VisualizationError: If matplotlib cannot show a window (for
+                example when there is no display).
         """
-        # Clamped so that delay * 1000 always fits in an int of ticks
-        # (NaN counts as 0).
-        self.delay = (
-            0.0 if math.isnan(delay)
-            else min(max(delay, 0.0), _MAX_DELAY)
-        )
-        self.size = size
-        self.hold_final = hold_final
-        self.step = step
-        self._window: _Window | None = None
-        self._closed = False
+        figure = plt.figure("Fly-in", figsize=(10, 7),
+                            facecolor=_BACKGROUND)
+        if figure.canvas.required_interactive_framework is None:
+            plt.close(figure)
+            raise VisualizationError(
+                "cannot open the graphical window (no display?)"
+            )
+        figure.text(0.02, 0.02, _KEY, color=_TEXT, fontsize=8)
+        self.figure = figure
+        self.scene = MapScene(figure.add_axes((0.02, 0.06, 0.96, 0.88)),
+                              network)
+        self.delay = delay
         self._finished = False
-        self._previous: dict[int, Point] = {}
-        self._flying: dict[int, str] = {}
+        figure.show()
 
     @property
     def is_open(self) -> bool:
-        """Return whether the window is currently open."""
-        return self._window is not None
+        """Return whether the window is still on screen."""
+        return plt.fignum_exists(self.figure.number)
 
     def begin(self, state: SimulationState) -> None:
-        """Open the window and show the initial state.
+        """Show the initial state.
 
         Args:
             state: The state before the first turn.
-
-        Raises:
-            VisualizationError: If the window cannot be opened (for
-                example when there is no display). The view is then
-                closed for good.
         """
-        self._show(state, [])
+        self._show(state)
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Draw the turn, with each move's path highlighted, then wait.
+        """Show the state after a turn.
 
         Args:
             state: The state after the turn.
-            moves: The moves of the turn.
-
-        Raises:
-            VisualizationError: If the window has to be opened here (no
-                ``begin`` before) and cannot be.
+            moves: The moves of the turn (not drawn).
         """
-        self._show(state, moves)
+        self._show(state)
 
     def close(self) -> None:
-        """Close the window, first waiting for the user if requested.
+        """Keep a finished run on screen until closed, then close."""
+        if self._finished and self.is_open:
+            plt.show()
+        plt.close(self.figure)
 
-        The view is closed for good afterwards, even if no window was
-        ever opened: later ``begin`` / ``render`` calls do nothing.
-        """
-        window = self._window
-        if window is not None and self.hold_final and self._finished:
-            window.redraw("finished - press esc to close")
-            window.wait_for_quit()
-        self._shut()
+    def _show(self, state: SimulationState) -> None:
+        """Draw a state, then wait ``delay`` while handling the window.
 
-    def _show(self, state: SimulationState, moves: list[Move]) -> None:
-        """Draw a frame with the moves' trails, then wait for the next.
-
-        Nothing is drawn once the view is closed. The window is shut if
-        the user quits while waiting.
+        Nothing is drawn once the window is closed.
 
         Args:
             state: The state to draw.
-            moves: The moves of the turn (none for the initial state).
         """
-        window = self._open(state.network)
-        if window is None:
+        if not self.is_open:
             return
-        trails: list[Path] = []
-        for move in moves:
-            start = self._previous.get(move.drone_id)
-            end = window.drone_point(state.drones[move.drone_id])
-            if start is not None and end is not None and start != end:
-                trails.append(self._trail(window, move, start, end))
-        window.show(state, moves, trails)
-        self._previous = {
-            drone.drone_id: point
-            for drone in state.drones.values()
-            if (point := window.drone_point(drone)) is not None
-        }
-        self._flying = {
-            drone.drone_id: drone.in_transit_connection
-            for drone in state.drones_in_transit()
-            if drone.in_transit_connection is not None
-        }
+        self.scene.show(state)
         self._finished = state.is_complete
-        if self._finished and (window.paused or self.hold_final):
-            # Nothing comes next: don't ask for a step. With hold_final,
-            # close() keeps the final frame up until the user quits.
-            return
-        if not window.wait():
-            self._shut()
-
-    def _trail(
-        self, window: _Window, move: Move, start: Point, end: Point
-    ) -> Path:
-        """Return the move's trail along the connection it used.
-
-        A departure names its connection; a landing uses the connection
-        the drone was flying along. The trail is straight only if the
-        connection is unknown.
-
-        Args:
-            window: The open window, for its layout and connections.
-            move: The move to draw.
-            start: Where the drone was drawn before, in map pixels.
-            end: Where the drone is drawn now, in map pixels.
-
-        Returns:
-            The trail, in map pixels.
-        """
-        name = move.connection_name or self._flying.get(move.drone_id)
-        link = None if name is None else window.links.get(name)
-        if link is not None:
-            part = sub_path(window.layout.path(link), start, end)
-            if part is not None:
-                return part
-        return [start, end]
-
-    def _open(self, network: Network) -> _Window | None:
-        """Return the window, opening it on the first call.
-
-        Args:
-            network: The network to lay out if the window is opened.
-
-        Returns:
-            The window, or None once the view is closed.
-
-        Raises:
-            VisualizationError: If the window cannot be opened; the view
-                is then closed for good.
-        """
-        if self._closed:
-            return None
-        if self._window is None:
-            try:
-                self._window = _Window(network, self.size, self.delay)
-            except pygame.error as exc:
-                # e.g. no display: give up on the view for good and say
-                # why in one line instead of a pygame traceback.
-                _Window.close()
-                self._closed = True
-                raise VisualizationError(
-                    f"cannot open the graphical window: {exc}"
-                ) from exc
-            self._window.paused = self.step
-        return self._window
-
-    def _shut(self) -> None:
-        """Close the window, if open, and the view for good."""
-        if self._window is not None:
-            self.delay = self._window.delay
-            self._window.close()
-        self._window = None
-        self._closed = True
+        canvas = self.figure.canvas
+        canvas.draw_idle()
+        deadline = time.monotonic() + self.delay
+        while self.is_open and time.monotonic() < deadline:
+            canvas.start_event_loop(_TICK)

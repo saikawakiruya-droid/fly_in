@@ -1,10 +1,10 @@
-"""Tests for droneflow.visualization.terminal_view (no pygame needed).
+"""Tests for droneflow.visualization.terminal_view.
 
 Frames are written to a ``StringIO`` and checked as text, with
 ``color=False`` and an explicit ``width`` unless colors are the point of
 the test. A "terminal" is a ``StringIO`` whose ``isatty()`` is True
 (``tty_stream``). Decisions 2026-10-17 "terminal view on stderr" and
-"colors", 2026-10-18 "step mode".
+"colors".
 """
 
 import io
@@ -33,7 +33,6 @@ LoadWorld = Callable[[str], World]
 TtyStream = Callable[..., io.StringIO]
 
 ESC = "\x1b"
-PROMPT = "-- press Enter for the next turn --"
 PAINTED = re.compile(r"\x1b\[38;2;\d+;\d+;\d+m(\w+)")
 
 
@@ -41,14 +40,6 @@ def run(world: World, view: TurnObserver) -> list[list[Move]]:
     """Run the real scheduler (Stage 5) over the world with the view."""
     scheduler = Scheduler(world.network, Pathfinder(world.network))
     return SimulationEngine(world, scheduler).run(view)
-
-
-def headers_and_prompts(text: str) -> list[str]:
-    """Return the frame headers and step prompts, in output order."""
-    return [
-        line for line in text.splitlines()
-        if line.startswith("===") or line == PROMPT
-    ]
 
 
 class FlushCountingIO(io.StringIO):
@@ -271,67 +262,6 @@ def test_close_flushes_without_closing() -> None:
     assert out.flushes == 1
     assert out.closed is False
     out.write("still open")
-
-
-def test_step_mode_waits_for_enter(
-    make_network: MakeNetwork,
-    tty_stream: TtyStream,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """VT12: one Enter after each frame but the last, prompt on the view."""
-    out = io.StringIO()
-    inp = tty_stream("\n" * 5)
-    view = TerminalVisualizer(out, color=False, step=True, input_stream=inp)
-
-    turns = run(World(make_network("s-a a-g"), 2), view)
-
-    assert len(turns) == 3
-    order = headers_and_prompts(out.getvalue())
-    assert [line == PROMPT for line in order] == [
-        False, True, False, True, False, True, False
-    ]
-    assert inp.read() == "\n\n"
-    assert capsys.readouterr().out == ""
-
-
-@pytest.mark.parametrize("case", ["input_not_a_terminal", "step_off"])
-def test_no_wait_without_a_terminal_or_step(
-    case: str, make_network: MakeNetwork, tty_stream: TtyStream
-) -> None:
-    """VT13: piped input or step=False never prompts nor reads."""
-    out = io.StringIO()
-    if case == "input_not_a_terminal":
-        inp = io.StringIO("\n" * 5)
-        step = True
-    else:
-        inp = tty_stream("\n" * 5)
-        step = False
-    view = TerminalVisualizer(out, color=False, step=step, input_stream=inp)
-
-    assert view.step is False
-    turns = run(World(make_network("s-a a-g"), 2), view)
-
-    assert len(turns) == 3
-    assert PROMPT not in out.getvalue()
-    assert inp.tell() == 0
-
-
-def test_end_of_input_stops_stepping(
-    make_network: MakeNetwork, tty_stream: TtyStream
-) -> None:
-    """VT14: at EOF the view prompts once, then runs through."""
-    out = io.StringIO()
-    view = TerminalVisualizer(
-        out, color=False, step=True, input_stream=tty_stream("")
-    )
-
-    run(World(make_network("s-a a-g"), 2), view)
-
-    order = headers_and_prompts(out.getvalue())
-    assert order.count(PROMPT) == 1
-    assert order[1] == PROMPT
-    assert len(order) == 5
-    assert view.step is False
 
 
 def test_views_only_read_the_state(

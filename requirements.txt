@@ -1,7 +1,5 @@
-# Runtime: the graphical view (--visual graphical / both).
-# pygame-ce is a drop-in fork of pygame (it is imported as "pygame");
-# pygame itself publishes no wheels for recent Python versions (e.g. 3.14).
-pygame-ce>=2.5
+# The graphical view (fly_in.py MAP --graphical) only.
+matplotlib>=3.8
 # Lint (make lint / make lint-strict, subject chapter III.2).
 flake8>=7.0
 mypy>=1.10
