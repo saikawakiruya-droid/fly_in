@@ -55,6 +55,12 @@ class DetourPolicy:
     def detours(self, zone_name: str) -> list[Hop]:
         """Return the zone's detour hops, cheapest first.
 
+        Args:
+            zone_name: Name of the zone.
+
+        Returns:
+            The detour hops out of the zone (empty if it has none).
+
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
@@ -66,6 +72,10 @@ class DetourPolicy:
 
         What was recorded for ``turn`` or a later turn is dropped first, so
         only the positions given for the turns before it count as visited.
+
+        Args:
+            turn: The turn about to be planned.
+            board: Where every drone is (or is landing) at its start.
         """
         if any(earlier >= turn for earlier in self._reported):
             self._reported = {
@@ -80,6 +90,11 @@ class DetourPolicy:
         self._visit(zones)
 
     def _visit(self, zones: Mapping[int, str]) -> None:
+        """Mark each drone's zone as visited by that drone.
+
+        Args:
+            zones: The zone name by drone_id.
+        """
         for drone_id, zone_name in zones.items():
             self._visited.setdefault(drone_id, set()).add(zone_name)
 
@@ -123,7 +138,15 @@ class DetourPolicy:
 
     @staticmethod
     def _costed(pathfinder: Pathfinder, name: str) -> list[tuple[int, Hop]]:
-        """Return the zone's detours with their total cost to the end."""
+        """Return the zone's detours with their total cost to the end.
+
+        Args:
+            pathfinder: Answers detour hops and route costs.
+            name: Name of the zone.
+
+        Returns:
+            ``(route_cost, hop)`` pairs, in ``detour_hops`` order.
+        """
         return [
             (pathfinder.route_cost(hop), hop)
             for hop in pathfinder.detour_hops(name)
@@ -131,7 +154,15 @@ class DetourPolicy:
 
     @staticmethod
     def _zones_below(name: str, hops: Mapping[str, list[Hop]]) -> set[str]:
-        """Return the zones reachable from ``name`` by shortest hops."""
+        """Return the zones reachable from ``name`` by shortest hops.
+
+        Args:
+            name: Name of the zone to start from.
+            hops: The shortest next hops of every zone.
+
+        Returns:
+            The zones below ``name`` (not including it).
+        """
         below: set[str] = set()
         stack = [name]
         while stack:

@@ -21,7 +21,13 @@ class HopTaker:
     def __init__(
         self, ledger: TurnLedger, evictor: Evictor, board: PositionBoard
     ) -> None:
-        """Work on this turn's ledger, evictor and board."""
+        """Work on this turn's ledger, evictor and board.
+
+        Args:
+            ledger: The room left this turn and later.
+            evictor: Makes room by evicting occupants (last resort).
+            board: Where every drone will be.
+        """
         self.ledger = ledger
         self.evictor = evictor
         self.board = board
@@ -29,7 +35,16 @@ class HopTaker:
     def take_first(
         self, drone_id: int, here: str, hops: list[Hop]
     ) -> Hop | None:
-        """Take the first of ``hops`` the drone can make, or return None."""
+        """Take the first of ``hops`` the drone can make, or return None.
+
+        Args:
+            drone_id: The drone to move.
+            here: The zone it stands in.
+            hops: The hops to try, in order.
+
+        Returns:
+            The hop taken, or None if none can be made, even by evicting.
+        """
         for may_evict in (False, True):
             for hop in hops:
                 if self._take(drone_id, here, hop, may_evict):
@@ -39,7 +54,17 @@ class HopTaker:
     def _take(
         self, drone_id: int, here: str, hop: Hop, may_evict: bool
     ) -> bool:
-        """Take ``hop`` if it can be made; return whether it was taken."""
+        """Take ``hop`` if it can be made; return whether it was taken.
+
+        Args:
+            drone_id: The drone to move.
+            here: The zone it stands in.
+            hop: The hop to try.
+            may_evict: Whether the ``Evictor`` may make room.
+
+        Returns:
+            True if the hop was taken and recorded.
+        """
         turn = self.ledger.planning_turn
         if not self.ledger.link_free(hop.connection, turn):
             return False
@@ -61,6 +86,15 @@ class HopTaker:
         The drone must land on ``arrive`` (it cannot wait on the
         connection), so the zone needs one more seat (``extra=1``) from
         that turn on.
+
+        Args:
+            drone_id: The drone to move.
+            here: The zone it stands in.
+            hop: The hop into the restricted zone.
+            arrive: The turn it lands.
+
+        Returns:
+            True if room was made and the hop recorded.
         """
         if not self.evictor.make_room(hop.zone, arrive, 1):
             return False
@@ -77,6 +111,15 @@ class HopTaker:
         counted; the zone then needs no extra seat (``extra=0``) from the
         next turn on, and its occupants (this drone included) are evicted
         until it fits. If that fails, the move is undone.
+
+        Args:
+            drone_id: The drone to move.
+            here: The zone it stands in.
+            hop: The hop into the zone.
+            arrive: The turn it enters the zone.
+
+        Returns:
+            True if the hop was recorded and room made; False if undone.
         """
         if not self.ledger.fits(hop.zone, arrive, 1):
             return False
@@ -89,5 +132,13 @@ class HopTaker:
         return False
 
     def _record(self, drone_id: int, here: str, hop: Hop, arrive: int) -> None:
+        """Record the hop in the ledger and move the drone on the board.
+
+        Args:
+            drone_id: The drone to move.
+            here: The zone it leaves.
+            hop: The hop it takes.
+            arrive: The turn it enters the hop's zone.
+        """
         self.ledger.record(here, hop)
         self.board.place(drone_id, hop.zone.name, arrive)

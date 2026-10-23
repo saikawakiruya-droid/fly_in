@@ -64,6 +64,9 @@ class ReservationTable:
         the zone it was to leave (the state was changed elsewhere). The drones
         in flight are then loaded as landings for this turn. The undo log
         is cleared.
+
+        Args:
+            state: The state whose next turn is about to be planned.
         """
         turn = state.turn_number + 1
         for reservation in self._all():
@@ -76,12 +79,23 @@ class ReservationTable:
         self._log.clear()
 
     def reserve(self, reservation: Reservation) -> None:
-        """Add a move to the table."""
+        """Add a move to the table.
+
+        Args:
+            reservation: The move to add.
+        """
         self._insert(reservation)
         self._log.append((True, reservation))
 
     def remove(self, drone_id: int) -> list[Reservation]:
-        """Remove the drone's planned moves and return them."""
+        """Remove the drone's planned moves and return them.
+
+        Args:
+            drone_id: The drone whose moves are removed.
+
+        Returns:
+            The removed moves (empty if it had none).
+        """
         removed = list(self._by_drone.get(drone_id, []))
         for reservation in removed:
             self._discard(reservation)
@@ -89,36 +103,79 @@ class ReservationTable:
         return removed
 
     def leaves_after(self, drone_id: int, turn: int) -> bool:
-        """Return whether the drone has a move planned after that turn."""
+        """Return whether the drone has a move planned after that turn.
+
+        Args:
+            drone_id: The drone to look at.
+            turn: The turn after which to look.
+
+        Returns:
+            True if one of its moves departs after ``turn``.
+        """
         return any(
             move.depart_turn > turn
             for move in self._by_drone.get(drone_id, [])
         )
 
     def entering(self, zone_name: str, turn: int) -> int:
-        """Return how many drones are planned to enter the zone that turn."""
+        """Return how many drones are planned to enter the zone that turn.
+
+        Args:
+            zone_name: Name of the zone.
+            turn: The turn of entry.
+
+        Returns:
+            The number of planned entries.
+        """
         return len(self._entries.get((zone_name, turn), []))
 
     def leaving(self, zone_name: str, turn: int) -> int:
-        """Return how many drones are planned to leave the zone that turn."""
+        """Return how many drones are planned to leave the zone that turn.
+
+        Args:
+            zone_name: Name of the zone.
+            turn: The turn of departure.
+
+        Returns:
+            The number of planned departures.
+        """
         return self._leaving.get((zone_name, turn), 0)
 
     def due(self, turn: int) -> list[Reservation]:
-        """Return the moves departing on that turn, in drone_id order."""
+        """Return the moves departing on that turn, in drone_id order.
+
+        Args:
+            turn: The turn of departure.
+
+        Returns:
+            The moves leaving their zone on ``turn``.
+        """
         return sorted(
             self._departing.get(turn, []), key=lambda r: r.drone_id
         )
 
     def last_turn(self) -> int:
-        """Return the latest turn any planned move happens on (0 if none)."""
+        """Return the latest turn any planned move happens on (0 if none).
+
+        Returns:
+            The largest ``arrive_turn`` in the table, or 0.
+        """
         return max((r.arrive_turn for r in self._all()), default=0)
 
     def mark(self) -> int:
-        """Return a position to ``rollback`` to."""
+        """Return a position to ``rollback`` to.
+
+        Returns:
+            The current length of the undo log.
+        """
         return len(self._log)
 
     def rollback(self, mark: int) -> None:
-        """Undo every ``reserve`` and ``remove`` made since ``mark``."""
+        """Undo every ``reserve`` and ``remove`` made since ``mark``.
+
+        Args:
+            mark: A position returned by ``mark``.
+        """
         while len(self._log) > mark:
             added, reservation = self._log.pop()
             if added:
@@ -133,10 +190,24 @@ class ReservationTable:
         self._log.clear()
 
     def _all(self) -> list[Reservation]:
+        """Return every planned move.
+
+        Returns:
+            All the moves in the table, grouped by drone.
+        """
         return [r for moves in self._by_drone.values() for r in moves]
 
     @staticmethod
     def _still_valid(state: SimulationState, reservation: Reservation) -> bool:
+        """Return whether the drone is still in or landing in its from_zone.
+
+        Args:
+            state: The current state.
+            reservation: The planned move to check.
+
+        Returns:
+            True if the move can still be played from the drone's place.
+        """
         drone = state.drones.get(reservation.drone_id)
         if drone is None:
             return False
@@ -148,6 +219,11 @@ class ReservationTable:
         )
 
     def _insert(self, reservation: Reservation) -> None:
+        """Add a move to every index, without logging it.
+
+        Args:
+            reservation: The move to add.
+        """
         key = (reservation.to_zone, reservation.arrive_turn)
         self._entries.setdefault(key, []).append(reservation)
         leave = (reservation.from_zone, reservation.depart_turn)
@@ -160,6 +236,11 @@ class ReservationTable:
         )
 
     def _discard(self, reservation: Reservation) -> None:
+        """Remove a move from every index, without logging it.
+
+        Args:
+            reservation: The move to remove; it must be in the table.
+        """
         key = (reservation.to_zone, reservation.arrive_turn)
         self._entries[key].remove(reservation)
         if not self._entries[key]:
@@ -183,6 +264,12 @@ def landings(state: SimulationState) -> list[Reservation]:
 
     Every drone in flight toward a restricted zone departed on the turn
     just played and enters its zone on the next one.
+
+    Args:
+        state: The state after the turn just played.
+
+    Returns:
+        One move per drone in flight, departing on the turn just played.
 
     Raises:
         SimulationError: If a drone in flight has no route recorded.

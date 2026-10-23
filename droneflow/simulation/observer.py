@@ -16,7 +16,11 @@ class TurnObserver(Protocol):
     """
 
     def begin(self, state: SimulationState) -> None:
-        """Take the initial state (turn 0, every drone in the start zone)."""
+        """Take the initial state (turn 0, every drone in the start zone).
+
+        Args:
+            state: The state before the first turn.
+        """
         ...
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
@@ -41,16 +45,29 @@ class ObserverGroup:
     """
 
     def __init__(self, observers: Sequence[TurnObserver]) -> None:
-        """Keep the observers to forward to."""
+        """Keep the observers to forward to.
+
+        Args:
+            observers: The observers, in the order they are called.
+        """
         self.observers: list[TurnObserver] = list(observers)
 
     def begin(self, state: SimulationState) -> None:
-        """Give the initial state to every observer."""
+        """Give the initial state to every observer.
+
+        Args:
+            state: The state before the first turn.
+        """
         for observer in self.observers:
             observer.begin(state)
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Give the turn to every observer."""
+        """Give the turn to every observer.
+
+        Args:
+            state: The state with the turn applied.
+            moves: The moves made during that turn, in drone_id order.
+        """
         for observer in self.observers:
             observer.render(state, moves)
 
@@ -63,7 +80,11 @@ class ObserverGroup:
         self._close_from(0)
 
     def _close_from(self, index: int) -> None:
-        """Close observers[index:]; ``finally`` chains failures as context."""
+        """Close observers[index:]; ``finally`` chains failures as context.
+
+        Args:
+            index: The first observer to close.
+        """
         if index >= len(self.observers):
             return
         try:
