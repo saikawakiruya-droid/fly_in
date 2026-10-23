@@ -14,6 +14,7 @@ import numpy
 import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.collections import PatchCollection
+from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, RegularPolygon
 
@@ -101,6 +102,20 @@ def test_drone_in_flight_is_drawn_mid_connection(network: Network) -> None:
 
     dots = numpy.asarray(scene.axes.collections[-1].get_offsets())
     assert tuple(dots[0]) == pytest.approx((1.0, 0.0))
+
+
+def test_connection_in_use_is_drawn_lighter(network: Network) -> None:
+    """VG10: only the connection a drone flies along gets the busy color."""
+    scene = scene_of(network)
+    state = SimulationState(network, 1)
+    state.enter_transit(1, network.connections[0], "r")
+
+    scene.show(state)
+
+    colors = numpy.asarray(scene.lines.get_colors()).tolist()
+    assert colors[0] == pytest.approx(to_rgba("#96a0b9"))
+    assert colors[1] == pytest.approx(to_rgba("#555c6c"))
+    assert colors[2] == pytest.approx(to_rgba("#555c6c"))
 
 
 def test_zone_color_falls_back_to_matplotlib_then_gray() -> None:

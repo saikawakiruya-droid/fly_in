@@ -40,6 +40,7 @@ _TICK = 0.02
 
 _BACKGROUND = "#181b22"
 _LINK = "#555c6c"
+_LINK_BUSY = "#96a0b9"
 _TEXT = "#e1e4eb"
 _DRONE = "#fafafa"
 _DRONE_FLYING = "#00dcff"
@@ -50,7 +51,8 @@ _ENDPOINT_RING = "#f5f5f5"
 _RESTRICTED_RING = "#ff5a3c"
 _PRIORITY_RING = "#ffc800"
 _KEY = ("white ring: start/end   square, red ring: restricted   "
-        "gold ring: priority   gray: blocked   cyan: drones in flight")
+        "gold ring: priority   gray: blocked   cyan: drones in flight "
+        "(their connection lighter)")
 _MAX_NAMED_ZONES = 60
 """Maps with more zones are drawn without zone names."""
 
@@ -77,6 +79,7 @@ class MapScene:
     """The network drawn on an axes, and the drones redrawn each turn.
 
     Attributes:
+        lines: Every connection's line, in ``network.connections`` order.
         points: Each zone's center, in map units (shared positions are
             spread apart).
         radius: The radius every zone is drawn with, in map units.
@@ -109,13 +112,15 @@ class MapScene:
             for link in network.connections
         }
         self._drones: list[Artist] = []
+        self._links = list(network.connections)
         axes.set_facecolor(_BACKGROUND)
         axes.set_axis_off()
         axes.set_aspect("equal", adjustable="datalim")
-        axes.add_collection(LineCollection(
+        self.lines = LineCollection(
             list(self.paths.values()), colors=_LINK, linewidths=1.5,
             zorder=1,
-        ))
+        )
+        axes.add_collection(self.lines)
         zones = list(network.zones.values())
         axes.add_collection(PatchCollection(
             [self._shape(zone) for zone in zones],
@@ -137,11 +142,15 @@ class MapScene:
         One drone is a dot; several at the same point are one bigger dot
         holding their number. Delivered drones stay in the end zone, and
         drones flying to a restricted zone are drawn cyan, in the middle
-        of their connection.
+        of their connection, which is drawn lighter.
 
         Args:
             state: The state to show.
         """
+        self.lines.set_color([
+            _LINK_BUSY if state.link_load(link) > 0 else _LINK
+            for link in self._links
+        ])
         for artist in self._drones:
             artist.remove()
         groups: dict[Point, list[Drone]] = {}

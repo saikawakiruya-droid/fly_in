@@ -435,8 +435,9 @@ every 0.5 seconds:
   connection is curved exactly when it would otherwise run over a zone on
   screen. Zooming in with matplotlib's toolbar makes the zones bigger;
 - a drone is a white dot in its zone, or a cyan dot in the middle of the
-  connection while it flies to a restricted zone; several drones at the same
-  point are one bigger dot holding their number. The title shows the turn
+  connection while it flies to a restricted zone (that connection is drawn
+  lighter); several drones at the same point are one bigger dot holding their
+  number. The title shows the turn
   number and the delivered count.
 
 Closing the window stops the drawing; the simulation then finishes at once,

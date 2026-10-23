@@ -11,7 +11,7 @@
 - `test_palette.py` — 色名の表(VP01〜VP04)
 - `test_terminal_view.py` — `TerminalVisualizer`(VT01〜VT11・VT15・VT16)
 - `test_geometry.py` — グラフィカル表示の配置: ゾーンの半径・重なったゾーンの分散・接続の直線と弧(GM01〜GM06)
-- `test_graphical_view.py` — matplotlib の表示 `MapScene` / `GraphicalVisualizer`(VG01〜VG09)
+- `test_graphical_view.py` — matplotlib の表示 `MapScene` / `GraphicalVisualizer`(VG01〜VG10)
 
 ## 書き方の約束
 

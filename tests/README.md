@@ -232,9 +232,9 @@ python -m pytest tests/
 - `tests/visualization/test_geometry.py` — グラフィカル表示の配置(GM01〜GM06): ゾーンの半径(最も近い2点の距離の0.3、
   1を超える距離は1とみなす)、同じ座標のゾーンを離すこと、ゾーンの横を通る線はまっすぐ・ゾーンの上を通る線はそれをよける弧
   (上側から試す)、自己ループはゾーンの上の小さな輪、直線の中点
-- `tests/visualization/test_graphical_view.py` — matplotlib の表示(VG01〜VG09): ゾーンが地図の単位で配置の半径の
+- `tests/visualization/test_graphical_view.py` — matplotlib の表示(VG01〜VG10): ゾーンが地図の単位で配置の半径の
   パッチとして縦横同じ縮尺で描かれること、restricted は四角、ゾーンに重なる接続だけが曲がること、タイトルのターン数と
-  同じ地点のドローンの数、飛行中のドローンは接続の中点、色名の解決(パレット → matplotlib → 灰色)、ディスプレイなしでは
+  同じ地点のドローンの数、飛行中のドローンは接続の中点・その接続だけ明るい色、色名の解決(パレット → matplotlib → 灰色)、ディスプレイなしでは
   `VisualizationError`(図を残さない)、`--graphical` の `main` は終了コード1と1行のエラー、ウィンドウを閉じた後は描かないこと
 - `tests/visualization/test_palette.py` — `rgb`: 表の値(似た赤を区別)・全エントリが 0〜255 の3つ組、大文字小文字を
   区別しないこと、配布マップ(`maps.tar.gz`)の色名17種のうち `rainbow` 以外がすべて表にあること、知らない名前・空・`None` は
