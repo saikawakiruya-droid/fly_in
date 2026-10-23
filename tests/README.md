@@ -69,11 +69,13 @@ python -m pytest tests/
 - `tests/output/test_turn_log_printer.py` — `TurnLogPrinter`(AP01〜AP04): begin は何も書かない・既定の出力先は stdout、
   1ターン1行で書いた直後に flush、空のターンは書かず flush もしない、close は flush だけでストリームを閉じない、
   整形は `formatter` 属性に委譲(同じ `moves` を渡す)
+- `tests/output/test_summary.py` — `RunSummary`(AS01〜AS03): 課題の例の数値と文言(7ターン・5.00・2.14)、
+  配達ターン=最後に出たターン(接続名の項目も1手)、ターンなし・ドローンなしでゼロ除算しないこと
 
 - `tests/test_cli.py` — 引数(AC01・AC02・AC06): MAP は `Path` と入力どおりの文字列(`map_name`)を持ち、既定ではウィンドウなし、
   `--graphical` は MAP の前後どちらでもよいこと、MAP なし・知らないオプション・余分な引数は終了コード2(文言まで)
 - `tests/test_app.py` — `Application`: stdout が本物のスケジューラの出力(課題の例の5行。`scheduler_output`)と完全一致し、
-  ターミナル表示は stderr だけに出ること、ターンの行がそのフレームより先に出ること、マップが読めない(存在しない・
+  ターミナル表示と最後の要約行は stderr だけに出ること、ターンの行がそのフレームより先に出ること、マップが読めない(存在しない・
   ディレクトリ・UTF-8 でない)の `MapFileError` と原因、パース・到達不能のエラーはそのまま、途中のエラーでもそれまでの
   ログとビューの後始末が残る、ターンログ側の失敗は包まない、エラーのパスは入力どおり。`make_scheduler` の注入
   (AI01: `(network, pathfinder)` で1回作りエンジンに渡す、AI02: 共有の `stuck_after` で本物の実行を途中で止める)、
@@ -90,7 +92,7 @@ python -m pytest tests/
   `snapshot`(状態の値をコピーする)、課題のサンプルマップと期待出力(`subject_map`、課題に載っている出力例7行の
   `subject_output`、corridorA を blocked にした `restricted_only_map`)。本物のスケジューラの出力5行は `scheduler_output`
   (2機が roof1 を遠回りする。本物のスケジューラを走らせるテストはこちらを使い、`subject_output` は課題の例そのものを
-  使うテスト(`test_engine.py` の E2E)だけが使う)。後の4つは Stage 7 で `tests/simulation/conftest.py` から移した
+  使うテスト(`test_summary.py` の AS01、`test_engine.py` の E2E)だけが使う)。後の4つは Stage 7 で `tests/simulation/conftest.py` から移した
   (simulation と visualization のテストで共有)。`tty_stream`(`isatty()` が True の `StringIO`。端末の代わり)は CLI の
   フェーズで `tests/visualization/conftest.py` から移した(visualization と Application のテストで共有)。
   `provided_map`(配布マップ `maps.tar.gz` の1枚を展開せずに読み、先頭のコメント行・空行だけを取り除いた文字列)と
@@ -247,6 +249,6 @@ python -m pytest tests/
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
 Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization。最小構成版ではターミナル表示と、`--graphical` の最小限の matplotlib 表示)と、CLI / Application / エントリポイント
-(`droneflow/cli.py`・`droneflow/app.py`・`droneflow/output/turn_log_printer.py`・`fly_in.py`)。
+(`droneflow/cli.py`・`droneflow/app.py`・`droneflow/output/turn_log_printer.py`・`droneflow/output/summary.py`・`fly_in.py`)。
 `Makefile` は単体テストの対象外(手動で確認する。`docs/research/2026-10-18_test-design-cli-app.md`、develop ブランチ)。
 以降の実装が進み次第、対応するテストを追加していく想定。

@@ -2,7 +2,7 @@
 
 ``Application(args, out, err)`` writes to two ``StringIO`` objects, so the
 turn log (stdout) and everything else (stderr) are compared as text.
-Decisions 2026-10-18 "the CLI's shape", "turn log", "error
+Decisions 2026-10-18 "the CLI's shape", "turn log", "summary", "error
 handling" and 2026-10-17 "terminal view on stderr".
 """
 
@@ -32,7 +32,10 @@ WriteMap = Callable[[str], Path]
 SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]
 StuckAfter = Callable[[int], SchedulerMaker]
 
-LAST_FRAME = "=== Turn 5 | moved 2 | delivered 5/5 ==="
+SUMMARY = (
+    "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
+    "3.40 moves per turn"
+)
 COMMENT_FIRST_MAP = "# c\nnb_drones: 1\n"
 UNREACHABLE_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: g 1 1\n"
 
@@ -121,8 +124,8 @@ def test_terminal_keeps_stdout_identical(
 
     assert out == log
     assert err.startswith("=== Turn 0 (start)")
-    assert LAST_FRAME in err.splitlines()
-    for text in ("===", "\x1b"):
+    assert err.splitlines()[-1] == SUMMARY
+    for text in ("===", "\x1b", "summary"):
         assert text not in out
 
 
@@ -225,7 +228,7 @@ def test_failed_run_keeps_the_log_so_far(
         "D1-goal D2-roof2 D3-tunnelB D4-roof1 D5-corridorA\n"
     )
     assert view.at_close == [3]
-    assert LAST_FRAME not in err.getvalue()
+    assert "summary:" not in err.getvalue()
 
 
 def test_printer_failures_are_not_guarded(
@@ -242,7 +245,7 @@ def test_printer_failures_are_not_guarded(
     info, _, err = run_failing(Args(sample_path), OSError)
 
     assert info.value is failure
-    assert LAST_FRAME in err
+    assert "summary:" not in err
 
 
 def test_map_path_shown_as_typed(
@@ -304,6 +307,7 @@ def test_make_scheduler_builds_the_decider(sample_path: Path) -> None:
         "turn 2: no drone moved, so the simulation cannot progress"
     )
     assert out == "D1-corridorA\n"
+    assert "summary:" not in err
 
 
 def test_shared_stuck_scheduler(

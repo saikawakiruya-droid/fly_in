@@ -13,8 +13,9 @@
 >
 > **Variant `feature/minimal_matplotlib`.** On top of that, a single
 > `--graphical` option adds a minimal matplotlib window (zones, connections,
-> drones turn by turn, the turn number). Without the option the program
-> behaves exactly like `feature/minimal_build`.
+> drones turn by turn, the turn number), and the final summary line of the
+> full version is back on standard error. The turn log on standard output is
+> the same as `feature/minimal_build`'s.
 
 ## Description
 
@@ -95,8 +96,15 @@ moves of that turn separated by spaces, in drone number order.
 - Drones that do not move are left out; a delivered drone no longer appears.
   The run ends when every drone is in the end zone.
 
-Everything else (the terminal view and errors) goes to standard error, so
-`python3 fly_in.py map.txt 2>/dev/null` prints exactly the required output.
+Everything else goes to standard error: the terminal view, errors, and a
+final summary line with the total number of turns and two of the subject's
+secondary metrics (average delivery turn per drone, average moves per turn):
+
+```text
+summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
+```
+
+So `python3 fly_in.py map.txt 2>/dev/null` prints exactly the required output.
 
 ## Instructions
 
@@ -320,7 +328,8 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
 5. **Output** (`droneflow/output`, `droneflow/visualization`). The engine
    calls its observers after every turn: the `TurnLogPrinter` writes and
    flushes the turn line on standard output, and the `TerminalVisualizer`
-   draws the state on standard error.
+   draws the state on standard error. At the end, `RunSummary` writes the
+   summary line.
 
 **Cost.** With Z zones, C connections and D drones: the Dijkstra search is
 O((Z + C) log Z), done once. Each turn, every drone standing in a zone tries
@@ -347,7 +356,7 @@ droneflow/
     scheduling/              Scheduler, ZoneRanking, TurnLedger, HopTaker,
                              Evictor, ReservationTable, DetourPolicy,
                              PositionBoard
-  output/                    TurnLogFormatter, TurnLogPrinter
+  output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
   visualization/             TerminalVisualizer, palette (color names),
                              GraphicalVisualizer and MapScene (matplotlib),
                              geometry (where connections are drawn)

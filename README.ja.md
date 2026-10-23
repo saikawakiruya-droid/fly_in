@@ -11,8 +11,8 @@
 > JSON ファイル、要約行、デバッグ用の切り替えは取り除きました。ターンログはどのマップでも完全版と同じです。
 >
 > **派生ブランチ `feature/minimal_matplotlib`。** さらに `--graphical` オプション1つで、最小限の matplotlib の
-> ウィンドウ(ゾーン、コネクション、ターンごとのドローン、ターン番号)を足しています。オプションなしでは
-> `feature/minimal_build` とまったく同じに動きます。
+> ウィンドウ(ゾーン、コネクション、ターンごとのドローン、ターン番号)を足し、完全版の最後の要約行を
+> 標準エラー出力に戻しています。標準出力のターンログは `feature/minimal_build` と同じです。
 
 ## Description
 
@@ -79,8 +79,14 @@ connection: corridorA-tunnelB [max_link_capacity=2]
   コネクション名はマップでの宣言どおり(`zone_a-zone_b`)。
 - 動かなかったドローンは書かれず、配送済みのドローンはもう出てきません。全機がエンドゾーンに着いたら終了します。
 
-それ以外(ターミナル表示とエラー)はすべて標準エラー出力に出ます。したがって
-`python3 fly_in.py map.txt 2>/dev/null` は、求められている出力だけを表示します。
+それ以外はすべて標準エラー出力に出ます: ターミナル表示、エラー、そして最後の要約行です。要約には
+総ターン数と、課題の副次的な指標のうち 2 つ(1 機あたりの平均配送ターン、1 ターンあたりの平均移動数)が入ります。
+
+```text
+summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
+```
+
+したがって `python3 fly_in.py map.txt 2>/dev/null` は、求められている出力だけを表示します。
 
 ## Instructions
 
@@ -269,7 +275,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
 
 5. **出力**(`droneflow/output`、`droneflow/visualization`)。エンジンは毎ターンの後にオブザーバを呼びます:
    `TurnLogPrinter` がそのターンの行を標準出力に書いてフラッシュし、`TerminalVisualizer` がその状態を
-   標準エラー出力に描きます。
+   標準エラー出力に描きます。最後に `RunSummary` が要約行を書きます。
 
 **コスト。** ゾーン数 Z、コネクション数 C、ドローン数 D として、Dijkstra 探索は O((Z + C) log Z) で 1 度だけ。
 毎ターン、ゾーンにいる各ドローンが少数の一手を試し、それぞれを計画済みの移動がある数ターン分だけ台帳で
@@ -294,7 +300,7 @@ droneflow/
     scheduling/              Scheduler, ZoneRanking, TurnLedger, HopTaker,
                              Evictor, ReservationTable, DetourPolicy,
                              PositionBoard
-  output/                    TurnLogFormatter, TurnLogPrinter
+  output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
   visualization/             TerminalVisualizer, palette(色名),
                              GraphicalVisualizer と MapScene(matplotlib),
                              geometry(コネクションを描く位置)
