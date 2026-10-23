@@ -1570,3 +1570,14 @@ sequenceDiagram
      `Args:` なし 204、`Returns:` なし 137)。
 - 理由: ユーザー判断。Fly-in の課題も「PEP 257 準拠の docstring」を求めており、引数と戻り値の書き方を一つにそろえると評価で説明しやすい。
 - 検討した代替案: 公開の関数だけそろえる、一覧だけ作って自分で直す(ユーザーが「すべて」を選んだ)。NumPy スタイル(今のコードの形と違う)。
+
+## 2026-10-23: 通常の実行では起きない到達不能・start/end の検査を残す
+
+- 決定内容: 次の二つの検査を削除せずに残す。
+  - `droneflow/simulation/scheduling/scheduler.py` の「ドローンがゴールに届かないゾーンにいる」`SimulationError`(`ZoneRanking.rank` が `None` のとき)。
+  - `droneflow/models/network.py` の `start_zone` / `end_zone` で、該当ゾーンがちょうど 1 つでなければ出す `SimulationError`。
+- 理由: ユーザー判断。どちらも通常の実行では起きない(接続は双方向で、Scheduler は距離が `None` のゾーンを除いた
+  `next_hops` / `detour_hops` からしか移動先を選ばず、start/end の数はパーサーが保証する)。ただし `rank` は `int | None` を返し、
+  `start_zone` は `Zone` を返す型なので、見つからない場合の処理はどこかに必要で、削除しても `assert` などに書き換わるだけになる。
+  `Network` をパーサーを通さず直接組む場合の防御にもなる(2026-10-16 の決定と同じ考え方)。
+- 検討した代替案: 一方通行が無いので不要とみなして削除する案。上記の理由で、読みやすさも行数もほとんど変わらないため採らなかった。
