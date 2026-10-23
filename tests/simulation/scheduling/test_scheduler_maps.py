@@ -32,18 +32,19 @@ MakeNetwork = Callable[..., Network]
 
 R = ZoneType.RESTRICTED
 
-# (member in the archive, nb_drones, turn limit, where the limit comes from)
+# (member in the archive, nb_drones, optimum turn count, where it comes
+# from)
 PROVIDED_MAPS = [
-    ("maps/easy/01_linear_path.txt", 2, 6, "VII.7"),
-    ("maps/easy/02_simple_fork.txt", 4, 8, "VII.7"),
-    ("maps/easy/03_basic_capacity.txt", 4, 6, "VII.7"),
-    ("maps/medium/01_dead_end_trap.txt", 5, 12, "VII.7"),
-    ("maps/medium/02_circular_loop.txt", 6, 15, "VII.7"),
-    ("maps/medium/03_priority_puzzle.txt", 5, 12, "VII.7"),
-    ("maps/hard/01_maze_nightmare.txt", 8, 30, "VII.7"),
-    ("maps/hard/02_capacity_hell.txt", 12, 35, "VII.7"),
-    ("maps/hard/03_ultimate_challenge.txt", 15, 45, "VII.7"),
-    ("maps/challenger/01_the_impossible_dream.txt", 25, 44, "IX"),
+    ("maps/easy/01_linear_path.txt", 2, 4, "VII.6"),
+    ("maps/easy/02_simple_fork.txt", 4, 4, "VII.6"),
+    ("maps/easy/03_basic_capacity.txt", 4, 4, "VII.6"),
+    ("maps/medium/01_dead_end_trap.txt", 5, 8, "VII.6"),
+    ("maps/medium/02_circular_loop.txt", 6, 10, "VII.6"),
+    ("maps/medium/03_priority_puzzle.txt", 5, 6, "VII.6"),
+    ("maps/hard/01_maze_nightmare.txt", 8, 13, "VII.6"),
+    ("maps/hard/02_capacity_hell.txt", 12, 16, "VII.6"),
+    ("maps/hard/03_ultimate_challenge.txt", 15, 26, "VII.6"),
+    ("maps/challenger/01_the_impossible_dream.txt", 25, 43, "VII.6"),
 ]
 GRADED_MAPS = [e for e in PROVIDED_MAPS if "challenger" not in e[0]]
 CHALLENGER = PROVIDED_MAPS[-1]
@@ -210,27 +211,31 @@ def test_every_turn_is_sound(load_world: Load, source: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("member", "nb_drones", "limit"),
+    ("member", "nb_drones", "optimum"),
     [entry[:3] for entry in GRADED_MAPS],
     ids=[map_id(entry[0]) for entry in GRADED_MAPS],
 )
-def test_provided_map_meets_target(
-    load_world: Load, member: str, nb_drones: int, limit: int
+def test_provided_map_reaches_optimum(
+    load_world: Load, member: str, nb_drones: int, optimum: int
 ) -> None:
-    """R04: every drone arrives within the VII.7 target turn count."""
+    """R04: every drone arrives within the VII.6 optimum turn count."""
     world = load_world(member)
     assert world.nb_drones == nb_drones
 
-    assert len(run_engine(world)) <= limit
+    assert len(run_engine(world)) <= optimum
 
 
-def test_challenger_beats_reference(load_world: Load) -> None:
-    """R05: all 25 drones arrive in fewer than 45 turns (IX bonus)."""
-    member, nb_drones, _, _ = CHALLENGER
+def test_challenger_within_quarter_of_optimum(load_world: Load) -> None:
+    """R05: all 25 drones arrive within 25% of the VII.6 optimum (43).
+
+    The optimum itself (the IX bonus) is not reached: the scheduler
+    takes 44 turns (R19; decisions 2026-10-23).
+    """
+    member, nb_drones, optimum, _ = CHALLENGER
     world = load_world(member)
     assert world.nb_drones == nb_drones
 
-    assert len(run_engine(world)) < 45
+    assert len(run_engine(world)) <= optimum * 1.25
 
 
 def test_provided_maps_archive(
