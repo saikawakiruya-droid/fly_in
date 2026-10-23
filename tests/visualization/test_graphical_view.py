@@ -104,8 +104,8 @@ def test_drone_in_flight_is_drawn_mid_connection(network: Network) -> None:
     assert tuple(dots[0]) == pytest.approx((1.0, 0.0))
 
 
-def test_connection_in_use_is_drawn_lighter(network: Network) -> None:
-    """VG10: only the connection a drone flies along gets the busy color."""
+def test_connection_in_use_is_highlighted(network: Network) -> None:
+    """VG10: only the connection a drone flies along is cyan and thick."""
     scene = scene_of(network)
     state = SimulationState(network, 1)
     state.enter_transit(1, network.connections[0], "r")
@@ -113,9 +113,18 @@ def test_connection_in_use_is_drawn_lighter(network: Network) -> None:
     scene.show(state)
 
     colors = numpy.asarray(scene.lines.get_colors()).tolist()
-    assert colors[0] == pytest.approx(to_rgba("#96a0b9"))
+    widths = numpy.asarray(scene.lines.get_linewidth()).tolist()
+    assert colors[0] == pytest.approx(to_rgba("#00dcff"))
     assert colors[1] == pytest.approx(to_rgba("#555c6c"))
     assert colors[2] == pytest.approx(to_rgba("#555c6c"))
+    assert widths == pytest.approx([3.0, 1.5, 1.5])
+
+    state.complete_transit(1)
+    scene.show(state)
+
+    assert numpy.asarray(scene.lines.get_linewidth()).tolist() == (
+        pytest.approx([1.5, 1.5, 1.5])
+    )
 
 
 def test_zone_color_falls_back_to_matplotlib_then_gray() -> None:

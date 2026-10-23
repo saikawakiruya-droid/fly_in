@@ -40,7 +40,7 @@ _TICK = 0.02
 
 _BACKGROUND = "#181b22"
 _LINK = "#555c6c"
-_LINK_BUSY = "#96a0b9"
+_LINK_WIDTH = 1.5
 _TEXT = "#e1e4eb"
 _DRONE = "#fafafa"
 _DRONE_FLYING = "#00dcff"
@@ -51,8 +51,8 @@ _ENDPOINT_RING = "#f5f5f5"
 _RESTRICTED_RING = "#ff5a3c"
 _PRIORITY_RING = "#ffc800"
 _KEY = ("white ring: start/end   square, red ring: restricted   "
-        "gold ring: priority   gray: blocked   cyan: drones in flight "
-        "(their connection lighter)")
+        "gold ring: priority   gray: blocked   "
+        "cyan: drones in flight and their connection")
 _MAX_NAMED_ZONES = 60
 """Maps with more zones are drawn without zone names."""
 
@@ -117,7 +117,7 @@ class MapScene:
         axes.set_axis_off()
         axes.set_aspect("equal", adjustable="datalim")
         self.lines = LineCollection(
-            list(self.paths.values()), colors=_LINK, linewidths=1.5,
+            list(self.paths.values()), colors=_LINK, linewidths=_LINK_WIDTH,
             zorder=1,
         )
         axes.add_collection(self.lines)
@@ -142,15 +142,16 @@ class MapScene:
         One drone is a dot; several at the same point are one bigger dot
         holding their number. Delivered drones stay in the end zone, and
         drones flying to a restricted zone are drawn cyan, in the middle
-        of their connection, which is drawn lighter.
+        of their connection, which is drawn cyan and twice as thick.
 
         Args:
             state: The state to show.
         """
-        self.lines.set_color([
-            _LINK_BUSY if state.link_load(link) > 0 else _LINK
-            for link in self._links
-        ])
+        busy = [state.link_load(link) > 0 for link in self._links]
+        self.lines.set_color([_DRONE_FLYING if b else _LINK for b in busy])
+        self.lines.set_linewidth(
+            [_LINK_WIDTH * 2 if b else _LINK_WIDTH for b in busy]
+        )
         for artist in self._drones:
             artist.remove()
         groups: dict[Point, list[Drone]] = {}
