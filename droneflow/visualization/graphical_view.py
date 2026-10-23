@@ -15,6 +15,14 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
 import pygame  # noqa: E402
 
+# The drawing uses pygame-ce additions (e.g. pygame.draw.aacircle). The
+# original pygame imports fine but lacks them, so report it as a missing
+# pygame-ce; the application turns this into its install hint.
+if not getattr(pygame, "IS_CE", False):
+    raise ModuleNotFoundError(
+        "the graphical view needs pygame-ce, not pygame", name="pygame"
+    )
+
 from ..errors import VisualizationError  # noqa: E402
 from ..models.connection import Connection  # noqa: E402
 from ..models.drone import Drone  # noqa: E402
