@@ -1,10 +1,8 @@
-"""Fixtures for the visualization tests (none of them need pygame).
+"""Fixtures for the visualization tests.
 
 ``coord_network`` registers zones with coordinates and colors, which
 ``make_network`` leaves at (0, 0) and unset. ``tty_stream`` (a terminal
-stand-in) comes from ``tests/conftest.py``. The graphical view's headless
-fixture lives in its own test file, which is skipped as a whole without
-pygame.
+stand-in) comes from ``tests/conftest.py``.
 """
 
 from typing import Protocol

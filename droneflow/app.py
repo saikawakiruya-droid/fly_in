@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import TextIO
 
 from .cli import Args
-from .errors import MapFileError, OutputFileError, VisualizationError
+from .errors import MapFileError, OutputFileError
 from .interchange.run_file import RunRecorder
 from .interchange.world_file import WorldFile
 from .models.network import Network
@@ -118,8 +118,7 @@ class Application:
                 cannot be read (``MapFileError``) or is invalid
                 (``ParseError``, or ``WorldFileError`` with
                 ``--from-world``), the goal is unreachable
-                (``UnreachableGoalError``), the requested view cannot be
-                used (``VisualizationError``), the simulation fails
+                (``UnreachableGoalError``), the simulation fails
                 (``SimulationError``), or a JSON file cannot be written
                 (``OutputFileError``).
         """
@@ -223,50 +222,16 @@ class Application:
     def _make_views(self) -> list[_GuardedView]:
         """Build the views selected by --visual and --step.
 
-        With ``both``, only the graphical window waits for the user in
-        step mode; the terminal view just follows it.
-
         Returns:
             The views, each wrapped so that a failing close is kept.
-
-        Raises:
-            VisualizationError: If the graphical view is requested but
-                pygame is not installed.
         """
-        visual = self.args.visual
         views: list[_GuardedView] = []
-        if visual in ("terminal", "both"):
-            terminal_steps = self.args.step and visual == "terminal"
+        if self.args.visual == "terminal":
             views.append(_GuardedView(
                 "terminal",
-                TerminalVisualizer(stream=self.err, step=terminal_steps),
+                TerminalVisualizer(stream=self.err, step=self.args.step),
             ))
-        if visual in ("graphical", "both"):
-            views.append(_GuardedView("graphical", self._graphical_view()))
         return views
-
-    def _graphical_view(self) -> TurnObserver:
-        """Import pygame lazily and build the graphical view.
-
-        Returns:
-            The graphical view, set up from the arguments.
-
-        Raises:
-            VisualizationError: If pygame is not installed.
-        """
-        try:
-            from .visualization.graphical_view import GraphicalVisualizer
-        except ModuleNotFoundError as exc:
-            if exc.name is None or exc.name.split(".")[0] != "pygame":
-                raise
-            raise VisualizationError(
-                "the graphical view needs pygame (pygame-ce): run "
-                "'make install' or 'pip install pygame-ce', or use "
-                "--visual terminal"
-            ) from exc
-        return GraphicalVisualizer(
-            delay=self.args.delay, hold_final=True, step=self.args.step
-        )
 
     def _warn_close_failures(self, views: list[_GuardedView]) -> None:
         """Write one warning line per view whose ``close`` failed.

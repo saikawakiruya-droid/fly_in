@@ -92,14 +92,6 @@ class MapFileError(FlyInError):
         super().__init__(f"cannot read map file '{path}': {reason}")
 
 
-class VisualizationError(FlyInError):
-    """Raised when the requested visualization cannot be used.
-
-    For example when the graphical view is asked for but pygame is not
-    installed, or when no window can be opened.
-    """
-
-
 class WorldFileError(FlyInError):
     """Raised when a world file (written by ``--parse-only``) is invalid.
 

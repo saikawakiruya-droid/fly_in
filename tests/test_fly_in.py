@@ -15,7 +15,6 @@ import io
 import os
 import subprocess
 import sys
-import types
 from collections.abc import Callable
 from pathlib import Path
 
@@ -104,19 +103,6 @@ def fail_close(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(TerminalVisualizer, "close", close)
 
 
-def break_palette_import(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make importing the graphical view fail on a module not pygame."""
-    pygame = types.ModuleType("pygame")
-    setattr(pygame, "IS_CE", True)
-    monkeypatch.setitem(sys.modules, "pygame", pygame)
-    monkeypatch.setitem(
-        sys.modules, "droneflow.visualization.palette", None
-    )
-    monkeypatch.delitem(
-        sys.modules, "droneflow.visualization.graphical_view", raising=False
-    )
-
-
 def test_success(
     sample_path: Path, log: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -168,7 +154,7 @@ def test_bad_arguments_exit_2_before_anything(
     monkeypatch.setattr(fly_in, "Application", NeverBuilt)
 
     with pytest.raises(SystemExit) as info:
-        call_main("m.txt", "--delay", "-1")
+        call_main("m.txt", "--visual", "graphical")
 
     assert info.value.code == 2
     assert "usage:" in capsys.readouterr().err
@@ -255,7 +241,7 @@ def test_closed_pipe(
     assert silenced == [None]
 
 
-@pytest.mark.parametrize("case", ["bug", "other-os-error", "import"])
+@pytest.mark.parametrize("case", ["bug", "other-os-error"])
 def test_last_resort(
     case: str,
     sample_path: Path,
@@ -267,22 +253,16 @@ def test_last_resort(
     if case == "bug":
         raising_app(monkeypatch, ValueError("injected bug"))
         expected = "error: internal error: ValueError: injected bug"
-    elif case == "other-os-error":
+    else:
         raising_app(monkeypatch, PermissionError("denied"))
         expected = "error: internal error: PermissionError: denied"
-    else:
-        break_palette_import(monkeypatch)
-        expected = "error: internal error: ModuleNotFoundError: "
 
-    assert call_main(str(sample_path), "--visual", "graphical") == 1
+    assert call_main(str(sample_path), "--visual", "none") == 1
 
     captured = capsys.readouterr()
     lines = captured.err.splitlines()
     assert len(lines) == 1
-    if case == "import":
-        assert lines[0].startswith(expected)
-    else:
-        assert lines[0] == expected
+    assert lines[0] == expected
     assert "Traceback" not in captured.err
     assert captured.out == ""
     assert silenced == []
@@ -396,7 +376,6 @@ def test_script_success(scheduler_output: list[str]) -> None:
     assert result.stdout.splitlines() == scheduler_output
     assert result.stderr.splitlines()[-1] == SUMMARY
     assert "Traceback" not in result.stderr
-    assert "pygame" not in result.stdout
     assert "===" not in result.stdout
 
 

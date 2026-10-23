@@ -1,10 +1,9 @@
-"""Tests for droneflow.app (Application), with no pygame needed.
+"""Tests for droneflow.app (Application).
 
 ``Application(args, out, err)`` writes to two ``StringIO`` objects, so the
 turn log (stdout) and everything else (stderr) are compared as text.
-Missing pygame is simulated through ``sys.modules``; graphical runs live
-in ``test_app_graphical.py``. Step mode is not run: the views are built
-with ``_make_views()`` and inspected. Decisions 2026-10-18 "visualization
+Step mode is not run: the views are built with ``_make_views()`` and
+inspected. Decisions 2026-10-18 "visualization
 in the CLI phase", "step mode", "the CLI's shape", "turn log", "summary",
 "error handling", "close failures are a warning" and 2026-10-17
 "terminal view on stderr".
@@ -13,14 +12,13 @@ in the CLI phase", "step mode", "the CLI's shape", "turn log", "summary",
 import io
 import json
 import sys
-import types
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from droneflow.app import Application
-from droneflow.cli import Args, VisualMode, parse_args
+from droneflow.cli import Args, parse_args
 from droneflow.errors import (
     FlyInError,
     MapFileError,
@@ -28,7 +26,6 @@ from droneflow.errors import (
     ParseError,
     SimulationError,
     UnreachableGoalError,
-    VisualizationError,
     WorldFileError,
 )
 from droneflow.interchange.world_file import world_to_json
@@ -46,14 +43,9 @@ TtyStream = Callable[..., io.StringIO]
 SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]
 StuckAfter = Callable[[int], SchedulerMaker]
 
-GRAPHICAL_MODULE = "droneflow.visualization.graphical_view"
 SUMMARY = (
     "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
     "3.40 moves per turn"
-)
-NO_PYGAME = (
-    "the graphical view needs pygame (pygame-ce): run 'make install' or "
-    "'pip install pygame-ce', or use --visual terminal"
 )
 COMMENT_FIRST_MAP = "# c\nnb_drones: 1\n"
 UNREACHABLE_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: g 1 1\n"
@@ -95,13 +87,6 @@ def log(scheduler_output: list[str]) -> str:
 def sample_path(write_map: WriteMap, subject_map: str) -> Path:
     """Write the subject's example map and return its path."""
     return write_map(subject_map)
-
-
-@pytest.fixture
-def no_pygame(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make ``import pygame`` fail as if pygame were not installed."""
-    monkeypatch.setitem(sys.modules, "pygame", None)
-    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
 
 
 @pytest.fixture
@@ -190,13 +175,12 @@ def test_log_lines_come_before_each_frame(
 
 
 @pytest.mark.parametrize(
-    ("step", "delay", "expected_step"),
-    [(True, 0.5, True), (False, 0.5, False), (False, 3.0, False)],
-    ids=["step", "no-step", "delay-ignored"],
+    ("step", "expected_step"),
+    [(True, True), (False, False)],
+    ids=["step", "no-step"],
 )
 def test_terminal_view_assembly(
     step: bool,
-    delay: float,
     expected_step: bool,
     sample_path: Path,
     tty_stream: TtyStream,
@@ -206,7 +190,7 @@ def test_terminal_view_assembly(
     monkeypatch.setattr(sys, "stdin", tty_stream())
     out, err = io.StringIO(), io.StringIO()
     app = Application(
-        Args(sample_path, "terminal", delay=delay, step=step), out, err
+        Args(sample_path, "terminal", step=step), out, err
     )
 
     views = app._make_views()
@@ -218,15 +202,11 @@ def test_terminal_view_assembly(
     assert terminal.stream is err
 
 
-def test_none_builds_no_view(
-    sample_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AA05: none builds no view and never imports pygame's view."""
-    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
-    app = Application(Args(sample_path, "none", delay=3, step=True))
+def test_none_builds_no_view(sample_path: Path) -> None:
+    """AA05: none builds no view."""
+    app = Application(Args(sample_path, "none", step=True))
 
     assert app._make_views() == []
-    assert GRAPHICAL_MODULE not in sys.modules
 
 
 @pytest.mark.parametrize("case", ["missing", "directory", "not-utf8"])
@@ -290,91 +270,6 @@ def test_map_errors_pass_through(
     assert str(info.value) == message
     assert out == ""
     assert err == ""
-
-
-@pytest.mark.parametrize("visual", ["graphical", "both"])
-@pytest.mark.usefixtures("no_pygame")
-def test_missing_pygame(visual: VisualMode, sample_path: Path) -> None:
-    """AA08: no pygame: VisualizationError before anything is shown."""
-    info, out, err = run_failing(
-        Args(sample_path, visual), VisualizationError
-    )
-
-    assert str(info.value) == NO_PYGAME
-    cause = info.value.__cause__
-    assert isinstance(cause, ModuleNotFoundError)
-    assert cause.name == "pygame"
-    assert out == ""
-    assert err == ""
-
-
-@pytest.mark.parametrize("visual", ["graphical", "both"])
-def test_original_pygame_is_a_missing_pygame_ce(
-    visual: VisualMode, sample_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AA16: the original pygame (no IS_CE) gets the same pygame hint."""
-    monkeypatch.setitem(sys.modules, "pygame", types.ModuleType("pygame"))
-    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
-
-    info, out, err = run_failing(
-        Args(sample_path, visual), VisualizationError
-    )
-
-    assert str(info.value) == NO_PYGAME
-    cause = info.value.__cause__
-    assert isinstance(cause, ModuleNotFoundError)
-    assert cause.name == "pygame"
-    assert out == ""
-    assert err == ""
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        (None, MapFileError),
-        (COMMENT_FIRST_MAP, ParseError),
-        (UNREACHABLE_MAP, UnreachableGoalError),
-    ],
-    ids=["missing", "parse", "unreachable"],
-)
-@pytest.mark.usefixtures("no_pygame")
-def test_map_errors_come_before_missing_pygame(
-    text: str | None,
-    expected: type[FlyInError],
-    write_map: WriteMap,
-    tmp_path: Path,
-) -> None:
-    """AA09: map errors are reported before the pygame hint."""
-    path = tmp_path / "missing.txt" if text is None else write_map(text)
-
-    info, _, _ = run_failing(Args(path, "graphical"), expected)
-
-    assert type(info.value) is expected
-
-
-def test_other_import_errors_are_not_wrapped(
-    sample_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AA10: only a missing pygame becomes the pygame hint.
-
-    A stand-in pygame module is installed so the failing import is the
-    palette, whether or not pygame is really installed.
-    """
-    pygame = types.ModuleType("pygame")
-    setattr(pygame, "IS_CE", True)
-    monkeypatch.setitem(sys.modules, "pygame", pygame)
-    monkeypatch.setitem(
-        sys.modules, "droneflow.visualization.palette", None
-    )
-    monkeypatch.delitem(sys.modules, GRAPHICAL_MODULE, raising=False)
-
-    info, out, err = run_failing(
-        Args(sample_path, "graphical"), ModuleNotFoundError
-    )
-
-    assert isinstance(info.value, ModuleNotFoundError)
-    assert info.value.name == "droneflow.visualization.palette"
-    assert out == ""
 
 
 @pytest.mark.usefixtures("fail_close")
@@ -565,19 +460,6 @@ def test_parse_only(
         f"world: wrote {path} (7 zones, 6 connections, 5 drones)\n"
     )
     assert read_json(Path(path)) == world_to_json(load_world(subject_map))
-
-
-@pytest.mark.usefixtures("no_pygame")
-def test_parse_only_builds_no_view(sample_path: Path, tmp_path: Path) -> None:
-    """SA02: no view is built, so a missing pygame does not matter."""
-    path = str(tmp_path / "w.json")
-
-    out, err = run_app(
-        Args(sample_path, visual="graphical", parse_only=path)
-    )
-
-    assert out == ""
-    assert err.startswith(f"world: wrote {path} ")
 
 
 def test_from_world_runs_like_the_map(world_path: Path, log: str) -> None:

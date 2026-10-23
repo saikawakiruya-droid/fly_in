@@ -1,15 +1,13 @@
-"""Color names to RGB, shared by every view (no pygame needed).
+"""Color names to RGB, for the terminal view.
 
 The subject accepts any single-word string as a zone color, with no fixed
 list. This table covers the common names, including every color used by
 the maps handed out with the subject except ``rainbow`` (not a single
-color, so it is deliberately left out); views fall back to a default
-color for any name not in the table instead of failing.
+color, so it is deliberately left out); a name not in the table is
+left in the terminal's default color instead of failing.
 """
 
 RGB = tuple[int, int, int]
-
-DEFAULT_ZONE_RGB: RGB = (170, 170, 170)
 
 _NAMED_RGB: dict[str, RGB] = {
     "black": (40, 40, 40),

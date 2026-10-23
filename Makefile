@@ -2,7 +2,7 @@
 #
 #   make install        create .venv (if absent) and install requirements.txt
 #   make run            run the default map; override with MAP=... ARGS=...
-#                       e.g. make run MAP=maps/x.txt ARGS="--visual both"
+#                       e.g. make run MAP=maps/x.txt ARGS="--visual none"
 #   make debug          the same, under pdb (FLYIN_DEBUG=1: unexpected
 #                       exceptions reach pdb instead of a one-line error)
 #   make clean          remove caches (__pycache__, .mypy_cache, ...)

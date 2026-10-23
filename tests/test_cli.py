@@ -1,9 +1,9 @@
-"""Tests for droneflow.cli (argument parsing, no pygame needed).
+"""Tests for droneflow.cli (argument parsing).
 
 ``parse_args(argv)`` is called directly. Usage errors are checked through
 ``SystemExit.code`` and the text argparse writes to standard error.
 Decisions 2026-10-18 "the CLI's shape" and "points found by the CLI test
-design" (the 60 second limit, the map path as typed).
+design" (the map path as typed).
 """
 
 from pathlib import Path
@@ -12,8 +12,6 @@ from typing import get_args
 import pytest
 
 from droneflow.cli import (
-    DEFAULT_DELAY,
-    MAX_DELAY,
     VISUAL_MODES,
     Args,
     VisualMode,
@@ -36,24 +34,21 @@ def usage_error(
 
 
 def test_defaults() -> None:
-    """AC01: only MAP given: terminal view, 0.5 s, no step mode."""
+    """AC01: only MAP given: terminal view, no step mode."""
     args = parse_args(["m.txt"])
 
-    assert args == Args(
-        map_path=Path("m.txt"), visual="terminal", delay=0.5, step=False
-    )
+    assert args == Args(map_path=Path("m.txt"), visual="terminal", step=False)
     assert isinstance(args.map_path, Path)
-    assert DEFAULT_DELAY == 0.5
 
 
-@pytest.mark.parametrize("mode", ["terminal", "graphical", "both", "none"])
+@pytest.mark.parametrize("mode", ["terminal", "none"])
 def test_visual_modes(mode: str) -> None:
-    """AC02: the four --visual values, the same as VISUAL_MODES."""
+    """AC02: the two --visual values, the same as VISUAL_MODES."""
     assert parse_args(["m.txt", "--visual", mode]).visual == mode
-    assert VISUAL_MODES == ("terminal", "graphical", "both", "none")
+    assert VISUAL_MODES == ("terminal", "none")
 
 
-@pytest.mark.parametrize("value", ["gui", "Terminal"])
+@pytest.mark.parametrize("value", ["graphical", "Terminal"])
 def test_visual_rejects_unknown_values(
     value: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -61,55 +56,6 @@ def test_visual_rejects_unknown_values(
     lines = usage_error(capsys, ["m.txt", "--visual", value])
 
     assert f"invalid choice: '{value}'" in lines[-1]
-
-
-@pytest.mark.parametrize(
-    ("argv", "expected"),
-    [
-        (["m.txt", "--delay", "0"], 0.0),
-        (["m.txt", "--delay", "0.25"], 0.25),
-        (["m.txt", "--delay", "1e1"], 10.0),
-        (["m.txt", "--delay", "-0"], 0.0),
-        (["m.txt", "--delay=2"], 2.0),
-    ],
-    ids=["zero", "fraction", "exponent", "minus-zero", "equals-form"],
-)
-def test_delay_accepts(argv: list[str], expected: float) -> None:
-    """AC04: finite numbers from 0 are accepted, 0 itself included."""
-    delay = parse_args(argv).delay
-
-    assert isinstance(delay, float)
-    assert delay == expected
-
-
-@pytest.mark.parametrize(
-    ("value", "reason"),
-    [
-        ("-1", "must be a finite number of seconds >= 0: '-1'"),
-        ("-0.001", "must be a finite number of seconds >= 0: '-0.001'"),
-        ("nan", "must be a finite number of seconds >= 0: 'nan'"),
-        ("inf", "must be a finite number of seconds >= 0: 'inf'"),
-        ("-inf", "must be a finite number of seconds >= 0: '-inf'"),
-        ("abc", "not a number: 'abc'"),
-        ("", "not a number: ''"),
-    ],
-)
-def test_delay_rejects(
-    value: str, reason: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """AC05: negative, non-finite and non-numeric delays exit with 2.
-
-    ``-inf`` is passed as ``--delay=-inf``: written as a separate word,
-    argparse takes it for an option (it is not a negative number to its
-    eyes) and reports "expected one argument" instead.
-    """
-    argv = ["m.txt", "--delay", value]
-    if value == "-inf":
-        argv = ["m.txt", f"--delay={value}"]
-
-    lines = usage_error(capsys, argv)
-
-    assert lines[-1] == f"fly_in.py: error: argument --delay: {reason}"
 
 
 @pytest.mark.parametrize(
@@ -134,7 +80,7 @@ def test_missing_and_unknown_arguments(
     "argv",
     [
         ["m.txt", "--step"],
-        ["m.txt", "--visual", "none", "--step", "--delay", "3"],
+        ["m.txt", "--visual", "none", "--step"],
     ],
     ids=["default-view", "unrelated-mode"],
 )
@@ -156,38 +102,17 @@ def test_help(
     out = capsys.readouterr().out
     for text in [
         "usage: fly_in.py",
-        "--visual {terminal,graphical,both,none}",
-        "--delay SECONDS",
+        "--visual {terminal,none}",
         "--step",
         "(default: terminal)",
-        f"(default: {DEFAULT_DELAY})",
-        f"0 to {MAX_DELAY:g}",
     ]:
         assert text in out
-
-
-def test_delay_upper_limit_is_accepted() -> None:
-    """AC09: exactly 60 seconds is accepted (the boundary)."""
-    assert parse_args(["m.txt", "--delay", "60"]).delay == 60.0
-
-
-@pytest.mark.parametrize("value", ["60.5", "1e308"])
-def test_delay_above_upper_limit(
-    value: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """AC09: above 60 seconds is a usage error, not a later crash."""
-    lines = usage_error(capsys, ["m.txt", "--delay", value])
-
-    assert lines[-1] == (
-        "fly_in.py: error: argument --delay: "
-        f"must be between 0 and 60 seconds: '{value}'"
-    )
 
 
 def test_visual_modes_come_from_the_literal() -> None:
     """NT10: VISUAL_MODES is the Literal's values, in the same order."""
     assert VISUAL_MODES == get_args(VisualMode)
-    assert VISUAL_MODES == ("terminal", "graphical", "both", "none")
+    assert VISUAL_MODES == ("terminal", "none")
 
 
 def test_stage_options_default_off() -> None:

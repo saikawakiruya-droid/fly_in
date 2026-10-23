@@ -1,1 +1,1 @@
-"""Visual feedback: terminal colors and/or a graphical view."""
+"""Visual feedback: colored terminal output."""
