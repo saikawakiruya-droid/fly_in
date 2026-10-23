@@ -227,11 +227,11 @@ class _Window:
         self._drag: Point | None = None
 
     def drone_point(self, drone: Drone) -> Point | None:
-        """Return where a drone is, in map pixels, or None once delivered."""
+        """Return where a drone is, in map pixels (delivered: the end)."""
         if drone.in_transit_connection is not None:
             link = self.links.get(drone.in_transit_connection)
             return None if link is None else self.layout.midpoint(link)
-        if drone.current_zone is None or drone.is_delivered:
+        if drone.current_zone is None:
             return None
         return self.layout.position(drone.current_zone)
 
@@ -497,7 +497,7 @@ class _Window:
 
     def _draw_drones(self, state: SimulationState, moved: set[int]) -> None:
         groups: dict[Point, list[Drone]] = {}
-        for drone in state.active_drones():
+        for drone in state.drones.values():
             point = self.drone_point(drone)
             if point is not None:
                 groups.setdefault(point, []).append(drone)
@@ -746,7 +746,7 @@ class GraphicalVisualizer:
         trails: list[Path] = []
         for move in moves:
             start = self._previous.get(move.drone_id)
-            end = self._point_after(window, state, move)
+            end = window.drone_point(state.drones[move.drone_id])
             if start is not None and end is not None and start != end:
                 trails.append(self._trail(window, move, start, end))
         window.show(state, moves, trails)
@@ -784,16 +784,6 @@ class GraphicalVisualizer:
             if part is not None:
                 return part
         return [start, end]
-
-    @staticmethod
-    def _point_after(
-        window: _Window, state: SimulationState, move: Move
-    ) -> Point | None:
-        """Return where the move ended, delivered drones included."""
-        drone = state.drones[move.drone_id]
-        if drone.is_delivered and drone.current_zone is not None:
-            return window.layout.position(drone.current_zone)
-        return window.drone_point(drone)
 
     def _open(self, network: Network) -> _Window | None:
         if self._closed:

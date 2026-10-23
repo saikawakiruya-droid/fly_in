@@ -1544,3 +1544,14 @@ sequenceDiagram
   - `graphical_view.py` から直接 `VisualizationError` を出す。文言が `app.py` と二重になるため見送った。
   - `aacircle` を使わず本家 pygame でも動くようにする。なめらかな描画をやめることになり、requirements も pygame-ce のままなので見送った。
   - システムの `python3` に pygame-ce を入れる。環境の問題で、`.venv`(`make install`)を使えば済むので見送った。
+
+## 2026-10-23: グラフィカル表示で、goal に配達済みのドローンを数のバッジで描く
+
+- 決定内容(ユーザー判断。「複数のドローンが同じ場所にいるときにすでに使っている『数を書いたバッジ』の描き方で表示して」):
+  1. `_Window.drone_point` は、配達済みのドローンも消さずに、いるゾーン(end)の位置を返す。
+  2. `_draw_drones` は配達前だけ(`active_drones()`)でなく全ドローンを描く。goal に2機以上いれば同じ場所の機と同じ数のバッジ、
+     1機なら点になる(VO07 と同じ描き分け)。このターンに着いた機があれば、バッジの縁が「動いた」色になる。
+  3. 配達済みの機の位置を特別に扱っていた `GraphicalVisualizer._point_after` は、`drone_point` と同じになるので消す。
+  4. ターミナル表示・`run.json` は変えない(goal は `N in` / `delivered_count` のまま)。
+- 理由: goal に着くとドローンの点が消え、数は goal の下の `N in` と上部の `delivered N/M` にしか出ず、着いたのが見えにくかった。
+- 検討した代替案: 1機ずつ点を描く(機の多いマップでは重なって読めない)、goal のラベルの文字を大きくする(位置で見えない)。
