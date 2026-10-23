@@ -47,6 +47,13 @@
 - サブエージェントの報告で、自分の読みで書いた箇所: `Evictor._keep_seats` の Returns(失敗時は表が途中まで変わり、`make_room` が戻す)、
   `_draw_fill_bar` の説明の1文、`TurnLogPrinter.begin/render` の `state` は「(unused)」。
 
+## 依頼6: main に入れておいて
+
+- `feature/google_docstrings` を develop にマージ(d866e63)。main は別の worktree で、develop から `droneflow/`・`fly_in.py` を持ってきて、
+  README 両版は 02eea18・0d57e00 の差分だけを当てた(main の README は tests の記述が無い版のため)。
+- main と develop の違いが、決まっている差分(Makefile・requirements・setup.cfg・README の tests の記述・maps.tar.gz)だけなことを確認。
+  main で flake8 通過、課題の例のマップで実行して終了コード 0。main にコミット(d00b383)。push はしていない。
+
 ## 作成・変更したファイル
 
 - `docs/bugs.md`(追記・対応済みに更新)
