@@ -8,7 +8,6 @@ from .cli import Args
 from .errors import MapFileError
 from .models.network import Network
 from .models.world import World
-from .output.summary import RunSummary
 from .output.turn_log_printer import TurnLogPrinter
 from .parsing.map_parser import MapParser
 from .pathfinding.pathfinder import Pathfinder
@@ -22,8 +21,8 @@ class Application:
     """Wires together every stage of the pipeline for a single run.
 
     The turn log goes to ``out`` (standard output), one line per turn as
-    the run goes on, and nothing else does. The terminal view and the
-    final summary go to ``err`` (standard error).
+    the run goes on, and nothing else does. The terminal view goes to
+    ``err`` (standard error).
     """
 
     def __init__(
@@ -40,7 +39,7 @@ class Application:
         Args:
             args: The parsed command-line arguments.
             out: Where the turn log goes; defaults to ``sys.stdout``.
-            err: Where the terminal view and the summary go; defaults to
+            err: Where the terminal view goes; defaults to
                 ``sys.stderr``.
             make_scheduler: Builds what decides each turn's moves from the
                 network and its pathfinder; defaults to ``Scheduler``. Any
@@ -70,11 +69,7 @@ class Application:
             TurnLogPrinter(self.out),
             TerminalVisualizer(stream=self.err),
         ])
-        turns = engine.run(observers)
-        self.err.write(
-            RunSummary.from_turns(turns, world.nb_drones).describe() + "\n"
-        )
-        self.err.flush()
+        engine.run(observers)
 
     def _load_world(self) -> World:
         """Parse the map file.

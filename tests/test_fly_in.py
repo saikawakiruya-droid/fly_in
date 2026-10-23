@@ -22,10 +22,7 @@ from droneflow.visualization.terminal_view import TerminalVisualizer
 WriteMap = Callable[[str], Path]
 
 ROOT = Path(__file__).resolve().parents[1]
-SUMMARY = (
-    "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
-    "3.40 moves per turn"
-)
+LAST_FRAME = "=== Turn 5 | moved 2 | delivered 5/5 ==="
 COMMENT_FIRST_MAP = "# c\nnb_drones: 1\n"
 UNREACHABLE_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: g 1 1\n"
 
@@ -65,13 +62,13 @@ def raising_app(
 def test_success(
     sample_path: Path, log: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """AM01: a good run returns 0; stdout is the log, stderr the summary."""
+    """AM01: a good run returns 0; stdout is the log, stderr the view."""
     assert call_main(str(sample_path)) == 0
 
     captured = capsys.readouterr()
     assert captured.out == log
     assert captured.err.startswith("=== Turn 0 (start)")
-    assert captured.err.splitlines()[-1] == SUMMARY
+    assert LAST_FRAME in captured.err.splitlines()
 
 
 @pytest.mark.parametrize("case", ["missing", "parse", "unreachable"])
@@ -166,7 +163,7 @@ def test_interrupt_during_the_run(
     captured = capsys.readouterr()
     assert captured.out == "".join(log.splitlines(keepends=True)[:2])
     assert captured.err.splitlines()[-1] == "error: interrupted"
-    assert "summary:" not in captured.err
+    assert LAST_FRAME not in captured.err
     assert len(closes) == 1
 
 
@@ -213,7 +210,7 @@ def test_script_success(scheduler_output: list[str]) -> None:
 
     assert result.returncode == 0
     assert result.stdout.splitlines() == scheduler_output
-    assert result.stderr.splitlines()[-1] == SUMMARY
+    assert LAST_FRAME in result.stderr.splitlines()
     assert "Traceback" not in result.stderr
     assert "===" not in result.stdout
 
