@@ -10,7 +10,6 @@ in the CLI phase", "step mode", "the CLI's shape", "turn log", "summary",
 """
 
 import io
-import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -34,7 +33,6 @@ from droneflow.simulation.state import Move, MoveOrder, SimulationState
 from droneflow.visualization.terminal_view import TerminalVisualizer
 
 WriteMap = Callable[[str], Path]
-TtyStream = Callable[..., io.StringIO]
 SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]
 StuckAfter = Callable[[int], SchedulerMaker]
 
@@ -127,7 +125,7 @@ def record_terminal(
     """Put a RecordingView where the terminal view would be built."""
     view = RecordingView(out)
 
-    def factory(stream: object = None, step: bool = False) -> RecordingView:
+    def factory(stream: object = None) -> RecordingView:
         return view
 
     monkeypatch.setattr("droneflow.app.TerminalVisualizer", factory)
@@ -169,37 +167,22 @@ def test_log_lines_come_before_each_frame(
     assert view.at_close == [5]
 
 
-@pytest.mark.parametrize(
-    ("step", "expected_step"),
-    [(True, True), (False, False)],
-    ids=["step", "no-step"],
-)
-def test_terminal_view_assembly(
-    step: bool,
-    expected_step: bool,
-    sample_path: Path,
-    tty_stream: TtyStream,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AA04: the terminal view writes to err and steps with --step."""
-    monkeypatch.setattr(sys, "stdin", tty_stream())
+def test_terminal_view_assembly(sample_path: Path) -> None:
+    """AA04: the terminal view writes to err."""
     out, err = io.StringIO(), io.StringIO()
-    app = Application(
-        Args(sample_path, "terminal", step=step), out, err
-    )
+    app = Application(Args(sample_path, "terminal"), out, err)
 
     views = app._make_views()
 
     assert [v.name for v in views] == ["terminal"]
     terminal = views[0].view
     assert isinstance(terminal, TerminalVisualizer)
-    assert terminal.step is expected_step
     assert terminal.stream is err
 
 
 def test_none_builds_no_view(sample_path: Path) -> None:
     """AA05: none builds no view."""
-    app = Application(Args(sample_path, "none", step=True))
+    app = Application(Args(sample_path, "none"))
 
     assert app._make_views() == []
 

@@ -149,7 +149,7 @@ class Application:
             raise MapFileError(name, "not UTF-8 text") from exc
 
     def _make_views(self) -> list[_GuardedView]:
-        """Build the views selected by --visual and --step.
+        """Build the views selected by --visual.
 
         Returns:
             The views, each wrapped so that a failing close is kept.
@@ -158,7 +158,7 @@ class Application:
         if self.args.visual == "terminal":
             views.append(_GuardedView(
                 "terminal",
-                TerminalVisualizer(stream=self.err, step=self.args.step),
+                TerminalVisualizer(stream=self.err),
             ))
         return views
 

@@ -19,7 +19,6 @@ class Args:
     Attributes:
         map_path: Path to the map file to simulate.
         visual: Visualization mode: "terminal" or "none".
-        step: Advance one turn at a time (Enter in the terminal view).
         map_arg: The map path exactly as typed, for messages; None means
             ``str(map_path)``. Not compared, so Args built by hand equal
             parsed ones.
@@ -27,7 +26,6 @@ class Args:
 
     map_path: Path
     visual: VisualMode = "terminal"
-    step: bool = False
     map_arg: str | None = field(default=None, compare=False)
 
     @property
@@ -60,11 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
         default="terminal",
         help="how to show the run (default: terminal)",
     )
-    parser.add_argument(
-        "--step",
-        action="store_true",
-        help="advance one turn at a time (Enter in the terminal view)",
-    )
     return parser
 
 
@@ -86,6 +79,5 @@ def parse_args(argv: list[str] | None = None) -> Args:
     return Args(
         map_path=Path(namespace.map_path),
         visual=namespace.visual,
-        step=namespace.step,
         map_arg=namespace.map_path,
     )

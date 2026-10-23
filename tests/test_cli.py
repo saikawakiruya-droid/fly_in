@@ -33,10 +33,10 @@ def usage_error(
 
 
 def test_defaults() -> None:
-    """AC01: only MAP given: terminal view, no step mode."""
+    """AC01: only MAP given: terminal view."""
     args = parse_args(["m.txt"])
 
-    assert args == Args(map_path=Path("m.txt"), visual="terminal", step=False)
+    assert args == Args(map_path=Path("m.txt"), visual="terminal")
     assert isinstance(args.map_path, Path)
 
 
@@ -75,19 +75,6 @@ def test_missing_and_unknown_arguments(
     assert lines[-1] == f"fly_in.py: error: {message}"
 
 
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["m.txt", "--step"],
-        ["m.txt", "--visual", "none", "--step"],
-    ],
-    ids=["default-view", "unrelated-mode"],
-)
-def test_step(argv: list[str]) -> None:
-    """AC07: --step is accepted, even with modes that ignore it."""
-    assert parse_args(argv).step is True
-
-
 def test_help(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -102,7 +89,6 @@ def test_help(
     for text in [
         "usage: fly_in.py",
         "--visual {terminal,none}",
-        "--step",
         "(default: terminal)",
     ]:
         assert text in out
