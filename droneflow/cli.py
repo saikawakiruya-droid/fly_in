@@ -11,12 +11,14 @@ class Args:
 
     Attributes:
         map_path: Path to the map file to simulate.
+        graphical: Also show the run in a matplotlib window.
         map_arg: The map path exactly as typed, for messages; None means
             ``str(map_path)``. Not compared, so Args built by hand equal
             parsed ones.
     """
 
     map_path: Path
+    graphical: bool = False
     map_arg: str | None = field(default=None, compare=False)
 
     @property
@@ -40,5 +42,13 @@ def parse_args(argv: list[str] | None = None) -> Args:
     """
     parser = argparse.ArgumentParser(prog="fly_in.py")
     parser.add_argument("map_path", metavar="MAP", help="map file")
+    parser.add_argument(
+        "--graphical", action="store_true",
+        help="also show the run in a window (needs matplotlib)",
+    )
     namespace = parser.parse_args(argv)
-    return Args(map_path=Path(namespace.map_path), map_arg=namespace.map_path)
+    return Args(
+        map_path=Path(namespace.map_path),
+        graphical=namespace.graphical,
+        map_arg=namespace.map_path,
+    )

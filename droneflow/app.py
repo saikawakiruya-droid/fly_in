@@ -5,14 +5,14 @@ from collections.abc import Callable
 from typing import TextIO
 
 from .cli import Args
-from .errors import MapFileError
+from .errors import MapFileError, VisualizationError
 from .models.network import Network
 from .models.world import World
 from .output.turn_log_printer import TurnLogPrinter
 from .parsing.map_parser import MapParser
 from .pathfinding.pathfinder import Pathfinder
 from .simulation.engine import MoveDecider, SimulationEngine
-from .simulation.observer import ObserverGroup
+from .simulation.observer import ObserverGroup, TurnObserver
 from .simulation.scheduling.scheduler import Scheduler
 from .visualization.terminal_view import TerminalVisualizer
 
@@ -22,7 +22,8 @@ class Application:
 
     The turn log goes to ``out`` (standard output), one line per turn as
     the run goes on, and nothing else does. The terminal view goes to
-    ``err`` (standard error).
+    ``err`` (standard error). With ``--graphical``, a matplotlib window
+    shows the run as well.
     """
 
     def __init__(
@@ -57,19 +58,22 @@ class Application:
             droneflow.errors.FlyInError: On any failure: the map file
                 cannot be read (``MapFileError``) or is invalid
                 (``ParseError``), the goal is unreachable
-                (``UnreachableGoalError``), or the simulation fails
-                (``SimulationError``).
+                (``UnreachableGoalError``), the simulation fails
+                (``SimulationError``), or the graphical view cannot be
+                used (``VisualizationError``).
         """
         world = self._load_world()
         pathfinder = Pathfinder(world.network)
         engine = SimulationEngine(
             world, self.make_scheduler(world.network, pathfinder)
         )
-        observers = ObserverGroup([
+        observers: list[TurnObserver] = [
             TurnLogPrinter(self.out),
             TerminalVisualizer(stream=self.err),
-        ])
-        engine.run(observers)
+        ]
+        if self.args.graphical:
+            observers.append(_graphical_view(world.network))
+        engine.run(ObserverGroup(observers))
 
     def _load_world(self) -> World:
         """Parse the map file.
@@ -90,3 +94,25 @@ class Application:
             raise MapFileError(name, reason) from exc
         except UnicodeDecodeError as exc:
             raise MapFileError(name, "not UTF-8 text") from exc
+
+
+def _graphical_view(network: Network) -> TurnObserver:
+    """Open the matplotlib view, imported only when it is asked for.
+
+    Args:
+        network: The network to draw.
+
+    Returns:
+        A new GraphicalVisualizer, its window open.
+
+    Raises:
+        VisualizationError: If matplotlib is not installed or cannot show
+            a window.
+    """
+    try:
+        from .visualization.graphical_view import GraphicalVisualizer
+    except ImportError as exc:
+        raise VisualizationError(
+            f"--graphical needs matplotlib ({exc})"
+        ) from exc
+    return GraphicalVisualizer(network)
