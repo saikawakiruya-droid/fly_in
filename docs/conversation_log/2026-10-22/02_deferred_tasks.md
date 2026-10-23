@@ -180,3 +180,11 @@
 
 - 依頼: 再開。残りの 1(速さのキーのバグ)・3(CLAUDE.md の書き方)・4(`_tmp/` の整理)・5(作業ツリーとブランチの片付け)をすべて進める。
 - 方針: ブランチでの作業は `D:\WorkSpaceclaude_code\` の自分用の作業ツリーで行い、共有の作業ツリー(cc_space)は develop のまま触らない。
+- 1(速さのキー): `fix/delay_keys_range`・`test/delay_keys_range`(自分用の作業ツリー `D:\WorkSpaceclaude_code\fly_in_fix`)。
+  キーの範囲を CLI と同じ 0〜60 秒に(`faster`・`slower`)。VG11 を変更、DK01〜DK07 を追加、895件成功。
+- 3(CLAUDE.md): `fix/claude_md_readme_rule`。README は main 版が元で develop 版は tests の記述を足したもの、と書いた。cordection には該当の節がなく変更不要。
+- 4(`_tmp/`): ユーザー確認のうえ、`visual_review` の検証用マップ2枚と前後比較の画像9枚を `docs/research/2026-10-22_visual_review/` に移し(f7be2eb)、
+  部分実行の一覧表は WSL の調査記録に写した。そのうえで `partial_runs`・`stage_files`・`visual_review` を削除。`huge_mesh` は別セッションが使用中なので残した。
+  archify の図は別セッションがすでに `docs/archify/` に移していた。
+- 質問: README に Windows 用の動作が残っているが、コードにもないか → OS の分岐はもうない。Windows 由来のものとして BOM の読み飛ばし(utf-8-sig)、
+  効いていない `rstrip("\r\n")` の `\r`、`.gitattributes`(Makefile の LF 固定)、端末表示の ASCII を報告。どこまで外すかはユーザー確認待ち。
