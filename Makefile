@@ -3,8 +3,7 @@
 #   make install        create .venv (if absent) and install requirements.txt
 #   make run            run the default map; override with MAP=... ARGS=...
 #                       e.g. make run MAP=maps/x.txt ARGS="--visual none"
-#   make debug          the same, under pdb (FLYIN_DEBUG=1: unexpected
-#                       exceptions reach pdb instead of a one-line error)
+#   make debug          the same, under pdb
 #   make clean          remove caches (__pycache__, .mypy_cache, ...)
 #   make lint           flake8 + mypy with the flags the subject requires
 #   make lint-strict    flake8 + mypy --strict
@@ -39,7 +38,6 @@ $(STAMP): requirements.txt
 run: $(STAMP)
 	$(PYTHON) fly_in.py $(MAP) $(ARGS)
 
-debug: export FLYIN_DEBUG := 1
 debug: $(STAMP)
 	$(PYTHON) -m pdb fly_in.py $(MAP) $(ARGS)
 

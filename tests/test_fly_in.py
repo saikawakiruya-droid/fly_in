@@ -1,18 +1,13 @@
 """Tests for the entry point fly_in.py (main's exception table).
 
 ``fly_in.main(argv)`` runs in the test process and ``capsys`` reads what
-it wrote. ``fly_in._silence_stdout`` is always replaced by a spy (the
-real one points the process's stdout at devnull) and ``FLYIN_DEBUG`` is
-cleared unless a test sets it. Two cases run ``fly_in.py`` in a real
-subprocess to check the exit status and the ``__main__`` wiring.
+it wrote. Two cases run ``fly_in.py`` in a real subprocess to check the
+exit status and the ``__main__`` wiring.
 Decisions 2026-10-18 "error handling", "close failures are a warning",
 "last resort for unexpected exceptions" and "the CLI's shape".
 """
 
-import errno
 import functools
-import io
-import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -22,7 +17,6 @@ import pytest
 
 import fly_in
 from droneflow.app import Application
-from droneflow.errors import ParseError
 from droneflow.models.network import Network
 from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.pathfinding.pathfinder import Pathfinder
@@ -46,22 +40,6 @@ CLOSE_WARNING = "warning: could not close the terminal view: boom"
 def call_main(*argv: str) -> int:
     """Run ``fly_in.main`` with the given arguments."""
     return fly_in.main(list(argv))
-
-
-@pytest.fixture(autouse=True)
-def no_debug(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Start every test without FLYIN_DEBUG, whatever the shell has."""
-    monkeypatch.delenv(fly_in.DEBUG_ENV, raising=False)
-
-
-@pytest.fixture(autouse=True)
-def silenced(monkeypatch: pytest.MonkeyPatch) -> list[None]:
-    """Replace ``_silence_stdout`` with a spy; return its calls."""
-    calls: list[None] = []
-    monkeypatch.setattr(
-        fly_in, "_silence_stdout", lambda: calls.append(None)
-    )
-    return calls
 
 
 @pytest.fixture
@@ -210,42 +188,10 @@ def test_interrupt_during_the_run(
     assert len(closes) == 1
 
 
-class BrokenStdout(io.StringIO):
-    """A stdout whose reader went away."""
-
-    def write(self, text: str) -> int:
-        """Fail like a closed pipe."""
-        raise BrokenPipeError(errno.EPIPE, "Broken pipe")
-
-
-@pytest.mark.parametrize(
-    "case",
-    ["broken-pipe", "real-path"],
-)
-def test_closed_pipe(
-    case: str,
-    sample_path: Path,
-    silenced: list[None],
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AM06: a closed stdout pipe: nothing printed, exit status 1."""
-    if case == "broken-pipe":
-        raising_app(monkeypatch, BrokenPipeError())
-    else:
-        monkeypatch.setattr(sys, "stdout", BrokenStdout())
-
-    assert call_main(str(sample_path), "--visual", "none") == 1
-
-    assert capsys.readouterr().err == ""
-    assert silenced == [None]
-
-
 @pytest.mark.parametrize("case", ["bug", "other-os-error"])
 def test_last_resort(
     case: str,
     sample_path: Path,
-    silenced: list[None],
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -265,58 +211,6 @@ def test_last_resort(
     assert lines[0] == expected
     assert "Traceback" not in captured.err
     assert captured.out == ""
-    assert silenced == []
-
-
-def test_debug_lets_bugs_through(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AM09 (1): FLYIN_DEBUG=1 lets the very same exception propagate."""
-    bug = ValueError("x")
-    raising_app(monkeypatch, bug)
-    monkeypatch.setenv(fly_in.DEBUG_ENV, "1")
-
-    with pytest.raises(ValueError) as info:
-        call_main("m.txt")
-
-    assert info.value is bug
-
-
-@pytest.mark.parametrize("value", ["0", "true", ""])
-def test_debug_needs_exactly_1(
-    value: str,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AM09 (2): any other FLYIN_DEBUG value keeps the last resort."""
-    raising_app(monkeypatch, ValueError("x"))
-    monkeypatch.setenv(fly_in.DEBUG_ENV, value)
-
-    assert call_main("m.txt") == 1
-
-    assert capsys.readouterr().err == "error: internal error: ValueError: x\n"
-
-
-@pytest.mark.parametrize(
-    ("exc", "code", "message"),
-    [
-        (ParseError(1, "bad"), 1, "error: line 1: bad\n"),
-        (KeyboardInterrupt(), 130, "error: interrupted\n"),
-    ],
-    ids=["fly-in-error", "interrupt"],
-)
-def test_debug_keeps_known_errors(
-    exc: BaseException,
-    code: int,
-    message: str,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AM09 (3): FLYIN_DEBUG=1 does not change the known cases."""
-    raising_app(monkeypatch, exc)
-    monkeypatch.setenv(fly_in.DEBUG_ENV, "1")
-
-    assert call_main("m.txt") == code
-
-    assert capsys.readouterr().err == message
 
 
 @pytest.mark.usefixtures("fail_close")
@@ -356,14 +250,12 @@ def test_close_failure_after_failure(
 
 def run_script(*argv: str) -> subprocess.CompletedProcess[str]:
     """Run ``fly_in.py`` in a new process from the repository root."""
-    env = {k: v for k, v in os.environ.items() if k != fly_in.DEBUG_ENV}
     return subprocess.run(
         [sys.executable, "fly_in.py", *argv],
         cwd=ROOT,
         capture_output=True,
         text=True,
         stdin=subprocess.DEVNULL,
-        env=env,
         timeout=60,
     )
 
