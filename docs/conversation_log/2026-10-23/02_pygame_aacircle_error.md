@@ -22,9 +22,21 @@
 - goal のドローン: 配達済みは `active_drones()` から外れ、`drone_point` も None を返すので点を描かない。goal の下の `N in` と
   上部の `delivered N/M` で数だけを表示している。goal に数のバッジを描く案は未決。
 
+## 依頼4: goal のドローンを「数を書いたバッジ」の描き方で表示して
+
+- `feature/goal_drone_badge`(develop から)で対応。`drone_point` が配達済みでも end の位置を返し、`_draw_drones` は全機を描く。
+  `_point_after` は不要になったので消した。decisions.md 2026-10-23、テスト設計 `docs/research/2026-10-23_test-design-goal-badge.md`、
+  VO08・VO09、README 両版。pytest 898 件通過、flake8 通過。新しいテストは変更前のコードで落ちることを確認(1機の場合は変更前も札が無いので通る)。
+- 終了後に窓が待つ件は未決(案: `--no-hold` を足す、`both` では待たない)。
+
+## 質問: make run はファイルをどう指定しているか
+
+- Makefile の `MAP ?= maps/subject_example.txt` が既定で、`make run MAP=maps/x.txt ARGS="--visual both"` で変える(`ARGS` はその他のオプション)。
+
 ## 作成・変更したファイル
 
 - `docs/bugs.md`(追記・対応済みに更新)
 - `docs/decisions.md`(追記)、`docs/research/2026-10-23_test-design-require-pygame-ce.md`
+- (feature/goal_drone_badge)`docs/research/2026-10-23_test-design-goal-badge.md`、`tests/visualization/test_graphical_view.py`
 - `droneflow/visualization/graphical_view.py`、`tests/test_app.py`、`tests/test_fly_in.py`、`tests/README.md`、`README.md`、`README.ja.md`
 - `docs/conversation_log/2026-10-23/02_pygame_aacircle_error.md`(このファイル)
