@@ -38,6 +38,12 @@ def color_enabled(stream: TextIO) -> bool:
     Colors are off when the ``NO_COLOR`` environment variable is set to a
     non-empty value (https://no-color.org) or when the stream is not a
     terminal (e.g. redirected to a file).
+
+    Args:
+        stream: The stream the frames go to.
+
+    Returns:
+        True if colors should be used.
     """
     if os.environ.get("NO_COLOR"):
         return False
@@ -45,7 +51,14 @@ def color_enabled(stream: TextIO) -> bool:
 
 
 def _is_terminal(stream: TextIO) -> bool:
-    """Return whether the stream is an open terminal."""
+    """Return whether the stream is an open terminal.
+
+    Args:
+        stream: The stream to test; a closed one is not a terminal.
+
+    Returns:
+        True if the stream is an open terminal.
+    """
     try:
         return stream.isatty()
     except ValueError:
@@ -56,7 +69,12 @@ class _Chunk:
     """A piece of text with and without its color codes."""
 
     def __init__(self, plain: str, shown: str) -> None:
-        """Keep the text as measured (plain) and as printed (shown)."""
+        """Keep the text as measured (plain) and as printed (shown).
+
+        Args:
+            plain: The text without color codes, used to measure width.
+            shown: The text as written, color codes included.
+        """
         self.plain = plain
         self.shown = shown
 
@@ -107,7 +125,11 @@ class TerminalVisualizer:
         self.step = step and _is_terminal(self.input)
 
     def begin(self, state: SimulationState) -> None:
-        """Write the initial state and a legend of the symbols used."""
+        """Write the initial state and a legend of the symbols used.
+
+        Args:
+            state: The state before the first turn.
+        """
         network = state.network
         header = (
             f"=== Turn {state.turn_number} (start) | "
@@ -120,7 +142,12 @@ class TerminalVisualizer:
         self._wait_for_enter(state)
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Write one frame: the turn's moves and the resulting state."""
+        """Write one frame: the turn's moves and the resulting state.
+
+        Args:
+            state: The state after the turn.
+            moves: The moves made during the turn.
+        """
         self._write(self.frame(state, moves))
         self._wait_for_enter(state)
 
@@ -129,7 +156,15 @@ class TerminalVisualizer:
         self.stream.flush()
 
     def frame(self, state: SimulationState, moves: list[Move]) -> list[str]:
-        """Return the lines describing a turn, without writing them."""
+        """Return the lines describing a turn, without writing them.
+
+        Args:
+            state: The state after the turn.
+            moves: The moves made during the turn.
+
+        Returns:
+            The frame's lines, without line endings.
+        """
         header = (
             f"=== Turn {state.turn_number} | moved {len(moves)} | "
             f"delivered {state.delivered_count}/{len(state.drones)} ==="
@@ -142,6 +177,14 @@ class TerminalVisualizer:
         return lines
 
     def _state_lines(self, state: SimulationState) -> list[str]:
+        """Return the zone grid, the drones by zone and those in flight.
+
+        Args:
+            state: The state to describe.
+
+        Returns:
+            The lines, without line endings.
+        """
         lines = self._zone_grid(state)
         placed = [
             self._drones_chunk(state.network.zones[name], drones)
@@ -157,6 +200,14 @@ class TerminalVisualizer:
         return lines
 
     def _zone_grid(self, state: SimulationState) -> list[str]:
+        """Return one cell per zone, as many per line as the width allows.
+
+        Args:
+            state: The state whose zones are shown.
+
+        Returns:
+            The grid's lines, without line endings.
+        """
         zones = list(state.network.zones.values())
         name_width = min(
             max((len(z.name) for z in zones), default=1), _NAME_WIDTH_LIMIT
@@ -177,6 +228,16 @@ class TerminalVisualizer:
     def _zone_cell(
         self, state: SimulationState, zone: Zone, name_width: int
     ) -> _Chunk:
+        """Return a zone's cell: its name, its tag and its count.
+
+        Args:
+            state: The current state, for the count.
+            zone: The zone to show.
+            name_width: The width names are cut or padded to.
+
+        Returns:
+            The cell, plain and colored.
+        """
         name = zone.name
         if len(name) > name_width:
             name = name[:name_width - 1] + "~"
@@ -196,6 +257,17 @@ class TerminalVisualizer:
 
     @staticmethod
     def _count_text(state: SimulationState, zone: Zone) -> str:
+        """Return a zone's count, e.g. ``1/2+1*`` (see the legend).
+
+        Args:
+            state: The current state.
+            zone: The zone to count.
+
+        Returns:
+            ``in/max`` with ``-`` for no limit, ``+N`` for drones
+            arriving and ``*`` when full; ``--`` for a blocked zone and
+            the delivered count for the end zone.
+        """
         if zone.zone_type is ZoneType.BLOCKED:
             return "--"
         if zone.role is ZoneRole.END:
@@ -213,6 +285,14 @@ class TerminalVisualizer:
 
     @staticmethod
     def _drones_by_zone(state: SimulationState) -> dict[str, list[int]]:
+        """Return the ids of the undelivered drones standing in each zone.
+
+        Args:
+            state: The current state.
+
+        Returns:
+            The drone ids by zone name; drones in flight are left out.
+        """
         placed: dict[str, list[int]] = {}
         for drone in state.active_drones():
             if drone.current_zone is not None:
@@ -222,6 +302,15 @@ class TerminalVisualizer:
         return placed
 
     def _drones_chunk(self, zone: Zone, drone_ids: list[int]) -> _Chunk:
+        """Return a zone's name followed by its drones, e.g. ``a[D1 D2]``.
+
+        Args:
+            zone: The zone the drones are in.
+            drone_ids: The ids of the drones in it.
+
+        Returns:
+            The text, plain and colored.
+        """
         ids = _id_ranges(drone_ids)
         return _Chunk(
             f"{zone.name}[{ids}]",
@@ -229,6 +318,15 @@ class TerminalVisualizer:
         )
 
     def _move_chunk(self, state: SimulationState, move: Move) -> _Chunk:
+        """Return a move as in the turn log, e.g. ``D1-roof1``.
+
+        Args:
+            state: The current state, for the destination's color.
+            move: The move to show.
+
+        Returns:
+            The text, plain and colored.
+        """
         zone = state.network.zones.get(move.destination)
         target = (
             move.destination if zone is None
@@ -240,6 +338,15 @@ class TerminalVisualizer:
         )
 
     def _transit_chunk(self, state: SimulationState, drone: Drone) -> _Chunk:
+        """Return a drone in flight, e.g. ``D4 hub-roof1 -> roof1``.
+
+        Args:
+            state: The current state, for the target's color.
+            drone: The drone in flight.
+
+        Returns:
+            The text, plain and colored.
+        """
         link = drone.in_transit_connection or "?"
         target = drone.transit_target or "?"
         zone = state.network.zones.get(target)
@@ -254,7 +361,16 @@ class TerminalVisualizer:
     def _wrap(
         self, label: str, chunks: list[_Chunk], sep: str = " "
     ) -> list[str]:
-        """Lay out chunks after a label, wrapping on the plain width."""
+        """Lay out chunks after a label, wrapping on the plain width.
+
+        Args:
+            label: The text the first line starts with.
+            chunks: The pieces to lay out, in order.
+            sep: What goes between two pieces on the same line.
+
+        Returns:
+            The lines; ``<label> -`` if there are no chunks.
+        """
         if not chunks:
             return [f"{label} -"]
         indent = " " * len(label)
@@ -273,6 +389,15 @@ class TerminalVisualizer:
         return lines
 
     def _paint(self, text: str, color_name: str | None) -> str:
+        """Return the text in a zone's color, if colors are on and known.
+
+        Args:
+            text: The text to color.
+            color_name: The zone's ``color=`` value, or None.
+
+        Returns:
+            The text, wrapped in color codes or unchanged.
+        """
         color = rgb(color_name)
         if not self.color or color is None:
             return text
@@ -280,12 +405,25 @@ class TerminalVisualizer:
         return f"\x1b[38;2;{red};{green};{blue}m{text}{_RESET}"
 
     def _style(self, text: str, code: str) -> str:
+        """Return the text in a style (e.g. bold), if colors are on.
+
+        Args:
+            text: The text to style.
+            code: The ANSI code to apply; an empty one applies nothing.
+
+        Returns:
+            The text, wrapped in the code or unchanged.
+        """
         if not self.color or not code:
             return text
         return f"{code}{text}{_RESET}"
 
     def _wait_for_enter(self, state: SimulationState) -> None:
-        """In step mode, hold the frame until Enter (not after the last)."""
+        """In step mode, hold the frame until Enter (not after the last).
+
+        Args:
+            state: The state just shown, to tell whether it is the last.
+        """
         if not self.step or state.is_complete:
             return
         self.stream.write("-- press Enter for the next turn --\n")
@@ -294,12 +432,24 @@ class TerminalVisualizer:
             self.step = False
 
     def _write(self, lines: list[str]) -> None:
+        """Write the lines to the stream and flush it.
+
+        Args:
+            lines: The lines, without line endings.
+        """
         self.stream.write("\n".join(lines) + "\n")
         self.stream.flush()
 
 
 def _id_ranges(drone_ids: list[int]) -> str:
-    """Return ids like ``D1..D4 D7``: consecutive runs are shortened."""
+    """Return ids like ``D1..D4 D7``: consecutive runs are shortened.
+
+    Args:
+        drone_ids: The ids, in any order.
+
+    Returns:
+        The ids sorted; runs of three or more become ``Da..Db``.
+    """
     parts: list[str] = []
     ids = sorted(drone_ids)
     start = 0
