@@ -35,8 +35,8 @@ def zone_radius(points: Iterable[Point]) -> float:
         points: Every zone's position from the map.
 
     Returns:
-        0.3 times the distance between the closest two distinct points
-        (at most 1, the radius used when there are fewer than two).
+        0.3 times the distance between the closest two distinct points,
+        a distance over 1 (or no second point) counting as 1.
     """
     ordered = sorted(set(points))
     closest = 1.0
