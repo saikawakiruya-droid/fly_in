@@ -31,6 +31,13 @@ def spread_duplicates(
     same position are put, in the given order, on a circle around it,
     starting on the left, far enough apart for circles of ``radius`` not
     to touch.
+
+    Args:
+        points: Each zone's position, by zone name.
+        radius: The radius zones are drawn with, in pixels.
+
+    Returns:
+        A new mapping with every zone's position after spreading.
     """
     groups: dict[Point, list[str]] = {}
     for name, point in points.items():
@@ -55,9 +62,16 @@ def closest_distance(points: Iterable[Point], default: float) -> float:
 
     Points are sorted by x and each is compared only with the following
     ones that are less than the best distance away in x, so a map of
-    thousands of zones takes a moment instead of minutes. ``default`` is
-    returned when there are fewer than two distinct points, and is also
-    the largest value returned.
+    thousands of zones takes a moment instead of minutes.
+
+    Args:
+        points: The points to compare; duplicates are ignored.
+        default: The value returned when there are fewer than two
+            distinct points, and also the largest value returned.
+
+    Returns:
+        The smallest distance between two distinct points, at most
+        ``default``.
     """
     ordered = sorted(set(points))
     best = default
@@ -78,6 +92,16 @@ def arc(start: Point, end: Point, bulge: float) -> Path:
     going from ``start`` to ``end`` (y grows downwards), a negative one
     to the left. A bulge of 0 gives the
     straight line, as two points.
+
+    Args:
+        start: Where the arc begins.
+        end: Where the arc ends.
+        bulge: Distance of the control point from the line, in pixels;
+            the sign picks the side.
+
+    Returns:
+        The arc as ``ARC_SAMPLES + 1`` points, or ``[start, end]`` for a
+        bulge of 0 (or when both ends are the same point).
     """
     if bulge == 0 or start == end:
         return [start, end]
@@ -99,7 +123,14 @@ def arc(start: Point, end: Point, bulge: float) -> Path:
 
 
 def middle(path: Path) -> Point:
-    """Return the point halfway along a connection's path."""
+    """Return the point halfway along a connection's path.
+
+    Args:
+        path: A straight line (two points) or an arc.
+
+    Returns:
+        The middle of a straight line, or the middle sample of an arc.
+    """
     if len(path) == 2:
         (ax, ay), (bx, by) = path
         return (ax + bx) // 2, (ay + by) // 2
@@ -111,7 +142,15 @@ def sub_path(path: Path, start: Point, end: Point) -> Path | None:
 
     ``start`` and ``end`` are each an end of the path or its middle (where
     a drone flying toward a restricted zone is drawn), in either order.
-    Returns None if one of them is not such a point.
+
+    Args:
+        path: A connection's path.
+        start: Where the part begins.
+        end: Where the part ends.
+
+    Returns:
+        The points from ``start`` to ``end``, or None if one of them is
+        not an end or the middle of the path.
     """
     points = path
     if len(path) == 2:
@@ -125,7 +164,15 @@ def sub_path(path: Path, start: Point, end: Point) -> Path | None:
 
 
 def distance_to_path(point: Point, path: Sequence[Point]) -> float:
-    """Return the shortest distance from a point to a polyline."""
+    """Return the shortest distance from a point to a polyline.
+
+    Args:
+        point: The point to measure from.
+        path: The polyline, at least two points.
+
+    Returns:
+        The distance to the closest of the polyline's segments.
+    """
     return min(
         _distance_to_segment(point, path[i], path[i + 1])
         for i in range(len(path) - 1)
@@ -133,6 +180,16 @@ def distance_to_path(point: Point, path: Sequence[Point]) -> float:
 
 
 def _distance_to_segment(point: Point, a: Point, b: Point) -> float:
+    """Return the shortest distance from a point to a line segment.
+
+    Args:
+        point: The point to measure from.
+        a: One end of the segment.
+        b: The other end of the segment.
+
+    Returns:
+        The distance to the closest point of the segment.
+    """
     (px, py), (ax, ay), (bx, by) = point, a, b
     dx, dy = bx - ax, by - ay
     length2 = dx * dx + dy * dy
@@ -151,7 +208,12 @@ class PointGrid:
     """
 
     def __init__(self, points: Mapping[str, Point], cell: int) -> None:
-        """Bucket the points in cells of ``cell`` pixels."""
+        """Bucket the points in cells of ``cell`` pixels.
+
+        Args:
+            points: Each zone's position, by zone name.
+            cell: The cell size in pixels; at least 1 is used.
+        """
         self.cell = max(cell, 1)
         self._cells: dict[tuple[int, int], list[tuple[str, Point]]] = {}
         for name, point in points.items():
@@ -161,7 +223,16 @@ class PointGrid:
     def near(
         self, path: Sequence[Point], margin: float
     ) -> list[tuple[str, Point]]:
-        """Return the points within the path's box widened by ``margin``."""
+        """Return the points within the path's box widened by ``margin``.
+
+        Args:
+            path: The line to look around.
+            margin: How far beyond the path's bounding box to look.
+
+        Returns:
+            The ``(name, position)`` pairs in the cells the widened box
+            covers (some may be a little outside the box).
+        """
         xs = [x for x, _ in path]
         ys = [y for _, y in path]
         left = int((min(xs) - margin) // self.cell)
@@ -201,6 +272,19 @@ def route(
 
     A connection from a zone to itself is drawn as a small loop above the
     zone (see ``loop``).
+
+    Args:
+        start: The position of one end zone.
+        end: The position of the other end zone.
+        ends: The names of the two end zones, which never count as in
+            the way.
+        grid: All zones, bucketed for fast lookup.
+        radius: The radius zones are drawn with, in pixels.
+        spacing: The distance between the closest two zones.
+        placed: The arcs chosen so far; the arc chosen here is added.
+
+    Returns:
+        The connection's path: the straight line, an arc, or a loop.
     """
     if start == end:
         return loop(start, radius)
@@ -228,6 +312,13 @@ def loop(center: Point, radius: int) -> Path:
 
     The loop starts and ends at the zone's center (hidden under the zone)
     and its middle is the top of the loop, where a capacity label goes.
+
+    Args:
+        center: The zone's position.
+        radius: The radius zones are drawn with, in pixels.
+
+    Returns:
+        The loop as a closed polyline from the center back to it.
     """
     cx, cy = center
     size = radius * 0.6
@@ -248,6 +339,13 @@ def _sides(start: Point, end: Point) -> tuple[int, int]:
 
     A positive bulge goes towards ``(ay - by, bx - ax)``; on a vertical
     line, the side bending left is tried first.
+
+    Args:
+        start: Where the arc begins.
+        end: Where the arc ends.
+
+    Returns:
+        The two signs (1 and -1) in the order to try them.
     """
     (ax, ay), (bx, by) = start, end
     nx, ny = ay - by, bx - ax
@@ -262,6 +360,14 @@ def _apart(path: Path, placed: list[Path], gap: float) -> bool:
     Arcs that share an end always meet there, so two arcs only count as
     running together when more than a third of this arc's points are
     within ``gap`` of the other one.
+
+    Args:
+        path: The arc being tried.
+        placed: The arcs already chosen.
+        gap: How close, in pixels, a point counts as running together.
+
+    Returns:
+        True if the arc runs together with none of ``placed``.
     """
     xs = [x for x, _ in path]
     ys = [y for _, y in path]
@@ -284,7 +390,18 @@ def _apart(path: Path, placed: list[Path], gap: float) -> bool:
 def _gap(
     path: Path, grid: PointGrid, skip: set[str], clearance: float
 ) -> float:
-    """Return how close the path comes to a zone it does not join."""
+    """Return how close the path comes to a zone it does not join.
+
+    Args:
+        path: The line or arc being tried.
+        grid: All zones, bucketed for fast lookup.
+        skip: The names of the zones the path joins.
+        clearance: How far around the path to look for zones.
+
+    Returns:
+        The distance to the closest zone found, or infinity if there is
+        none nearby.
+    """
     closest = math.inf
     for name, point in grid.near(path, clearance):
         if name not in skip:
