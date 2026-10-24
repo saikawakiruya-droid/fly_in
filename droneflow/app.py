@@ -15,7 +15,7 @@ from .pathfinding.pathfinder import Pathfinder
 from .simulation.engine import MoveDecider, SimulationEngine
 from .simulation.observer import ObserverGroup, TurnObserver
 from .simulation.scheduling.scheduler import Scheduler
-from .visualization.terminal_view import TerminalVisualizer
+from .visualization.terminal.view import TerminalVisualizer
 
 
 class Application:
@@ -115,7 +115,7 @@ def _graphical_view(network: Network) -> TurnObserver:
             a window.
     """
     try:
-        from .visualization.graphical_view import GraphicalVisualizer
+        from .visualization.graphical.view import GraphicalVisualizer
     except ImportError as exc:
         raise VisualizationError(
             f"--graphical needs matplotlib ({exc})"

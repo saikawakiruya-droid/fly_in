@@ -16,11 +16,11 @@ from matplotlib.collections import LineCollection, PatchCollection
 from matplotlib.colors import is_color_like, to_rgb
 from matplotlib.patches import Circle, Patch, RegularPolygon
 
-from ..errors import VisualizationError
-from ..models.drone import Drone
-from ..models.network import Network
-from ..models.zone import Zone, ZoneRole, ZoneType
-from ..simulation.state import Move, SimulationState
+from ...errors import VisualizationError
+from ...models.drone import Drone
+from ...models.network import Network
+from ...models.zone import Zone, ZoneRole, ZoneType
+from ...simulation.state import Move, SimulationState
 from .geometry import (
     Path,
     Point,
@@ -29,7 +29,7 @@ from .geometry import (
     spread_duplicates,
     zone_radius,
 )
-from .palette import rgb
+from ..palette import rgb
 
 Color = tuple[float, float, float]
 

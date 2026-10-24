@@ -1,6 +1,7 @@
 # tests/visualization/
 
-`droneflow/visualization/`(Stage 7)の単体テスト。エンジンが可視化を呼ぶ契約(`begin` / `render` / `close`)のテストは
+`droneflow/visualization/`(Stage 7)の単体テスト。ソースと同じく、ターミナル表示は `terminal/`、グラフィカル表示は `graphical/` に分け、
+両方で使う色名の表(`test_palette.py`)と `conftest.py` はこの直下に置く。エンジンが可視化を呼ぶ契約(`begin` / `render` / `close`)のテストは
 `engine.py` のテストなので `tests/simulation/test_engine_hooks.py` にある。
 `ObserverGroup` のテストは `tests/simulation/test_observer.py`(旧 `test_composite.py` の VC01〜VC05 を移した)。
 
@@ -9,9 +10,9 @@
 - `conftest.py` — `coord_network`(座標・色つきのネットワーク)。matplotlib を Agg バックエンドに切り替える。`tty_stream`(`isatty()` が True の `StringIO`)は
   CLI のフェーズで `tests/conftest.py` に移した(Application のテストと共有)
 - `test_palette.py` — 色名の表(VP01〜VP04)
-- `test_terminal_view.py` — `TerminalVisualizer`(VT01〜VT11・VT15・VT16)
-- `test_geometry.py` — グラフィカル表示の配置: ゾーンの半径・重なったゾーンの分散・接続の直線と弧(GM01〜GM06)
-- `test_graphical_view.py` — matplotlib の表示 `MapScene` / `GraphicalVisualizer`(VG01〜VG10)
+- `terminal/test_terminal_view.py` — `TerminalVisualizer`(VT01〜VT11・VT15・VT16)
+- `graphical/test_geometry.py` — グラフィカル表示の配置: ゾーンの半径・重なったゾーンの分散・接続の直線と弧(GM01〜GM06)
+- `graphical/test_graphical_view.py` — matplotlib の表示 `MapScene` / `GraphicalVisualizer`(VG01〜VG10)
 
 ## 書き方の約束
 

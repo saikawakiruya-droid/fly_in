@@ -1,4 +1,4 @@
-"""Tests for droneflow.visualization.graphical_view (matplotlib window).
+"""Tests for droneflow.visualization.graphical.view (matplotlib window).
 
 matplotlib runs on its Agg backend (set in ``conftest.py``), which draws
 without a display. ``MapScene`` is drawn on a plain ``Figure``. A real
@@ -23,7 +23,7 @@ from droneflow.errors import VisualizationError
 from droneflow.models.network import Network
 from droneflow.models.zone import ZoneType
 from droneflow.simulation.state import SimulationState
-from droneflow.visualization.graphical_view import (
+from droneflow.visualization.graphical.view import (
     GraphicalVisualizer,
     MapScene,
     zone_color,
