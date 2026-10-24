@@ -19,7 +19,7 @@ Fly-in は、Python で書いたドローン群のルーティングシミュレ
 
 プログラムはマップを解析・検証し、ゴールまでの距離を計算し、ドローンの移動をターンごとに決め、
 各ターンをルールに照らして検査したうえで、決められた形式でターンログを出力し、実行の様子を色付きで
-ターミナルに(`--graphical` を付ければ matplotlib のウィンドウにも)表示します。課題の指定どおりグラフ系ライブラリは使っておらず、グラフ、最短経路探索、
+ターミナルに(`--matplotlib-window` を付ければウィンドウにも)表示します。課題の指定どおりグラフ系ライブラリは使っておらず、グラフ、最短経路探索、
 スケジューラはすべて自作です。コードはオブジェクト指向で型注釈付きで書かれており、`flake8` と
 `mypy --strict` を通ります。
 
@@ -83,10 +83,10 @@ summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 ### Requirements
 
 - Python 3.10 以上(下記の確認は Python 3.14 で行った)。
-- `--graphical` のウィンドウ用にだけ `matplotlib`(3.8 以上)。Linux では、ウィンドウに Tk(例: `python3-tk` パッケージ)とディスプレイも必要。
+- `--matplotlib-window` 用にだけ `matplotlib`(3.8 以上)。Linux では、ウィンドウに Tk(例: `python3-tk` パッケージ)とディスプレイも必要。
 - `make lint` / `make lint-strict` 用に `flake8` と `mypy`。
 
-すべて `requirements.txt` に書かれています。`--graphical` なしなら、プログラム本体は標準ライブラリだけで動きます。Makefile は
+すべて `requirements.txt` に書かれています。`--matplotlib-window` なしなら、プログラム本体は標準ライブラリだけで動きます。Makefile は
 Linux 向けです(`.venv/bin/python` を使う)。
 
 課題と一緒に配布されるマップ(`maps.tar.gz`)は提出用のリポジトリには含まれていません。課題のページから
@@ -112,10 +112,10 @@ Linux 向けです(`.venv/bin/python` を使う)。
 
 ```sh
 make install
-.venv/bin/python fly_in.py MAP [--graphical]
+.venv/bin/python fly_in.py MAP [--matplotlib-window]
 ```
 
-必須の引数はマップファイルだけです(`-h` で使い方を表示)。`--graphical` を付けると、matplotlib のウィンドウにも
+必須の引数はマップファイルだけです(`-h` で使い方を表示)。`--matplotlib-window` を付けると、ウィンドウにも
 実行の様子を表示します(「Visual representation」を参照)。ターンログとターミナル表示は変わりません。
 
 **コメントで始まるマップ。** パーサは物理的な 1 行目を `nb_drones:` のヘッダとして読みます(課題:
@@ -139,7 +139,7 @@ make run MAP=/tmp/map.txt
 | コード | 条件 |
 | --- | --- |
 | `0` | 実行が完了した。 |
-| `1` | マップファイルが読めない・不正、ゴールに到達できない、シミュレーションが失敗した、`--graphical` でウィンドウを開けない(matplotlib がない、ディスプレイがない)、または想定外の内部エラー。標準エラー出力に `error: ...` を 1 行出す。 |
+| `1` | マップファイルが読めない・不正、ゴールに到達できない、シミュレーションが失敗した、`--matplotlib-window` でウィンドウを開けない(matplotlib がない、ディスプレイがない)、または想定外の内部エラー。標準エラー出力に `error: ...` を 1 行出す。 |
 | `2` | コマンドライン引数が不正(`argparse` による)。 |
 | `130` | Ctrl+C で中断された。 |
 
@@ -156,7 +156,7 @@ error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub
 error: goal 'e' is unreachable from 's'
-error: cannot open the graphical window (no display?)
+error: cannot open the matplotlib window (no display?)
 fly_in.py: error: unrecognized arguments: --visual none
 ```
 
@@ -291,7 +291,7 @@ droneflow/
   output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
   visualization/             palette(色名。両方の表示で共有)
     terminal/                TerminalVisualizer
-    graphical/               GraphicalVisualizer と MapScene(matplotlib),
+    matplotlib_window/       MatplotlibWindowVisualizer と MapScene,
                              geometry(コネクションを描く位置)
 ```
 
@@ -308,7 +308,7 @@ droneflow/
 ## Visual representation
 
 課題は、色付きのターミナル出力、グラフィカルインターフェース、またはその両方による視覚的なフィードバックを
-求めています。このプログラムは、色付きのターミナル出力と、`--graphical` によるシンプルなグラフィカルウィンドウを
+求めています。このプログラムは、色付きのターミナル出力と、`--matplotlib-window` によるシンプルな matplotlib のウィンドウを
 提供します。
 
 ターミナル表示は、1 ターンごとに 1 フレームを標準エラー出力に書くので、標準出力のターンログと混ざりません。
@@ -351,7 +351,7 @@ in flight: D4 hub-roof1 -> roof1
 `roof1 R 1/1+1*` は、同じターンに D2 が出ていき D4 が入ってくる restricted ゾーンを示しています。これは
 合法で、表示は容量超過のように見せるのではなく、その状況が分かるようにしています。
 
-### グラフィカルウィンドウ(`--graphical`)
+### matplotlib のウィンドウ(`--matplotlib-window`)
 
 ウィンドウ(matplotlib)は、マップを一度描いたあと、0.5 秒に 1 ターンずつドローンを描きます:
 
@@ -366,7 +366,7 @@ in flight: D4 hub-roof1 -> roof1
 
 ウィンドウを閉じると描画をやめ、シミュレーションはすぐに最後まで進むので、ターンログは完全なままです。
 最後のターンのあとは、閉じるまでウィンドウを開いたままにします。ディスプレイがないときは
-`error: cannot open the graphical window (no display?)` で止まります。
+`error: cannot open the matplotlib window (no display?)` で止まります。
 
 ## Testing and quality
 
@@ -394,7 +394,7 @@ in flight: D4 hub-roof1 -> roof1
   [Google Python スタイルガイド](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)。
 - [ANSI エスケープコード](https://en.wikipedia.org/wiki/ANSI_escape_code)と [NO_COLOR](https://no-color.org):
   ターミナル表示の色。
-- [matplotlib](https://matplotlib.org/): グラフィカルウィンドウ(パッチ、コレクション、`set_aspect("equal")`)。
+- [matplotlib](https://matplotlib.org/): ウィンドウ(パッチ、コレクション、`set_aspect("equal")`)。
   弧には[ベジェ曲線](https://en.wikipedia.org/wiki/B%C3%A9zier_curve)を使う。
 
 ### How AI was used
@@ -402,6 +402,6 @@ in flight: D4 hub-roof1 -> roof1
 このプロジェクトでは全体を通して、開発者の指示のもとで AI アシスタント(Claude)を使いました。用途は、
 課題の要件の分析、設計案の検討(パーサの構成、経路探索、スケジューリング、表示)、コードレビューと
 不具合の発見、そして指示に従ったコードの作成です。開発者の依頼により、以前のより大きな版から必須でない
-機能を取り除く作業と、`--graphical` のシンプルな matplotlib ウィンドウの作成も AI アシスタントが行いました。
+機能を取り除く作業と、`--matplotlib-window` のシンプルなウィンドウの作成も AI アシスタントが行いました。
 この README も、コードと実際の実行結果を
 もとに AI の助けを借りて書きました。コードはすべて開発者がレビューし、その責任は開発者が負います。

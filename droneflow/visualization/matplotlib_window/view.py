@@ -1,4 +1,4 @@
-"""GraphicalVisualizer: the run shown turn by turn in a matplotlib window.
+"""MatplotlibWindowVisualizer: the run shown turn by turn in a window.
 
 The window holds a ``MapScene`` and the key to its colors.
 """
@@ -18,7 +18,7 @@ _TICK = 0.02
 """Seconds between two looks at the window's events while waiting."""
 
 
-class GraphicalVisualizer:
+class MatplotlibWindowVisualizer:
     """Shows the run in a matplotlib window, one turn every ``delay``.
 
     The window opens when the view is made. Closing it stops the drawing
@@ -48,7 +48,7 @@ class GraphicalVisualizer:
         if figure.canvas.required_interactive_framework is None:
             plt.close(figure)
             raise VisualizationError(
-                "cannot open the graphical window (no display?)"
+                "cannot open the matplotlib window (no display?)"
             )
         figure.text(0.02, 0.02, KEY, color=TEXT, fontsize=8)
         self.figure = figure
