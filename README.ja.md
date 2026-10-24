@@ -4,16 +4,6 @@
 
 (このファイルは `README.md`(英語版)の日本語版です。課題の要件により、正式な README は英語版です。)
 
-> **最小構成版(実験用ブランチ `feature/minimal_build`)。** このブランチには、課題が必須としているもの
-> だけを残しています: パーサとその検証、経路探索とスケジューリング、ルール検査付きのシミュレーション、
-> 指定形式のターンログ、色付きのターミナル表示です。完全版にあったグラフィカルウィンドウ、追加の
-> コマンドラインオプション(`--visual`、`--delay`、`--step`、`--parse-only`、`--from-world`、`--save-run`)、
-> JSON ファイル、要約行、デバッグ用の切り替えは取り除きました。ターンログはどのマップでも完全版と同じです。
->
-> **派生ブランチ `feature/minimal_matplotlib`。** さらに `--graphical` オプション1つで、最小限の matplotlib の
-> ウィンドウ(ゾーン、コネクション、ターンごとのドローン、ターン番号)を足し、完全版の最後の要約行を
-> 標準エラー出力に戻しています。標準出力のターンログは `feature/minimal_build` と同じです。
-
 ## Description
 
 Fly-in は、Python で書いたドローン群のルーティングシミュレーションです。マップファイルには、
@@ -93,7 +83,7 @@ summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 ### Requirements
 
 - Python 3.10 以上(下記の確認は Python 3.14 で行った)。
-- `--graphical` のウィンドウ用にだけ `matplotlib`(3.8 以上)。
+- `--graphical` のウィンドウ用にだけ `matplotlib`(3.8 以上)。Linux では、ウィンドウに Tk(例: `python3-tk` パッケージ)とディスプレイも必要。
 - `make lint` / `make lint-strict` 用に `flake8` と `mypy`。
 - `make test`(`tests/` の単体テスト)用に `pytest`。
 
@@ -319,7 +309,7 @@ droneflow/
 ## Visual representation
 
 課題は、色付きのターミナル出力、グラフィカルインターフェース、またはその両方による視覚的なフィードバックを
-求めています。この最小構成版は、色付きのターミナル出力と、`--graphical` による最小限のグラフィカルウィンドウを
+求めています。このプログラムは、色付きのターミナル出力と、`--graphical` によるシンプルなグラフィカルウィンドウを
 提供します。
 
 ターミナル表示は、1 ターンごとに 1 フレームを標準エラー出力に書くので、標準出力のターンログと混ざりません。
@@ -392,7 +382,7 @@ in flight: D4 hub-roof1 -> roof1
 
 ### References
 
-- Fly-in の課題(42、バージョン 1.6): ルール、マップ形式、出力形式、ベンチマーク。
+- Fly-in の課題(42、バージョン 2.0): ルール、マップ形式、出力形式、配布マップの最適ターン数。
 - [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)(Wikipedia)。ここではゾーンごとの
   コストでエンドゾーンから使っている。
 - [Python `heapq`](https://docs.python.org/3/library/heapq.html): 探索の優先度付きキュー。
@@ -411,7 +401,7 @@ in flight: D4 hub-roof1 -> roof1
 
 このプロジェクトでは全体を通して、開発者の指示のもとで AI アシスタント(Claude)を使いました。用途は、
 課題の要件の分析、設計案の検討(パーサの構成、経路探索、スケジューリング、表示)、コードレビューと
-不具合の発見、そして指示に従ったコードの作成です。この最小構成版は、開発者の依頼により、完全版から
-必須でない機能を取り除く形で AI アシスタントが作成し、さらにブランチ `feature/minimal_matplotlib` で最小限の
-`--graphical` ウィンドウを足しました。この README も、コードと実際の実行結果を
+不具合の発見、そして指示に従ったコードの作成です。開発者の依頼により、以前のより大きな版から必須でない
+機能を取り除く作業と、`--graphical` のシンプルな matplotlib ウィンドウの作成も AI アシスタントが行いました。
+この README も、コードと実際の実行結果を
 もとに AI の助けを借りて書きました。コードはすべて開発者がレビューし、その責任は開発者が負います。

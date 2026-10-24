@@ -2,21 +2,6 @@
 
 # Fly-in
 
-> **Minimal variant (experimental branch `feature/minimal_build`).** This
-> branch keeps only what the subject makes mandatory: the parser and its
-> validation, the pathfinding and scheduling, the rule-checked simulation, the
-> turn log in the required format, and a colored terminal view. The graphical
-> window, the extra command-line options (`--visual`, `--delay`, `--step`,
-> `--parse-only`, `--from-world`, `--save-run`), the JSON files, the summary
-> line and the debug switch of the full version were removed. The turn log is
-> the same as the full version's on every map.
->
-> **Variant `feature/minimal_matplotlib`.** On top of that, a single
-> `--graphical` option adds a minimal matplotlib window (zones, connections,
-> drones turn by turn, the turn number), and the final summary line of the
-> full version is back on standard error. The turn log on standard output is
-> the same as `feature/minimal_build`'s.
-
 ## Description
 
 Fly-in is a drone-fleet routing simulation written in Python. A map file
@@ -111,7 +96,8 @@ So `python3 fly_in.py map.txt 2>/dev/null` prints exactly the required output.
 ### Requirements
 
 - Python 3.10 or later (the checks below were run with Python 3.14).
-- `matplotlib` (>= 3.8) for the `--graphical` window only.
+- `matplotlib` (>= 3.8) for the `--graphical` window only. On Linux the
+  window also needs Tk (e.g. the `python3-tk` package) and a display.
 - `flake8` and `mypy` for `make lint` / `make lint-strict`.
 - `pytest` for `make test` (the unit tests in `tests/`).
 
@@ -379,8 +365,8 @@ Design choices visible in the code:
 ## Visual representation
 
 The subject asks for visual feedback through colored terminal output, a
-graphical interface, or both. This variant provides the colored terminal
-output, and a minimal graphical window with `--graphical`.
+graphical interface, or both. This program provides the colored terminal
+output, and a simple graphical window with `--graphical`.
 
 The terminal view writes one frame per turn to standard error, so it never
 mixes with the turn log on standard output. Each frame has:
@@ -471,8 +457,8 @@ until it is closed. Without a display, the program stops with
 
 ### References
 
-- The Fly-in subject (42, version 1.6): rules, map format, output format
-  and benchmarks.
+- The Fly-in subject (42, version 2.0): rules, map format, output format
+  and the optimal turn counts of the provided maps.
 - [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
   (Wikipedia), used here from the end zone with zone-dependent costs.
 - [Python `heapq`](https://docs.python.org/3/library/heapq.html): the
@@ -496,9 +482,9 @@ until it is closed. Without a display, the program stops with
 An AI assistant (Claude) was used throughout the project, under the
 developer's direction: to analyse the subject's requirements, to discuss
 design options (parser structure, pathfinding, scheduling, views), to review
-code and find bugs, and to write code as instructed. This minimal variant was
-produced by the assistant, at the developer's request, by removing the
-non-mandatory features from the full version, and then added the minimal
-`--graphical` window on branch `feature/minimal_matplotlib`. It also helped write this
+code and find bugs, and to write code as instructed. At the developer's
+request, the assistant also removed the non-mandatory features from an
+earlier, larger version of the program and wrote the simple matplotlib
+window of `--graphical`. It also helped write this
 README from the code and real runs of the program. The developer reviews all
 of the code and is responsible for it.
