@@ -345,7 +345,7 @@ droneflow/
   output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
   visualization/             palette (color names, shared by both views)
     terminal/                TerminalVisualizer
-    graphical/               GraphicalVisualizer and MapScene (matplotlib),
+    matplotlib_window/       GraphicalVisualizer and MapScene,
                              geometry (where connections are drawn)
 ```
 

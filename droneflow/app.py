@@ -115,7 +115,7 @@ def _graphical_view(network: Network) -> TurnObserver:
             a window.
     """
     try:
-        from .visualization.graphical.view import GraphicalVisualizer
+        from .visualization.matplotlib_window.view import GraphicalVisualizer
     except ImportError as exc:
         raise VisualizationError(
             f"--graphical needs matplotlib ({exc})"
