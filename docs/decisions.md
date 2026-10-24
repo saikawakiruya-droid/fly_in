@@ -1581,3 +1581,63 @@ sequenceDiagram
   `start_zone` は `Zone` を返す型なので、見つからない場合の処理はどこかに必要で、削除しても `assert` などに書き換わるだけになる。
   `Network` をパーサーを通さず直接組む場合の防御にもなる(2026-10-16 の決定と同じ考え方)。
 - 検討した代替案: 一方通行が無いので不要とみなして削除する案。上記の理由で、読みやすさも行数もほとんど変わらないため採らなかった。
+
+## 2026-10-23: 提出物の可視化は pygame 版。matplotlib 版と最小構成版は比較用の試作にとどめる
+
+- 決定内容(ユーザーの指示):
+  1. 提出物の本命は、今の pygame-ce のグラフィカル表示(develop)のままとする。
+  2. 比較のため、試作のブランチを2つ作る(develop へのマージ・push はしない)。
+     - `feature/matplotlib_view`: pygame を完全に取り除き、`--visual graphical` / `both` を matplotlib で描く。コードの見やすさを比べるため。
+     - `feature/minimal_build`: help などの補助機能と複雑なグラフィカル表示をなくし、課題の必須要件だけを残す。
+  3. 試作はサブエージェントに作らせる(この2つに限り、コードを書く禁止を解除)。
+- 理由: ユーザー判断。可視化ライブラリの違いや機能の削り方で、コードの読みやすさがどう変わるかを見てから判断したい。
+- 検討した代替案: matplotlib のモードを pygame と並べて追加する案(最初の指示)。見やすさを比べるには pygame を外した方が差がはっきりするため、変更した。
+
+## 2026-10-23: the_impossible_dream を 43 にする変更(時空間計画)は行わない
+
+- 決定内容(ユーザー判断): 課題 v2.0 で the_impossible_dream の最適値が 43 になった(今の実装は 44)が、43 にするための
+  スケジューラの変更(優先度つきの時空間計画への置き換え・追加)は行わない。今の `Scheduler` のまま、44 で提出する。
+- 理由: ユーザー判断。the_impossible_dream は任意のマップで、成績に影響しない(v2.0 VII.6)。必須の9枚はすでに最適値ちょうどで、
+  44 は最適値の 25% 以内。変更しないので、取れないのはボーナス(IX)だけ。
+- 検討した代替案: 優先度つきの時空間計画で `Scheduler` を置き換える、または別の決め方として足して短い方を使う
+  (試作で 43、ほかのマップは今と同じ。`docs/research/2026-10-23_impossible-dream-43.md`)。立ち退きの規則の部分的な修正(試作で 44〜45)。
+
+## 2026-10-23: 配布マップのテスト(R04/R05)を課題 v2.0 の最適値に合わせ、`fly_in.pdf` を v2.0 にする
+
+- 決定内容(ユーザーの指示):
+  1. `tests/simulation/scheduling/test_scheduler_maps.py` の `PROVIDED_MAPS` の上限を、VII.7 の旧目標から VII.6 の最適値に変えた
+     (4, 4, 4, 8, 10, 6, 13, 16, 26、challenger 43)。R04 は必須の9枚が最適値以内(= ちょうど)、R05 は challenger が
+     最適値 43 の 25% 以内(評価表の加点の条件)を確かめる。R19 の固定値(challenger 44)は変えない。
+     ブランチ `test/subject_v2_optimum`(c89d4b4、develop から。ワークツリー `D:\WorkSpaceclaude_code\fly_in_optimum`)。develop へのマージは未。
+  2. `new_fly_in.pdf`(v2.0)を `fly_in.pdf` に置き換えた(`.gitignore` の対象で、git には載らない)。
+- 理由: v2.0 で旧目標と IX の「45 未満」が無くなり、テストの根拠が古くなったため。R05 は 43 に届かないので
+  (上の「43 にする変更は行わない」)、評価表の 25% の条件にした。
+- 検討した代替案: R05 を削除する(R19 で 44 が固定されているため)。評価表の条件を確かめる場所が無くなるので採らなかった。
+
+## 2026-10-24: `droneflow/visualization/` を表示ごとのサブパッケージに分ける
+
+- 決定内容(ユーザーの指示):
+  1. `visualization/terminal/view.py`(`TerminalVisualizer`)と `visualization/graphical/`(`geometry.py`・`scene.py`・`view.py`)に分ける。
+     両方で使う `palette.py` は `visualization/` 直下に残す。
+  2. `MapScene`(ネットワークとドローンの描画)を `graphical/scene.py` に、ウィンドウの `GraphicalVisualizer` を `graphical/view.py` に分ける。
+     両方で使う色 `BACKGROUND`・`TEXT` と凡例 `KEY` は scene の公開名にした。
+  3. `graphical/__init__.py` は docstring だけにする(re-export すると `geometry` の import で matplotlib が読まれるため)。
+  4. テストも同じ形にする: `tests/visualization/terminal/`・`graphical/`。`test_graphical_view.py` は scene(VG01〜VG06・VG10)と
+     view(VG07〜VG09)に分け、共通の `network` は `graphical/conftest.py` に置く。テストのファイル名は重ならないように残す
+     (`tests/` に `__init__.py` が無いため)。
+  - ブランチ `feature/split_visualization_package`(89ff24a・d7cfef3)。develop へのマージは未。
+- 理由: ユーザー判断。ターミナル表示とグラフィカル表示、グラフィカル表示だけの geometry が同じ階層に並び、どれがどれに属するか構造から読めなかった。
+- 検討した代替案: `MapScene` を `view.py` に残す(変更が小さい)。1ファイルに2つの役割が残るため採らなかった。
+  ほかのパッケージ(output・parsing・pathfinding・models・simulation)も見たが、異なる利用者のファイルが混ざっている所は無く、変更しない。
+
+## 2026-10-25: グラフィカル表示の名前を、表示手段の名前(matplotlib_window)にそろえる
+
+- 決定内容(ユーザーの指示):
+  1. `droneflow/visualization/graphical/` → `matplotlib_window/`(テストも `tests/visualization/matplotlib_window/`、
+     `test_matplotlib_window_scene.py`・`test_matplotlib_window_view.py`)。
+  2. クラス `GraphicalVisualizer` → `MatplotlibWindowVisualizer`。
+  3. CLI の `--graphical` → `--matplotlib-window`(`Args.graphical` → `Args.matplotlib_window`)。エラーは
+     `cannot open the matplotlib window (no display?)`。README の「graphical interface」は課題の文言の引用なので残す。
+  - ブランチ `feature/rename_matplotlib_window`(088fac2・e651085・5baed00)。develop へのマージは未。
+- 理由: ユーザー判断。表示方法ごとに場所を分けたのに、`terminal` は手段の名前、`graphical` は種類の名前で、手段がわからなかった。
+- 検討した代替案: `window/`(短いが matplotlib と読めない)、`mpl/`(略語)。CLI は `--window` も考えたが、パッケージ名とそろえた。
