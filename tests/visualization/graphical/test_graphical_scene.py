@@ -1,45 +1,19 @@
-"""Tests for droneflow.visualization.graphical_view (matplotlib window).
+"""Tests for droneflow.visualization.graphical.scene (MapScene).
 
 matplotlib runs on its Agg backend (set in ``conftest.py``), which draws
-without a display. ``MapScene`` is drawn on a plain ``Figure``. A real
-window cannot be opened under Agg, so the window tests either expect
-that error or let the Agg canvas pass for an interactive one.
+without a display. ``MapScene`` is drawn on a plain ``Figure``.
 """
 
-from collections.abc import Callable
-from pathlib import Path
-
-import matplotlib.pyplot as plt
 import numpy
 import pytest
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.collections import PatchCollection
 from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, RegularPolygon
 
-import fly_in
-from droneflow.errors import VisualizationError
 from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
 from droneflow.simulation.state import SimulationState
-from droneflow.visualization.graphical_view import (
-    GraphicalVisualizer,
-    MapScene,
-    zone_color,
-)
-
-CoordNetwork = Callable[..., Network]
-WriteMap = Callable[[str], Path]
-
-
-@pytest.fixture
-def network(coord_network: CoordNetwork) -> Network:
-    """Return ``s - r - g`` in a row, r restricted, plus s-g over r."""
-    return coord_network(
-        [("s", 0, 0), ("r", 2, 0), ("g", 4, 0)], "s-r r-g s-g",
-        types={"r": ZoneType.RESTRICTED},
-    )
+from droneflow.visualization.graphical.scene import MapScene, zone_color
 
 
 def scene_of(network: Network) -> MapScene:
@@ -134,44 +108,3 @@ def test_zone_color_falls_back_to_matplotlib_then_gray() -> None:
         (210 / 255, 105 / 255, 30 / 255)
     )
     assert zone_color("rainbow") == zone_color(None)
-
-
-def test_no_window_under_agg(network: Network) -> None:
-    """VG07: without an interactive backend the view cannot open."""
-    with pytest.raises(VisualizationError, match="no display"):
-        GraphicalVisualizer(network)
-    assert plt.get_fignums() == []
-
-
-def test_main_reports_no_display_in_one_line(
-    write_map: WriteMap, subject_map: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """VG08: --graphical without a display: exit 1 and one error line."""
-    code = fly_in.main([str(write_map(subject_map)), "--graphical"])
-
-    captured = capsys.readouterr()
-    assert code == 1
-    assert captured.out == ""
-    assert captured.err == (
-        "error: cannot open the graphical window (no display?)\n"
-    )
-
-
-@pytest.mark.filterwarnings("ignore:FigureCanvasAgg is non-interactive")
-def test_closing_the_window_stops_the_drawing(
-    network: Network, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """VG09: after the window is closed, render draws nothing."""
-    monkeypatch.setattr(FigureCanvasAgg, "required_interactive_framework",
-                        "tk")
-    view = GraphicalVisualizer(network, delay=0)
-    state = SimulationState(network, 1)
-    view.begin(state)
-
-    plt.close(view.figure)
-    state.turn_number = 1
-    view.render(state, [])
-    view.close()
-
-    assert not view.is_open
-    assert view.scene.axes.get_title(loc="left").startswith("Turn 0")

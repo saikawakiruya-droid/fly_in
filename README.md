@@ -343,8 +343,9 @@ droneflow/
                              Evictor, ReservationTable, DetourPolicy,
                              PositionBoard
   output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
-  visualization/             TerminalVisualizer, palette (color names),
-                             GraphicalVisualizer and MapScene (matplotlib),
+  visualization/             palette (color names, shared by both views)
+    terminal/                TerminalVisualizer
+    graphical/               GraphicalVisualizer and MapScene (matplotlib),
                              geometry (where connections are drawn)
 ```
 

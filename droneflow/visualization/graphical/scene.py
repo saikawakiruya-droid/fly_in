@@ -1,26 +1,24 @@
-"""GraphicalVisualizer: the run drawn turn by turn with matplotlib.
+"""MapScene: the network and its drones drawn on a matplotlib axes.
 
-This is the only module that imports matplotlib. Zones are drawn in map
-units with the radius the connections are routed round, and x and y keep
-the same scale, so a connection bends only where it would cross a zone
-on screen, and zooming in (matplotlib's toolbar) makes the zones bigger.
+Zones are drawn in map units with the radius the connections are routed
+round, and x and y keep the same scale, so a connection bends only where
+it would cross a zone on screen, and zooming in (matplotlib's toolbar)
+makes the zones bigger.
 """
 
 import math
-import time
 
-import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.artist import Artist
 from matplotlib.collections import LineCollection, PatchCollection
 from matplotlib.colors import is_color_like, to_rgb
 from matplotlib.patches import Circle, Patch, RegularPolygon
 
-from ..errors import VisualizationError
-from ..models.drone import Drone
-from ..models.network import Network
-from ..models.zone import Zone, ZoneRole, ZoneType
-from ..simulation.state import Move, SimulationState
+from ...models.drone import Drone
+from ...models.network import Network
+from ...models.zone import Zone, ZoneRole, ZoneType
+from ...simulation.state import SimulationState
+from ..palette import rgb
 from .geometry import (
     Path,
     Point,
@@ -29,19 +27,15 @@ from .geometry import (
     spread_duplicates,
     zone_radius,
 )
-from .palette import rgb
 
 Color = tuple[float, float, float]
 
-DELAY = 0.5
-"""Seconds each turn stays on screen."""
-_TICK = 0.02
-"""Seconds between two looks at the window's events while waiting."""
-
-_BACKGROUND = "#181b22"
+BACKGROUND = "#181b22"
+"""The scene's background, shared with the window around it."""
 _LINK = "#555c6c"
 _LINK_WIDTH = 1.5
-_TEXT = "#e1e4eb"
+TEXT = "#e1e4eb"
+"""Color of every text, in the scene and in the window."""
 _DRONE = "#fafafa"
 _DRONE_FLYING = "#00dcff"
 _OUTLINE = "#0a0a0e"
@@ -50,9 +44,10 @@ _DEFAULT_FILL = "#8c92a0"
 _ENDPOINT_RING = "#f5f5f5"
 _RESTRICTED_RING = "#ff5a3c"
 _PRIORITY_RING = "#ffc800"
-_KEY = ("white ring: start/end   square, red ring: restricted   "
-        "gold ring: priority   gray: blocked   "
-        "cyan: drones in flight and their connection")
+KEY = ("white ring: start/end   square, red ring: restricted   "
+       "gold ring: priority   gray: blocked   "
+       "cyan: drones in flight and their connection")
+"""What the colors and shapes mean, for the window to show."""
 _MAX_NAMED_ZONES = 60
 """Maps with more zones are drawn without zone names."""
 
@@ -113,7 +108,7 @@ class MapScene:
         }
         self._drones: list[Artist] = []
         self._links = list(network.connections)
-        axes.set_facecolor(_BACKGROUND)
+        axes.set_facecolor(BACKGROUND)
         axes.set_axis_off()
         axes.set_aspect("equal", adjustable="datalim")
         self.lines = LineCollection(
@@ -132,7 +127,7 @@ class MapScene:
             for zone in zones:
                 x, y = self.points[zone.name]
                 axes.text(x, y - self.radius * 1.15, zone.name, ha="center",
-                          va="top", color=_TEXT, fontsize=8, zorder=3)
+                          va="top", color=TEXT, fontsize=8, zorder=3)
         axes.autoscale_view()
         axes.margins(0.08)
 
@@ -179,7 +174,7 @@ class MapScene:
         self.axes.set_title(
             f"Turn {state.turn_number}   "
             f"delivered {state.delivered_count}/{len(state.drones)}",
-            loc="left", color=_TEXT,
+            loc="left", color=TEXT,
         )
 
     def _shape(self, zone: Zone) -> Patch:
@@ -229,90 +224,3 @@ def _ring(zone: Zone) -> str:
     if zone.zone_type is ZoneType.PRIORITY:
         return _PRIORITY_RING
     return _OUTLINE
-
-
-class GraphicalVisualizer:
-    """Shows the run in a matplotlib window, one turn every ``delay``.
-
-    The window opens when the view is made. Closing it stops the drawing
-    and the waiting; the simulation then finishes at once, so the turn
-    log is still complete. After a finished run the window stays open
-    until it is closed.
-
-    Attributes:
-        figure: The window's figure.
-        scene: The network drawn in it.
-        delay: Seconds each turn stays on screen.
-    """
-
-    def __init__(self, network: Network, delay: float = DELAY) -> None:
-        """Open the window and draw the network.
-
-        Args:
-            network: The network to draw.
-            delay: Seconds each turn stays on screen.
-
-        Raises:
-            VisualizationError: If matplotlib cannot show a window (for
-                example when there is no display).
-        """
-        figure = plt.figure("Fly-in", figsize=(10, 7),
-                            facecolor=_BACKGROUND)
-        if figure.canvas.required_interactive_framework is None:
-            plt.close(figure)
-            raise VisualizationError(
-                "cannot open the graphical window (no display?)"
-            )
-        figure.text(0.02, 0.02, _KEY, color=_TEXT, fontsize=8)
-        self.figure = figure
-        self.scene = MapScene(figure.add_axes((0.02, 0.06, 0.96, 0.88)),
-                              network)
-        self.delay = delay
-        self._finished = False
-        figure.show()
-
-    @property
-    def is_open(self) -> bool:
-        """Return whether the window is still on screen."""
-        return plt.fignum_exists(self.figure.number)
-
-    def begin(self, state: SimulationState) -> None:
-        """Show the initial state.
-
-        Args:
-            state: The state before the first turn.
-        """
-        self._show(state)
-
-    def render(self, state: SimulationState, moves: list[Move]) -> None:
-        """Show the state after a turn.
-
-        Args:
-            state: The state after the turn.
-            moves: The moves of the turn (not drawn).
-        """
-        self._show(state)
-
-    def close(self) -> None:
-        """Keep a finished run on screen until closed, then close."""
-        if self._finished and self.is_open:
-            plt.show()
-        plt.close(self.figure)
-
-    def _show(self, state: SimulationState) -> None:
-        """Draw a state, then wait ``delay`` while handling the window.
-
-        Nothing is drawn once the window is closed.
-
-        Args:
-            state: The state to draw.
-        """
-        if not self.is_open:
-            return
-        self.scene.show(state)
-        self._finished = state.is_complete
-        canvas = self.figure.canvas
-        canvas.draw_idle()
-        deadline = time.monotonic() + self.delay
-        while self.is_open and time.monotonic() < deadline:
-            canvas.start_event_loop(_TICK)

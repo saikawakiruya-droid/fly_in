@@ -17,7 +17,7 @@ import pytest
 import fly_in
 from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.simulation.state import Move, SimulationState
-from droneflow.visualization.terminal_view import TerminalVisualizer
+from droneflow.visualization.terminal.view import TerminalVisualizer
 
 WriteMap = Callable[[str], Path]
 

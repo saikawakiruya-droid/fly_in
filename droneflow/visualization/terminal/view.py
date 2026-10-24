@@ -5,10 +5,10 @@ import shutil
 import sys
 from typing import TextIO
 
-from ..models.drone import Drone
-from ..models.zone import Zone, ZoneRole, ZoneType
-from ..simulation.state import Move, SimulationState
-from .palette import rgb
+from ...models.drone import Drone
+from ...models.zone import Zone, ZoneRole, ZoneType
+from ...simulation.state import Move, SimulationState
+from ..palette import rgb
 
 _RESET = "\x1b[0m"
 _BOLD = "\x1b[1m"

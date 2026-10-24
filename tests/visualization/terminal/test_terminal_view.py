@@ -1,4 +1,4 @@
-"""Tests for droneflow.visualization.terminal_view.
+"""Tests for droneflow.visualization.terminal.view.
 
 Frames are written to a ``StringIO`` and checked as text, with
 ``color=False`` and an explicit ``width`` unless colors are the point of
@@ -20,7 +20,7 @@ from droneflow.simulation.engine import SimulationEngine
 from droneflow.simulation.scheduling.scheduler import Scheduler
 from droneflow.simulation.state import Move, SimulationState
 from droneflow.simulation.observer import TurnObserver
-from droneflow.visualization.terminal_view import (
+from droneflow.visualization.terminal.view import (
     TerminalVisualizer,
     color_enabled,
 )
