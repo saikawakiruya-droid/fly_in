@@ -1,4 +1,4 @@
-# The graphical view (fly_in.py MAP --graphical) only.
+# The matplotlib window (fly_in.py MAP --matplotlib-window) only.
 matplotlib>=3.8
 # Lint (make lint / make lint-strict, subject chapter III.2).
 flake8>=7.0

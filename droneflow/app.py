@@ -23,8 +23,8 @@ class Application:
 
     The turn log goes to ``out`` (standard output), one line per turn as
     the run goes on, and nothing else does. The terminal view and the
-    final summary go to ``err`` (standard error). With ``--graphical``, a
-    matplotlib window shows the run as well.
+    final summary go to ``err`` (standard error). With
+    ``--matplotlib-window``, a matplotlib window shows the run as well.
     """
 
     def __init__(
@@ -60,7 +60,7 @@ class Application:
                 cannot be read (``MapFileError``) or is invalid
                 (``ParseError``), the goal is unreachable
                 (``UnreachableGoalError``), the simulation fails
-                (``SimulationError``), or the graphical view cannot be
+                (``SimulationError``), or the matplotlib window cannot be
                 used (``VisualizationError``).
         """
         world = self._load_world()
@@ -72,8 +72,8 @@ class Application:
             TurnLogPrinter(self.out),
             TerminalVisualizer(stream=self.err),
         ]
-        if self.args.graphical:
-            observers.append(_graphical_view(world.network))
+        if self.args.matplotlib_window:
+            observers.append(_matplotlib_window(world.network))
         turns = engine.run(ObserverGroup(observers))
         self.err.write(
             RunSummary.from_turns(turns, world.nb_drones).describe() + "\n"
@@ -101,7 +101,7 @@ class Application:
             raise MapFileError(name, "not UTF-8 text") from exc
 
 
-def _graphical_view(network: Network) -> TurnObserver:
+def _matplotlib_window(network: Network) -> TurnObserver:
     """Open the matplotlib view, imported only when it is asked for.
 
     Args:
@@ -120,6 +120,6 @@ def _graphical_view(network: Network) -> TurnObserver:
         )
     except ImportError as exc:
         raise VisualizationError(
-            f"--graphical needs matplotlib ({exc})"
+            f"--matplotlib-window needs matplotlib ({exc})"
         ) from exc
     return MatplotlibWindowVisualizer(network)

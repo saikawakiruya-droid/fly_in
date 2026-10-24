@@ -23,7 +23,7 @@ respecting the movement rules of the subject:
 The program parses and validates the map, computes distances to the goal,
 schedules the moves of every drone turn by turn, checks every turn against
 the rules, prints the turn log in the required format, and shows the run in
-the terminal with colors (and, with `--graphical`, in a matplotlib window).
+the terminal with colors (and, with `--matplotlib-window`, in a window).
 No graph library is used: the graph, the
 shortest-path search and the scheduler are written by hand, as the subject
 requires. The code is object-oriented, type-annotated, and passes `flake8`
@@ -96,12 +96,12 @@ So `python3 fly_in.py map.txt 2>/dev/null` prints exactly the required output.
 ### Requirements
 
 - Python 3.10 or later (the checks below were run with Python 3.14).
-- `matplotlib` (>= 3.8) for the `--graphical` window only. On Linux the
+- `matplotlib` (>= 3.8) for `--matplotlib-window` only. On Linux the
   window also needs Tk (e.g. the `python3-tk` package) and a display.
 - `flake8` and `mypy` for `make lint` / `make lint-strict`.
 - `pytest` for `make test` (the unit tests in `tests/`).
 
-All of them are listed in `requirements.txt`; without `--graphical` the
+All of them are listed in `requirements.txt`; without `--matplotlib-window` the
 program needs only the standard library. The Makefile is written for Linux (it uses
 `.venv/bin/python`).
 
@@ -130,11 +130,11 @@ example of the subject) is included.
 
 ```sh
 make install
-.venv/bin/python fly_in.py MAP [--graphical]
+.venv/bin/python fly_in.py MAP [--matplotlib-window]
 ```
 
 The map file is the only required argument (`-h` shows the usage).
-`--graphical` also shows the run in a matplotlib window (see "Visual
+`--matplotlib-window` also shows the run in a window (see "Visual
 representation"); the turn log and the terminal view are unchanged.
 
 **Maps that start with comments.** The parser reads the physical first line
@@ -161,7 +161,7 @@ make run MAP=/tmp/map.txt
 | Code | When |
 | --- | --- |
 | `0` | The run finished. |
-| `1` | The map file cannot be read or is invalid, the goal is unreachable, the simulation fails, `--graphical` cannot open a window (matplotlib missing, no display), or an unexpected internal error occurred. One `error: ...` line is printed on standard error. |
+| `1` | The map file cannot be read or is invalid, the goal is unreachable, the simulation fails, `--matplotlib-window` cannot open a window (matplotlib missing, no display), or an unexpected internal error occurred. One `error: ...` line is printed on standard error. |
 | `2` | Invalid command-line arguments (from `argparse`). |
 | `130` | Interrupted with Ctrl+C. |
 
@@ -178,7 +178,7 @@ error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub
 error: goal 'e' is unreachable from 's'
-error: cannot open the graphical window (no display?)
+error: cannot open the matplotlib window (no display?)
 fly_in.py: error: unrecognized arguments: --visual none
 ```
 
@@ -367,7 +367,7 @@ Design choices visible in the code:
 
 The subject asks for visual feedback through colored terminal output, a
 graphical interface, or both. This program provides the colored terminal
-output, and a simple graphical window with `--graphical`.
+output, and a simple matplotlib window with `--matplotlib-window`.
 
 The terminal view writes one frame per turn to standard error, so it never
 mixes with the turn log on standard output. Each frame has:
@@ -416,7 +416,7 @@ in flight: D4 hub-roof1 -> roof1
 entered by D4 on the same turn, which is legal; the view makes that visible
 instead of looking like an overflow.
 
-### Graphical window (`--graphical`)
+### Matplotlib window (`--matplotlib-window`)
 
 The window (matplotlib) draws the map once and then the drones, one turn
 every 0.5 seconds:
@@ -439,7 +439,7 @@ every 0.5 seconds:
 Closing the window stops the drawing; the simulation then finishes at once,
 so the turn log is still complete. After the last turn the window stays open
 until it is closed. Without a display, the program stops with
-`error: cannot open the graphical window (no display?)`.
+`error: cannot open the matplotlib window (no display?)`.
 
 ## Testing and quality
 
@@ -473,7 +473,7 @@ until it is closed. Without a display, the program stops with
   [Google Python style guide](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings).
 - [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code) and
   [NO_COLOR](https://no-color.org): the terminal view's colors.
-- [matplotlib](https://matplotlib.org/): the graphical window (patches,
+- [matplotlib](https://matplotlib.org/): the window (patches,
   collections, `set_aspect("equal")`), and
   [Bezier curves](https://en.wikipedia.org/wiki/B%C3%A9zier_curve) for the
   arcs.
@@ -486,6 +486,6 @@ design options (parser structure, pathfinding, scheduling, views), to review
 code and find bugs, and to write code as instructed. At the developer's
 request, the assistant also removed the non-mandatory features from an
 earlier, larger version of the program and wrote the simple matplotlib
-window of `--graphical`. It also helped write this
+window of `--matplotlib-window`. It also helped write this
 README from the code and real runs of the program. The developer reviews all
 of the code and is responsible for it.

@@ -33,14 +33,14 @@ def test_no_window_under_agg(network: Network) -> None:
 def test_main_reports_no_display_in_one_line(
     write_map: WriteMap, subject_map: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """VG08: --graphical without a display: exit 1 and one error line."""
-    code = fly_in.main([str(write_map(subject_map)), "--graphical"])
+    """VG08: --matplotlib-window without a display: exit 1, one error."""
+    code = fly_in.main([str(write_map(subject_map)), "--matplotlib-window"])
 
     captured = capsys.readouterr()
     assert code == 1
     assert captured.out == ""
     assert captured.err == (
-        "error: cannot open the graphical window (no display?)\n"
+        "error: cannot open the matplotlib window (no display?)\n"
     )
 
 

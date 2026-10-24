@@ -48,7 +48,7 @@ class MatplotlibWindowVisualizer:
         if figure.canvas.required_interactive_framework is None:
             plt.close(figure)
             raise VisualizationError(
-                "cannot open the graphical window (no display?)"
+                "cannot open the matplotlib window (no display?)"
             )
         figure.text(0.02, 0.02, KEY, color=TEXT, fontsize=8)
         self.figure = figure
