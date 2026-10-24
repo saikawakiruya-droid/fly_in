@@ -3,7 +3,7 @@
 Zones that share a position are spread apart, and a connection is drawn
 as a straight line unless that line would cross a zone it does not join;
 then it is drawn as an arc (a quadratic Bezier curve) that goes round the
-zone. Positions are map units, y pointing up. The view draws every zone
+zone. Positions are map units, y pointing up. The scene draws every zone
 with the radius used here, so a connection bends only where it would
 cross a zone on screen.
 """
