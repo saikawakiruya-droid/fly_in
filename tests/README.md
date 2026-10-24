@@ -238,7 +238,7 @@ python -m pytest tests/
 - `tests/visualization/matplotlib_window/test_matplotlib_window_scene.py` — matplotlib の描画 `MapScene`(VG01〜VG06・VG10): ゾーンが地図の単位で配置の半径の
   パッチとして縦横同じ縮尺で描かれること、restricted は四角、ゾーンに重なる接続だけが曲がること、タイトルのターン数と
   同じ地点のドローンの数、飛行中のドローンは接続の中点・その接続だけ水色で2倍の太さ(着陸後は元に戻る)、色名の解決(パレット → matplotlib → 灰色)
-- `tests/visualization/matplotlib_window/test_matplotlib_window_view.py` — matplotlib のウィンドウ `GraphicalVisualizer`(VG07〜VG09): ディスプレイなしでは
+- `tests/visualization/matplotlib_window/test_matplotlib_window_view.py` — matplotlib のウィンドウ `MatplotlibWindowVisualizer`(VG07〜VG09): ディスプレイなしでは
   `VisualizationError`(図を残さない)、`--graphical` の `main` は終了コード1と1行のエラー、ウィンドウを閉じた後は描かないこと
 - `tests/visualization/test_palette.py` — `rgb`: 表の値(似た赤を区別)・全エントリが 0〜255 の3つ組、大文字小文字を
   区別しないこと、配布マップ(`maps.tar.gz`)の色名17種のうち `rainbow` 以外がすべて表にあること、知らない名前・空・`None` は

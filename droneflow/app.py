@@ -108,16 +108,18 @@ def _graphical_view(network: Network) -> TurnObserver:
         network: The network to draw.
 
     Returns:
-        A new GraphicalVisualizer, its window open.
+        A new MatplotlibWindowVisualizer, its window open.
 
     Raises:
         VisualizationError: If matplotlib is not installed or cannot show
             a window.
     """
     try:
-        from .visualization.matplotlib_window.view import GraphicalVisualizer
+        from .visualization.matplotlib_window.view import (
+            MatplotlibWindowVisualizer,
+        )
     except ImportError as exc:
         raise VisualizationError(
             f"--graphical needs matplotlib ({exc})"
         ) from exc
-    return GraphicalVisualizer(network)
+    return MatplotlibWindowVisualizer(network)

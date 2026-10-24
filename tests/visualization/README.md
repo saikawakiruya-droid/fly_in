@@ -14,7 +14,7 @@
 - `matplotlib_window/test_geometry.py` — グラフィカル表示の配置: ゾーンの半径・重なったゾーンの分散・接続の直線と弧(GM01〜GM06)
 - `matplotlib_window/conftest.py` — `network`(`s - r - g` の一列、r は restricted、s-g は r の上を通る)。scene と view のテストで共有
 - `matplotlib_window/test_matplotlib_window_scene.py` — matplotlib の描画 `MapScene`(VG01〜VG06・VG10)
-- `matplotlib_window/test_matplotlib_window_view.py` — matplotlib のウィンドウ `GraphicalVisualizer`(VG07〜VG09)
+- `matplotlib_window/test_matplotlib_window_view.py` — matplotlib のウィンドウ `MatplotlibWindowVisualizer`(VG07〜VG09)
 
 ## 書き方の約束
 

@@ -16,7 +16,9 @@ import fly_in
 from droneflow.errors import VisualizationError
 from droneflow.models.network import Network
 from droneflow.simulation.state import SimulationState
-from droneflow.visualization.matplotlib_window.view import GraphicalVisualizer
+from droneflow.visualization.matplotlib_window.view import (
+    MatplotlibWindowVisualizer,
+)
 
 WriteMap = Callable[[str], Path]
 
@@ -24,7 +26,7 @@ WriteMap = Callable[[str], Path]
 def test_no_window_under_agg(network: Network) -> None:
     """VG07: without an interactive backend the view cannot open."""
     with pytest.raises(VisualizationError, match="no display"):
-        GraphicalVisualizer(network)
+        MatplotlibWindowVisualizer(network)
     assert plt.get_fignums() == []
 
 
@@ -49,7 +51,7 @@ def test_closing_the_window_stops_the_drawing(
     """VG09: after the window is closed, render draws nothing."""
     monkeypatch.setattr(FigureCanvasAgg, "required_interactive_framework",
                         "tk")
-    view = GraphicalVisualizer(network, delay=0)
+    view = MatplotlibWindowVisualizer(network, delay=0)
     state = SimulationState(network, 1)
     view.begin(state)
 

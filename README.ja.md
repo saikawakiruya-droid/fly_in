@@ -293,7 +293,7 @@ droneflow/
   output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
   visualization/             palette(色名。両方の表示で共有)
     terminal/                TerminalVisualizer
-    matplotlib_window/       GraphicalVisualizer と MapScene,
+    matplotlib_window/       MatplotlibWindowVisualizer と MapScene,
                              geometry(コネクションを描く位置)
 ```
 
