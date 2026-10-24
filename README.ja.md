@@ -18,10 +18,10 @@ Fly-in は、Python で書いたドローン群のルーティングシミュレ
 - 同じ長さの経路が複数あるときは `priority` ゾーンを優先する。
 
 プログラムはマップを解析・検証し、ゴールまでの距離を計算し、ドローンの移動をターンごとに決め、
-各ターンをルールに照らして検査したうえで、決められた形式でターンログを出力します。実行の様子は
-ターミナル表示とグラフィカル表示(pygame-ce)の一方または両方で見られます。課題の指定どおりグラフ系
-ライブラリは使っておらず、グラフ、最短経路探索、スケジューラはすべて自作です。コードはオブジェクト指向で
-型注釈付きで書かれており、`flake8` と `mypy --strict` を通ります。
+各ターンをルールに照らして検査したうえで、決められた形式でターンログを出力し、実行の様子を色付きで
+ターミナルに(`--graphical` を付ければ matplotlib のウィンドウにも)表示します。課題の指定どおりグラフ系ライブラリは使っておらず、グラフ、最短経路探索、
+スケジューラはすべて自作です。コードはオブジェクト指向で型注釈付きで書かれており、`flake8` と
+`mypy --strict` を通ります。
 
 ### Input format
 
@@ -69,7 +69,7 @@ connection: corridorA-tunnelB [max_link_capacity=2]
   コネクション名はマップでの宣言どおり(`zone_a-zone_b`)。
 - 動かなかったドローンは書かれず、配送済みのドローンはもう出てきません。全機がエンドゾーンに着いたら終了します。
 
-それ以外はすべて標準エラー出力に出ます: ターミナル表示、警告、エラー、そして最後の要約行です。要約には
+それ以外はすべて標準エラー出力に出ます: ターミナル表示、エラー、そして最後の要約行です。要約には
 総ターン数と、課題の副次的な指標のうち 2 つ(1 機あたりの平均配送ターン、1 ターンあたりの平均移動数)が入ります。
 
 ```text
@@ -82,14 +82,14 @@ summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 
 ### Requirements
 
-- Python 3.10 以上(課題の要件。下記の確認は Python 3.14 で行った)。
-- グラフィカル表示にのみ `pygame-ce`(2.5 以上)。pygame のそのまま置き換えられるフォークで、`pygame` として
-  import される。無くても `--visual terminal` または `--visual none` なら動く。
+- Python 3.10 以上(下記の確認は Python 3.14 で行った)。
+- `--graphical` のウィンドウ用にだけ `matplotlib`(3.8 以上)。Linux では、ウィンドウに Tk(例: `python3-tk` パッケージ)とディスプレイも必要。
 - `make lint` / `make lint-strict` 用に `flake8` と `mypy`。
 
-3 つとも `requirements.txt` に書かれています。Makefile は Linux 向けです(`.venv/bin/python` を使う)。
+すべて `requirements.txt` に書かれています。`--graphical` なしなら、プログラム本体は標準ライブラリだけで動きます。Makefile は
+Linux 向けです(`.venv/bin/python` を使う)。
 
-課題と一緒に配布されるマップ(`maps.tar.gz`)はこのリポジトリに含まれていません。課題のページから
+課題と一緒に配布されるマップ(`maps.tar.gz`)は提出用のリポジトリには含まれていません。課題のページから
 アーカイブを入手し、例えば `tar -xzf maps.tar.gz` で展開してください。リポジトリに入っているのは
 `maps/subject_example.txt`(課題の例)だけです。
 
@@ -98,8 +98,8 @@ summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 | ルール | 内容 |
 | --- | --- |
 | `make install` | `.venv` を作り(無い場合、または pip が使えない場合)、`requirements.txt` をインストールする。 |
-| `make run` | `maps/subject_example.txt` を実行する。マップは `MAP=`、オプションは `ARGS=` で指定する。例: `make run MAP=path/to/map.txt ARGS="--visual both"`。 |
-| `make debug` | 同じ実行を `pdb` の下で行う。`FLYIN_DEBUG=1` が設定され、想定外の例外が 1 行のエラーに変換されずデバッガに届く。 |
+| `make run` | `maps/subject_example.txt` を実行する。マップは `MAP=` で指定する。例: `make run MAP=path/to/map.txt`。 |
+| `make debug` | 同じ実行を `pdb` の下で行う。 |
 | `make lint` | `flake8 .` と、課題指定のフラグ付きの `mypy .`(`--warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs`)。 |
 | `make lint-strict` | `flake8 .` と `mypy . --strict`。 |
 | `make clean` | `__pycache__`、`.mypy_cache`、`.pytest_cache` と `*.pyc` / `*.pyo` を消す(`.venv` の外)。 |
@@ -112,18 +112,11 @@ summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 
 ```sh
 make install
-.venv/bin/python fly_in.py MAP [options]
+.venv/bin/python fly_in.py MAP [--graphical]
 ```
 
-| オプション | 効果 |
-| --- | --- |
-| `--visual {terminal,graphical,both,none}` | 実行の見せ方(既定 `terminal`)。`none` はターンログと要約だけを出す。 |
-| `--delay SECONDS` | グラフィカル表示で 1 ターンを表示する秒数。0 から 60(既定 0.5)。 |
-| `--step` | 1 ターンずつ進める。ターミナル表示では Enter、グラフィカル表示では右矢印キー。`both` のときはウィンドウ側で進める。ターミナル表示のステップ実行は標準入力が端末のときだけ有効なので、パイプ経由の実行が止まることはない。 |
-| `--parse-only FILE` | `MAP` を解析し、解析結果のワールドを JSON で `FILE` に書いて、シミュレーションせずに終わる。 |
-| `--from-world` | `MAP` をマップファイルではなく `--parse-only` が書いたワールド JSON として読み、シミュレーションする。 |
-| `--save-run FILE` | 各ターンの移動とその後の状態を JSON で `FILE` に書く。`--parse-only` とは併用できない。 |
-| `-h`, `--help` | ヘルプを表示して終わる。 |
+必須の引数はマップファイルだけです(`-h` で使い方を表示)。`--graphical` を付けると、matplotlib のウィンドウにも
+実行の様子を表示します(「Visual representation」を参照)。ターンログとターミナル表示は変わりません。
 
 **コメントで始まるマップ。** パーサは物理的な 1 行目を `nb_drones:` のヘッダとして読みます(課題:
 "The first line must define the number of drones")。そのため 1 行目がコメントや空行のファイルは拒否されます。
@@ -145,12 +138,12 @@ make run MAP=/tmp/map.txt
 
 | コード | 条件 |
 | --- | --- |
-| `0` | 実行が完了した(または `--parse-only` がファイルを書いた)。 |
-| `1` | マップ/ワールドファイルが読めない・不正、ゴールに到達できない、グラフィカル表示が使えない(pygame が無い、ディスプレイが無い)、シミュレーションが失敗した、出力ファイルが書けない、標準出力が途中で閉じられた(例: `| head`)、または想定外の内部エラー。標準エラー出力に `error: ...` を 1 行出す。 |
+| `0` | 実行が完了した。 |
+| `1` | マップファイルが読めない・不正、ゴールに到達できない、シミュレーションが失敗した、`--graphical` でウィンドウを開けない(matplotlib がない、ディスプレイがない)、または想定外の内部エラー。標準エラー出力に `error: ...` を 1 行出す。 |
 | `2` | コマンドライン引数が不正(`argparse` による)。 |
 | `130` | Ctrl+C で中断された。 |
 
-実際の実行で得たエラーメッセージの例:
+エラーメッセージの例:
 
 ```text
 error: cannot read map file 'nope.txt': No such file or directory
@@ -163,8 +156,8 @@ error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub
 error: goal 'e' is unreachable from 's'
-error: invalid world file 'bad.json': zones: missing start_hub
-fly_in.py: error: argument --delay: must be a finite number of seconds >= 0: '-1'
+error: cannot open the graphical window (no display?)
+fly_in.py: error: unrecognized arguments: --visual none
 ```
 
 ## Example
@@ -193,8 +186,7 @@ connection: tunnelB-goal
 
 ### Output
 
-`make run ARGS="--visual none"`(または
-`.venv/bin/python fly_in.py maps/subject_example.txt --visual none`):
+`.venv/bin/python fly_in.py maps/subject_example.txt 2>/dev/null`(標準出力だけ):
 
 ```text
 D1-corridorA D2-hub-roof1
@@ -202,13 +194,11 @@ D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1
 D1-goal D2-roof2 D3-tunnelB D4-roof1 D5-corridorA
 D2-goal D3-goal D4-roof2 D5-tunnelB
 D4-goal D5-goal
-summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 ```
 
-最初の 5 行がターンログ(標準出力)、最後の行が要約(標準エラー出力)です。経路はどちらも 3 ターンで、
-`hub -> corridorA -> tunnelB -> goal`(priority ゾーン経由)と `hub -> roof1 -> roof2 -> goal`
-(restricted の `roof1` に入るのに 2 ターンかかるため、`D2-hub-roof1` は D2 がコネクション上にいるターン)です。
-ドローンは両方の経路に振り分けられ、5 機すべてが 5 ターンで配送されます。
+経路はどちらも 3 ターンで、`hub -> corridorA -> tunnelB -> goal`(priority ゾーン経由)と
+`hub -> roof1 -> roof2 -> goal`(restricted の `roof1` に入るのに 2 ターンかかるため、`D2-hub-roof1` は
+D2 がコネクション上にいるターン)です。ドローンは両方の経路に振り分けられ、5 機すべてが 5 ターンで配送されます。
 
 ## Algorithm and implementation strategy
 
@@ -217,7 +207,7 @@ summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 ```text
 map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
                                                                  |
-         TurnLogPrinter, views, RunRecorder  <-  SimulationEngine + TurnResolver
+        TurnLogPrinter, TerminalVisualizer  <-  SimulationEngine + TurnResolver
 ```
 
 1. **解析**(`droneflow/parsing`)。`MapReader` が行番号付きで行を渡します。`LineTokenizer` が各行の構文を
@@ -271,9 +261,9 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    ターン、誰も動かないターン、安全上限(`2 * ゾーン数 * ドローン数`)を超えるターン数は、エラーで実行を止めます。
    つまりスケジューラを無条件には信用しておらず、出力されたターンはすべて検査済みです。
 
-5. **出力**(`droneflow/output`)。エンジンは毎ターンの後にオブザーバを呼びます: `TurnLogPrinter` がその
-   ターンの行を標準出力に書いてフラッシュし、表示がその状態を描き、`--save-run` 指定時は `RunRecorder` が
-   ターンを保存します。最後に `RunSummary` が要約行を書きます。
+5. **出力**(`droneflow/output`、`droneflow/visualization`)。エンジンは毎ターンの後にオブザーバを呼びます:
+   `TurnLogPrinter` がそのターンの行を標準出力に書いてフラッシュし、`TerminalVisualizer` がその状態を
+   標準エラー出力に描きます。最後に `RunSummary` が要約行を書きます。
 
 **コスト。** ゾーン数 Z、コネクション数 C、ドローン数 D として、Dijkstra 探索は O((Z + C) log Z) で 1 度だけ。
 毎ターン、ゾーンにいる各ドローンが少数の一手を試し、それぞれを計画済みの移動がある数ターン分だけ台帳で
@@ -285,7 +275,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
 ```text
 fly_in.py                    エントリポイント: 引数、終了コード、エラー行
 droneflow/
-  cli.py                     コマンドラインオプション(argparse) -> Args
+  cli.py                     マップの引数(argparse) -> Args
   app.py                     Application: 各段階をつなぐ
   errors.py                  FlyInError とそのサブクラス
   models/                    Zone, ZoneType, ZoneRole, Connection, Drone,
@@ -299,9 +289,10 @@ droneflow/
                              Evictor, ReservationTable, DetourPolicy,
                              PositionBoard
   output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
-  visualization/             TerminalVisualizer, GraphicalVisualizer(pygame),
-                             camera, geometry, labels, palette
-  interchange/               ワールドの JSON ファイルと実行記録の JSON ファイル
+  visualization/             palette(色名。両方の表示で共有)
+    terminal/                TerminalVisualizer
+    graphical/               GraphicalVisualizer と MapScene(matplotlib),
+                             geometry(コネクションを描く位置)
 ```
 
 コードから読み取れる設計上の選択:
@@ -310,21 +301,18 @@ droneflow/
   `TurnResolver`(ルール)、`MoveDecider`(`Scheduler`)を組み合わせ、スケジューラは小さなクラス
   (台帳、追い出し、迂回方針、順位付け)に処理を任せます。
 - **接合部には Protocol。** `MoveDecider`、`TurnObserver`、`Rule` は `typing.Protocol` で、ターンログの
-  出力、各表示、実行記録はすべて同じエンジンのオブザーバです。`Application` には別の決定器を差し込めます。
+  出力とターミナル表示はどちらも同じエンジンのオブザーバです。`Application` には別の決定器を差し込めます。
 - **ルールと決定を分離。** スケジューラは計画し、リゾルバが検査して反映します。スケジューリングの不具合は、
   不正なターンログではなく、はっきりした `SimulationError` になります。
-- **pygame を import するのは 1 モジュールだけ**(`visualization/graphical_view.py`)で、しかも遅延 import
-  なので、それ以外は pygame なしで動きます。
 
 ## Visual representation
 
 課題は、色付きのターミナル出力、グラフィカルインターフェース、またはその両方による視覚的なフィードバックを
-求めています。両方を用意しており、`--visual` で選びます。
+求めています。このプログラムは、色付きのターミナル出力と、`--graphical` によるシンプルなグラフィカルウィンドウを
+提供します。
 
-### Terminal view
-
-既定の表示(`--visual terminal`)は、1 ターンごとに 1 フレームを標準エラー出力に書くので、標準出力の
-ターンログと混ざりません。各フレームの内容:
+ターミナル表示は、1 ターンごとに 1 フレームを標準エラー出力に書くので、標準出力のターンログと混ざりません。
+各フレームの内容:
 
 - ターン番号、移動数、配送済み数を示すヘッダ。
 - そのターンの移動。
@@ -334,8 +322,9 @@ droneflow/
 
 ゾーン名は `color=` メタデータの色(24 ビットの ANSI カラー)で塗られます。未知の色名は端末の既定色の
 ままで、満杯の数値は太字、blocked ゾーンは淡色になります。標準エラー出力が端末でないとき、または
-`NO_COLOR` が設定されているときは色を付けません。`--step` では各フレームで Enter を待ちます。1 行に並べる
-ゾーンの数は端末の幅で決まり、長い名前は `~` で短縮されます。
+`NO_COLOR` が設定されているときは色を付けません。1 行に並べるゾーンの数は端末の幅で決まり、長い名前は
+`~` で短縮されます。各ターンの負荷、飛行中のドローン、移動を並べて見られるので、ドローンが待つ理由や
+迂回する理由を追いやすくなります。
 
 例の初期状態と最初の 2 ターン(`NO_COLOR=1`、100 桁):
 
@@ -362,113 +351,57 @@ in flight: D4 hub-roof1 -> roof1
 `roof1 R 1/1+1*` は、同じターンに D2 が出ていき D4 が入ってくる restricted ゾーンを示しています。これは
 合法で、表示は容量超過のように見せるのではなく、その状況が分かるようにしています。
 
-### Graphical view
+### グラフィカルウィンドウ(`--graphical`)
 
-`--visual graphical`(またはターミナル表示と一緒に `both`)は 1200x800 の pygame ウィンドウを開き、
-ゾーンの座標どおり(y は上向き)にネットワークを描いて、`--delay` 秒ごとに 1 ターン再生します。
+ウィンドウ(matplotlib)は、マップを一度描いたあと、0.5 秒に 1 ターンずつドローンを描きます:
 
-描かれるもの:
+- ゾーンは `color=` の色で塗った円です。restricted ゾーンは四角、blocked ゾーンは濃い灰色で、縁の色が
+  スタートとエンド(白)、restricted(赤)、priority(金)を示します。ゾーンが 60 個までのマップでは、
+  ゾーンの下に名前を書きます。
+- コネクションは直線で、直線のままだと他のゾーンの上を通る場合だけ弧に曲げます。ゾーンは、弧がよけるときに
+  使うのと同じ半径でマップの単位で描き、x と y の縮尺をそろえているので、コネクションが曲がるのは、まっすぐでは
+  画面上でゾーンに重なるときだけです。matplotlib のツールバーで拡大すると、ゾーンも大きくなります。
+- ドローンは、ゾーンにいるときは白い点、restricted ゾーンへ飛行中はコネクションの中央の水色の点です(そのコネクションは水色で 2 倍の太さになります)。
+  同じ地点にいる複数のドローンは、数を書いた大きめの点 1 つになります。タイトルにターン番号と配送済み数を出します。
 
-- **ゾーン**は `color=` の色で塗る(パレット、次に pygame の色名、最後に既定の灰色)。normal は円、
-  priority は金色の縁、スタートとエンドは白い縁と名前の後ろの `(start)` / `(end)`、restricted は赤い縁の
-  四角、blocked は濃い灰色にバツ印。
-- 容量のあるゾーンの下の**負荷バー**: 埋まるにつれて緑、橙、赤と変わり、次のターンに到着するドローンの分は
-  淡い色で示す。ラベルは `中にいる数/容量 +N`。エンドゾーンには配送済みの数を表示。
-- **コネクション**は `max_link_capacity` に応じて太くなる線(1 より大きいと `xN` のラベル付き)で、ドローンが
-  飛行中のあいだは明るくなる。同じ位置に宣言されたゾーンはその周りに広げて配置し、別のゾーンの上を通って
-  しまうコネクションはそれを避ける弧として描く。
-- **ドローン**は点: ゾーン内では白、コネクション上(restricted ゾーンへ飛行中、コネクションの中央に描く)では
-  水色、このターンに動いたものは金色の縁。同じ点にいる複数のドローンは、数を書いた 1 つのバッジになる。
-  配送済みのドローンも、同じようにゴールのゾーンに描く。
-  このターンの各移動は、使ったコネクションに沿って金色の**軌跡**を残す。
-- ターン、移動数、配送済み数、飛行中の数、操作方法と現在の待ち時間を示す**ステータスバー**、そのターンの
-  移動を示す**フッター**(入りきらないときは `... +K more`)、マウスの下のゾーンの詳細(役割、種別、色、
-  負荷、ドローン番号)を示す**ツールチップ**。
-
-操作:
-
-| 入力 | 効果 |
-| --- | --- |
-| Space | 一時停止 / 再開。 |
-| 右矢印 | 待ち時間を待たずに次のターンへ(一時停止中とステップ実行中も)。 |
-| 上 / `+` | 速く(待ち時間を半分に。0.05 秒を下回ると 0、つまり待たない)。 |
-| 下 / `-` | 遅く(待ち時間を 2 倍に。0 のときは 0.05 秒から。上限は `--delay` と同じ 60 秒)。 |
-| マウスホイール | マウス位置を中心に拡大縮小(0.5 倍から、最も近いゾーン同士が読める倍率まで)。ゾーンと文字の大きさは変わらず、間隔だけが広がる。 |
-| 左ドラッグ | マップを動かす。 |
-| `f` | マップ全体を表示し直す。 |
-| Esc、`q`、閉じるボタン | ウィンドウを閉じる。 |
-
-`--step` ではウィンドウが一時停止状態で始まり、右矢印で 1 ターンずつ進みます。最後のターンの後も
-ウィンドウは "finished - press esc to close" と表示して開いたままです。途中でウィンドウを閉じても表示が
-閉じるだけで、シミュレーションは最後まで続くので、標準出力のターンログは完全なままです。大きなマップでは、
-読めないほど縮小するとゾーンは小さな点になりラベルは省かれ、拡大すると戻ります。
-
-pygame-ce がインストールされていない(本家の pygame には表示で使う関数が無いため、本家だけでも同じ)、
-またはウィンドウを開けない(例: ディスプレイが無い)場合、プログラムは
-エラー行を 1 行出して終了コード 1 で止まります。例:
-`error: the graphical view needs pygame (pygame-ce): run 'make install' or
-'pip install pygame-ce', or use --visual terminal`。
-
-## Additional features
-
-- **読める JSON ファイルを介して、各段階を単独で実行。**
-  `--parse-only world.json` は解析の後で止まり、解析したワールド(全ゾーンと全コネクションの全フィールドを
-  宣言順に)を書きます。`--from-world` はそのファイルをパーサなしでシミュレーションします(マップと同じ
-  ルールで検査するので、手で編集したファイルでも、パーサが拒否するようなマップがシミュレーションに渡る
-  ことはない)。`--save-run run.json` は各ターン(ターン 0 は初期状態)について、ログ行、各移動、配送済み数、
-  未配送の各ドローンの居場所を書きます。実行が失敗した場合は、それまでのターンを `"complete": false` で書きます。
-
-  ```text
-  $ .venv/bin/python fly_in.py maps/subject_example.txt --parse-only world.json
-  world: wrote world.json (7 zones, 6 connections, 5 drones)
-  $ .venv/bin/python fly_in.py world.json --from-world --visual none --save-run run.json
-  D1-corridorA D2-hub-roof1
-  ...
-  run: wrote run.json
-  summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
-  ```
-
-- 課題の副次的な指標(1 機あたりの平均ターン、1 ターンあたりの移動数)を含む**要約**を標準エラー出力に表示。
-- 両方の表示での**ステップ実行**(`--step`)と、グラフィカル表示での速度変更、一時停止、拡大縮小、移動、
-  マウスオーバーでの詳細表示。
-- **きれいな出力ストリーム**: ターンログは 1 行ごとに標準出力へフラッシュされ、それ以外は何も書かれない
-  (pygame の import 時のバナーも隠す)ので、パイプやリダイレクトに使えます。読み手が途中で閉じても
-  (`| head`)トレースバックは出ません。
-- **堅牢なエラー処理**: 想定内の失敗はすべて `error: ...` の 1 行と 0 以外の終了コードになります。想定外の
-  例外は `error: internal error: ...` の 1 行になります(`FLYIN_DEBUG=1`、つまり `make debug` のときを除く)。
+ウィンドウを閉じると描画をやめ、シミュレーションはすぐに最後まで進むので、ターンログは完全なままです。
+最後のターンのあとは、閉じるまでウィンドウを開いたままにします。ディスプレイがないときは
+`error: cannot open the graphical window (no display?)` で止まります。
 
 ## Testing and quality
 
-- `make lint` と `make lint-strict` は通ります: 同じコマンド(`flake8 .`、課題指定のフラグ付きの `mypy .`、
-  `mypy . --strict`)をこのリポジトリで実行し、50 のソースファイルで問題なしと報告されることを確認しました
-  (flake8 7.4、mypy 2.4、Python 3.14)。
+- `make lint` と `make lint-strict` は通ります: `flake8 .`、課題指定のフラグ付きの `mypy .`、
+  `mypy . --strict` はいずれも問題なしと報告します(flake8 7.4、mypy 2.4、Python 3.14)。
 - クラスと公開関数には Google スタイルの docstring があり、コードはすべて型注釈付きです(`mypy --strict` で確認)。
 - 実行時には `TurnResolver` が各ターンを移動と容量のルールに照らして検査してから反映するので、出力された
   ターンログは常に合法です。エンジンは、誰も動かないターンがあった場合や、安全上限のターン数を超えた場合にも止まります。
 - このリポジトリには単体テストは含まれていません。この README に示した動作(例の出力、ターミナル表示、
-  エラーメッセージ、JSON ファイル)は、課題の例と小さな手書きのマップでプログラムを実行して確認しました。
+  エラーメッセージ)は、課題の例と小さな手書きのマップでプログラムを実行して確認しました。
 
 ## Resources
 
 ### References
 
-- Fly-in の課題(42、バージョン 1.6): ルール、マップ形式、出力形式、ベンチマーク。
+- Fly-in の課題(42、バージョン 2.0): ルール、マップ形式、出力形式、配布マップの最適ターン数。
 - [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)(Wikipedia)。ここではゾーンごとの
   コストでエンドゾーンから使っている。
 - [Python `heapq`](https://docs.python.org/3/library/heapq.html): 探索の優先度付きキュー。
 - [Python `argparse`](https://docs.python.org/3/library/argparse.html)、
   [`dataclasses`](https://docs.python.org/3/library/dataclasses.html)、
   [`typing.Protocol`](https://docs.python.org/3/library/typing.html#typing.Protocol)。
-- [pygame-ce のドキュメント](https://pyga.me/docs/): グラフィカル表示。
 - [mypy](https://mypy.readthedocs.io/) と [flake8](https://flake8.pycqa.org/): 静的検査。
 - [PEP 257](https://peps.python.org/pep-0257/)(docstring)と
   [Google Python スタイルガイド](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)。
 - [ANSI エスケープコード](https://en.wikipedia.org/wiki/ANSI_escape_code)と [NO_COLOR](https://no-color.org):
   ターミナル表示の色。
+- [matplotlib](https://matplotlib.org/): グラフィカルウィンドウ(パッチ、コレクション、`set_aspect("equal")`)。
+  弧には[ベジェ曲線](https://en.wikipedia.org/wiki/B%C3%A9zier_curve)を使う。
 
 ### How AI was used
 
 このプロジェクトでは全体を通して、開発者の指示のもとで AI アシスタント(Claude)を使いました。用途は、
 課題の要件の分析、設計案の検討(パーサの構成、経路探索、スケジューリング、表示)、コードレビューと
-不具合の発見、そして指示に従ったコードの作成です。この README も、コードと実際の実行結果をもとに AI の
-助けを借りて書きました。コードはすべて開発者がレビューしており、その責任は開発者が負います。
+不具合の発見、そして指示に従ったコードの作成です。開発者の依頼により、以前のより大きな版から必須でない
+機能を取り除く作業と、`--graphical` のシンプルな matplotlib ウィンドウの作成も AI アシスタントが行いました。
+この README も、コードと実際の実行結果を
+もとに AI の助けを借りて書きました。コードはすべて開発者がレビューし、その責任は開発者が負います。

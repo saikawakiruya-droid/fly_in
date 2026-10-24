@@ -5,10 +5,10 @@ import shutil
 import sys
 from typing import TextIO
 
-from ..models.drone import Drone
-from ..models.zone import Zone, ZoneRole, ZoneType
-from ..simulation.state import Move, SimulationState
-from .palette import rgb
+from ...models.drone import Drone
+from ...models.zone import Zone, ZoneRole, ZoneType
+from ...simulation.state import Move, SimulationState
+from ..palette import rgb
 
 _RESET = "\x1b[0m"
 _BOLD = "\x1b[1m"
@@ -94,8 +94,6 @@ class TerminalVisualizer:
         stream: TextIO | None = None,
         color: bool | None = None,
         width: int | None = None,
-        step: bool = False,
-        input_stream: TextIO | None = None,
     ) -> None:
         """Choose where and how to write.
 
@@ -105,13 +103,6 @@ class TerminalVisualizer:
                 if ``color_enabled(stream)``.
             width: Line width used to lay out the zones; defaults to the
                 terminal width (100 if unknown).
-            step: Step mode: after each frame (except the last), wait
-                for the user to press Enter. Only done when the input
-                stream is a terminal; otherwise frames are not held, so
-                piped or redirected runs never block. End of input turns
-                step mode off for the rest of the run.
-            input_stream: Where Enter is read from; defaults to
-                ``sys.stdin``.
         """
         self.stream: TextIO = sys.stderr if stream is None else stream
         self.color = color_enabled(self.stream) if color is None else color
@@ -119,10 +110,6 @@ class TerminalVisualizer:
             shutil.get_terminal_size((100, 24)).columns
             if width is None else width
         )
-        self.input: TextIO = (
-            sys.stdin if input_stream is None else input_stream
-        )
-        self.step = step and _is_terminal(self.input)
 
     def begin(self, state: SimulationState) -> None:
         """Write the initial state and a legend of the symbols used.
@@ -139,7 +126,6 @@ class TerminalVisualizer:
         lines = [self._style(header, _BOLD), _LEGEND]
         lines.extend(self._state_lines(state))
         self._write(lines)
-        self._wait_for_enter(state)
 
     def render(self, state: SimulationState, moves: list[Move]) -> None:
         """Write one frame: the turn's moves and the resulting state.
@@ -149,7 +135,6 @@ class TerminalVisualizer:
             moves: The moves made during the turn.
         """
         self._write(self.frame(state, moves))
-        self._wait_for_enter(state)
 
     def close(self) -> None:
         """Flush the stream; it is not closed (it is not ours)."""
@@ -417,19 +402,6 @@ class TerminalVisualizer:
         if not self.color or not code:
             return text
         return f"{code}{text}{_RESET}"
-
-    def _wait_for_enter(self, state: SimulationState) -> None:
-        """In step mode, hold the frame until Enter (not after the last).
-
-        Args:
-            state: The state just shown, to tell whether it is the last.
-        """
-        if not self.step or state.is_complete:
-            return
-        self.stream.write("-- press Enter for the next turn --\n")
-        self.stream.flush()
-        if self.input.readline() == "":
-            self.step = False
 
     def _write(self, lines: list[str]) -> None:
         """Write the lines to the stream and flush it.

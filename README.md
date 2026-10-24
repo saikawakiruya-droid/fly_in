@@ -23,10 +23,11 @@ respecting the movement rules of the subject:
 The program parses and validates the map, computes distances to the goal,
 schedules the moves of every drone turn by turn, checks every turn against
 the rules, prints the turn log in the required format, and shows the run in
-the terminal and/or in a graphical window (pygame-ce). No graph library is
-used: the graph, the shortest-path search and the scheduler are written by
-hand, as the subject requires. The code is object-oriented, type-annotated,
-and passes `flake8` and `mypy --strict`.
+the terminal with colors (and, with `--graphical`, in a matplotlib window).
+No graph library is used: the graph, the
+shortest-path search and the scheduler are written by hand, as the subject
+requires. The code is object-oriented, type-annotated, and passes `flake8`
+and `mypy --strict`.
 
 ### Input format
 
@@ -80,10 +81,9 @@ moves of that turn separated by spaces, in drone number order.
 - Drones that do not move are left out; a delivered drone no longer appears.
   The run ends when every drone is in the end zone.
 
-Everything else goes to standard error: the terminal view, warnings, errors,
-and a final summary line with the total number of turns and two of the
-subject's secondary metrics (average delivery turn per drone, average moves
-per turn):
+Everything else goes to standard error: the terminal view, errors, and a
+final summary line with the total number of turns and two of the subject's
+secondary metrics (average delivery turn per drone, average moves per turn):
 
 ```text
 summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
@@ -95,28 +95,27 @@ So `python3 fly_in.py map.txt 2>/dev/null` prints exactly the required output.
 
 ### Requirements
 
-- Python 3.10 or later (the subject's requirement; the checks below were run
-  with Python 3.14).
-- `pygame-ce` (>= 2.5) for the graphical view only. It is a drop-in fork of
-  pygame, imported as `pygame`. Without it, the program still runs with
-  `--visual terminal` or `--visual none`.
+- Python 3.10 or later (the checks below were run with Python 3.14).
+- `matplotlib` (>= 3.8) for the `--graphical` window only. On Linux the
+  window also needs Tk (e.g. the `python3-tk` package) and a display.
 - `flake8` and `mypy` for `make lint` / `make lint-strict`.
 
-All three are listed in `requirements.txt`. The Makefile is written for Linux
-(it uses `.venv/bin/python`).
+All of them are listed in `requirements.txt`; without `--graphical` the
+program needs only the standard library. The Makefile is written for Linux (it uses
+`.venv/bin/python`).
 
-The maps handed out with the subject (`maps.tar.gz`) are not part of this
-repository; download the archive from the subject page and extract it, e.g.
-with `tar -xzf maps.tar.gz`. Only `maps/subject_example.txt` (the example of
-the subject) is included.
+The maps handed out with the subject (`maps.tar.gz`) are not part of the
+submitted repository; download the archive from the subject page and extract
+it, e.g. with `tar -xzf maps.tar.gz`. Only `maps/subject_example.txt` (the
+example of the subject) is included.
 
 ### Makefile
 
 | Rule | What it does |
 | --- | --- |
 | `make install` | Creates `.venv` (if it is absent or has no working pip) and installs `requirements.txt` into it. |
-| `make run` | Runs `maps/subject_example.txt`. Override the map with `MAP=` and add options with `ARGS=`, e.g. `make run MAP=path/to/map.txt ARGS="--visual both"`. |
-| `make debug` | The same run under `pdb`, with `FLYIN_DEBUG=1` so that unexpected exceptions reach the debugger instead of being turned into a one-line error. |
+| `make run` | Runs `maps/subject_example.txt`. Override the map with `MAP=`, e.g. `make run MAP=path/to/map.txt`. |
+| `make debug` | The same run under `pdb`. |
 | `make lint` | `flake8 .` and `mypy .` with the flags the subject requires (`--warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs`). |
 | `make lint-strict` | `flake8 .` and `mypy . --strict`. |
 | `make clean` | Removes `__pycache__`, `.mypy_cache`, `.pytest_cache` and `*.pyc` / `*.pyo` files (outside `.venv`). |
@@ -129,18 +128,12 @@ the subject) is included.
 
 ```sh
 make install
-.venv/bin/python fly_in.py MAP [options]
+.venv/bin/python fly_in.py MAP [--graphical]
 ```
 
-| Option | Effect |
-| --- | --- |
-| `--visual {terminal,graphical,both,none}` | How to show the run (default `terminal`). `none` prints only the turn log and the summary. |
-| `--delay SECONDS` | Seconds each turn stays on screen in the graphical view, from 0 to 60 (default 0.5). |
-| `--step` | Advance one turn at a time: Enter in the terminal view, the right arrow in the graphical view. With `both`, the window drives the steps. In the terminal view, step mode is only used when standard input is a terminal, so piped runs never block. |
-| `--parse-only FILE` | Parse `MAP`, write the parsed world to `FILE` as JSON, and stop without simulating. |
-| `--from-world` | Read `MAP` as a world JSON file written by `--parse-only` instead of a map file, and simulate it. |
-| `--save-run FILE` | Write every turn's moves and the state after it to `FILE` as JSON. Cannot be combined with `--parse-only`. |
-| `-h`, `--help` | Show the help and exit. |
+The map file is the only required argument (`-h` shows the usage).
+`--graphical` also shows the run in a matplotlib window (see "Visual
+representation"); the turn log and the terminal view are unchanged.
 
 **Maps that start with comments.** The parser reads the physical first line
 as the `nb_drones:` header (the subject: "The first line must define the
@@ -165,12 +158,12 @@ make run MAP=/tmp/map.txt
 
 | Code | When |
 | --- | --- |
-| `0` | The run finished (or `--parse-only` wrote its file). |
-| `1` | A map or world file cannot be read or is invalid, the goal is unreachable, the graphical view cannot be used (pygame missing, no display), the simulation fails, an output file cannot be written, standard output was closed early (e.g. `| head`), or an unexpected internal error occurred. One `error: ...` line is printed on standard error. |
+| `0` | The run finished. |
+| `1` | The map file cannot be read or is invalid, the goal is unreachable, the simulation fails, `--graphical` cannot open a window (matplotlib missing, no display), or an unexpected internal error occurred. One `error: ...` line is printed on standard error. |
 | `2` | Invalid command-line arguments (from `argparse`). |
 | `130` | Interrupted with Ctrl+C. |
 
-Examples of error messages, taken from real runs:
+Examples of error messages:
 
 ```text
 error: cannot read map file 'nope.txt': No such file or directory
@@ -183,8 +176,8 @@ error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub
 error: goal 'e' is unreachable from 's'
-error: invalid world file 'bad.json': zones: missing start_hub
-fly_in.py: error: argument --delay: must be a finite number of seconds >= 0: '-1'
+error: cannot open the graphical window (no display?)
+fly_in.py: error: unrecognized arguments: --visual none
 ```
 
 ## Example
@@ -213,8 +206,8 @@ connection: tunnelB-goal
 
 ### Output
 
-`make run ARGS="--visual none"` (or
-`.venv/bin/python fly_in.py maps/subject_example.txt --visual none`):
+`.venv/bin/python fly_in.py maps/subject_example.txt 2>/dev/null` (standard
+output only):
 
 ```text
 D1-corridorA D2-hub-roof1
@@ -222,15 +215,13 @@ D1-tunnelB D2-roof1 D3-corridorA D4-hub-roof1
 D1-goal D2-roof2 D3-tunnelB D4-roof1 D5-corridorA
 D2-goal D3-goal D4-roof2 D5-tunnelB
 D4-goal D5-goal
-summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
 ```
 
-The first five lines are the turn log (standard output); the last line is the
-summary (standard error). Both routes are 3 turns long: `hub -> corridorA ->
-tunnelB -> goal` (through a priority zone) and `hub -> roof1 -> roof2 ->
-goal` (entering the restricted `roof1` takes 2 turns, so `D2-hub-roof1` is
-the turn D2 spends on the connection). The drones are split over both routes,
-and all 5 are delivered in 5 turns.
+Both routes are 3 turns long: `hub -> corridorA -> tunnelB -> goal` (through
+a priority zone) and `hub -> roof1 -> roof2 -> goal` (entering the restricted
+`roof1` takes 2 turns, so `D2-hub-roof1` is the turn D2 spends on the
+connection). The drones are split over both routes, and all 5 are delivered
+in 5 turns.
 
 ## Algorithm and implementation strategy
 
@@ -239,7 +230,7 @@ and all 5 are delivered in 5 turns.
 ```text
 map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
                                                                  |
-         TurnLogPrinter, views, RunRecorder  <-  SimulationEngine + TurnResolver
+        TurnLogPrinter, TerminalVisualizer  <-  SimulationEngine + TurnResolver
 ```
 
 1. **Parsing** (`droneflow/parsing`). `MapReader` yields numbered lines.
@@ -318,10 +309,11 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    limit (`2 * zones * drones`) stops the run with an error. The scheduler is
    therefore never trusted blindly: every printed turn has been checked.
 
-5. **Output** (`droneflow/output`). The engine calls observers after every
-   turn: the `TurnLogPrinter` writes and flushes the turn line on standard
-   output, the views draw the state, and the optional `RunRecorder` keeps the
-   turn for `--save-run`. At the end, `RunSummary` writes the summary line.
+5. **Output** (`droneflow/output`, `droneflow/visualization`). The engine
+   calls its observers after every turn: the `TurnLogPrinter` writes and
+   flushes the turn line on standard output, and the `TerminalVisualizer`
+   draws the state on standard error. At the end, `RunSummary` writes the
+   summary line.
 
 **Cost.** With Z zones, C connections and D drones: the Dijkstra search is
 O((Z + C) log Z), done once. Each turn, every drone standing in a zone tries
@@ -335,7 +327,7 @@ drone positions, plus the planned moves.
 ```text
 fly_in.py                    entry point: arguments, exit codes, error lines
 droneflow/
-  cli.py                     command-line options (argparse) -> Args
+  cli.py                     the map argument (argparse) -> Args
   app.py                     Application: wires the stages together
   errors.py                  FlyInError and its subclasses
   models/                    Zone, ZoneType, ZoneRole, Connection, Drone,
@@ -349,9 +341,10 @@ droneflow/
                              Evictor, ReservationTable, DetourPolicy,
                              PositionBoard
   output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
-  visualization/             TerminalVisualizer, GraphicalVisualizer (pygame),
-                             camera, geometry, labels, palette
-  interchange/               JSON world files and run files
+  visualization/             palette (color names, shared by both views)
+    terminal/                TerminalVisualizer
+    graphical/               GraphicalVisualizer and MapScene (matplotlib),
+                             geometry (where connections are drawn)
 ```
 
 Design choices visible in the code:
@@ -361,25 +354,21 @@ Design choices visible in the code:
   `MoveDecider` (the `Scheduler`); the scheduler delegates to small classes
   (ledger, evictor, detour policy, ranking).
 - **Protocols for the seams.** `MoveDecider`, `TurnObserver` and `Rule` are
-  `typing.Protocol`s, so the turn log printer, the views and the run recorder
-  are all observers of the same engine, and another decider can be plugged
-  into the `Application`.
+  `typing.Protocol`s, so the turn log printer and the terminal view are both
+  observers of the same engine, and another decider can be plugged into the
+  `Application`.
 - **The rules are separate from the decisions.** The scheduler plans; the
   resolver checks and applies. A scheduling bug becomes a clear
   `SimulationError` instead of an invalid turn log.
-- **Only one module imports pygame** (`visualization/graphical_view.py`), and
-  it is imported lazily, so the rest works without pygame.
 
 ## Visual representation
 
 The subject asks for visual feedback through colored terminal output, a
-graphical interface, or both. Both are provided, selected with `--visual`.
+graphical interface, or both. This program provides the colored terminal
+output, and a simple graphical window with `--graphical`.
 
-### Terminal view
-
-The default view (`--visual terminal`) writes one frame per turn to standard
-error, so it never mixes with the turn log on standard output. Each frame
-has:
+The terminal view writes one frame per turn to standard error, so it never
+mixes with the turn log on standard output. Each frame has:
 
 - a header with the turn number, the number of moves, and the delivered
   count;
@@ -394,9 +383,10 @@ has:
 Zone names are painted with their `color=` metadata (24-bit ANSI colors);
 unknown color names fall back to the terminal's default color, full counts
 are bold, and blocked zones are dimmed. Colors are turned off when standard
-error is not a terminal or when `NO_COLOR` is set. With `--step`, each frame
-waits for Enter. The terminal width sets how many zones fit on a line, and
-long names are shortened with `~`.
+error is not a terminal or when `NO_COLOR` is set. The terminal width sets
+how many zones fit on a line, and long names are shortened with `~`. Seeing
+the loads, the drones in flight and the moves of each turn side by side makes
+it easy to follow why a drone waits or takes a detour.
 
 The initial state and the first two turns of the example (`NO_COLOR=1`, 100 columns):
 
@@ -424,103 +414,35 @@ in flight: D4 hub-roof1 -> roof1
 entered by D4 on the same turn, which is legal; the view makes that visible
 instead of looking like an overflow.
 
-### Graphical view
+### Graphical window (`--graphical`)
 
-`--visual graphical` (or `both`, together with the terminal view) opens a
-1200x800 pygame window that draws the network at the zones' coordinates (y
-pointing up) and plays the run, one turn every `--delay` seconds.
+The window (matplotlib) draws the map once and then the drones, one turn
+every 0.5 seconds:
 
-What is drawn:
+- zones are circles filled with their `color=`; restricted zones are
+  squares, blocked zones are dark gray, and the ring marks the start and end
+  (white), restricted (red) and priority (gold) zones; names are written
+  under the zones on maps of up to 60 zones;
+- connections are straight lines, bent into an arc only where the straight
+  line would cross another zone. Zones are drawn in map units with the same
+  radius the arcs are routed round, and x and y keep the same scale, so a
+  connection is curved exactly when it would otherwise run over a zone on
+  screen. Zooming in with matplotlib's toolbar makes the zones bigger;
+- a drone is a white dot in its zone, or a cyan dot in the middle of the
+  connection while it flies to a restricted zone (that connection is drawn
+  cyan and twice as thick); several drones at the same point are one bigger dot holding their
+  number. The title shows the turn
+  number and the delivered count.
 
-- **Zones** filled with their `color=` (the palette, then pygame's color
-  names, then a default gray). Normal zones are circles; priority zones have
-  a gold ring; the start and end zones a white ring and `(start)` / `(end)`
-  after their name; restricted zones are squares with a red ring; blocked
-  zones are dark gray with a cross.
-- **Load bars** under each zone with a capacity: green, orange, then red as
-  the zone fills, with a pale part for the drones arriving next turn, and a
-  label `occupancy/capacity +N`. The end zone shows how many drones were
-  delivered.
-- **Connections** as lines whose width grows with `max_link_capacity`
-  (labelled `xN` when above 1), brighter while a drone is flying on them.
-  Zones that share a position are spread around it, and a connection that
-  would run over another zone is drawn as an arc around it.
-- **Drones** as dots: white in a zone, cyan when on a connection (drawn at
-  its middle, toward a restricted zone), with a gold ring if they moved this
-  turn. Several drones at one point are one badge with their count;
-  delivered drones stay at the end zone the same way. Each
-  move of the turn leaves a gold **trail** along the connection it used.
-- A **status bar** with the turn, the moves, the delivered count and the
-  drones in flight, the controls and the current delay; a **footer** with
-  the turn's moves (`... +K more` when they do not fit); and a **tooltip**
-  with the full details of the zone under the mouse (role, type, color,
-  load, drone numbers).
-
-Controls:
-
-| Input | Effect |
-| --- | --- |
-| Space | Pause / resume. |
-| Right arrow | Next turn now, without waiting for the delay (also while paused and in step mode). |
-| Up / `+` | Faster (halves the delay; below 0.05 s it goes to 0, no wait). |
-| Down / `-` | Slower (doubles the delay, from 0.05 s when it is 0, up to 60 s like `--delay`). |
-| Mouse wheel | Zoom around the mouse (from 0.5x up to a zoom where the closest zones are readable). Zones and text keep their size; only the distances grow. |
-| Left drag | Move the map. |
-| `f` | Fit the whole map again. |
-| Esc, `q`, close button | Close the window. |
-
-With `--step`, the window starts paused and the right arrow plays one turn
-at a time. After the last turn the window stays open with "finished - press
-esc to close". Closing the window early only closes the view: the simulation
-goes on to the end, so the turn log on standard output is still complete. On
-large maps, zones shrink to dots and labels are left out when zoomed out too
-far to read them; zooming in brings them back.
-
-If pygame-ce is not installed (the original pygame lacks functions the
-view uses), or no window can be opened (e.g. no display),
-the program stops with one error line and exit code 1, for example
-`error: the graphical view needs pygame (pygame-ce): run 'make install' or
-'pip install pygame-ce', or use --visual terminal`.
-
-## Additional features
-
-- **Stages on their own, through readable JSON files.**
-  `--parse-only world.json` stops after the parser and writes the parsed
-  world (every zone and connection with every field, in declaration order);
-  `--from-world` simulates such a file without the parser (it is checked
-  with the same rules as a map, so a file edited by hand cannot give the
-  simulation a map the parser would reject); `--save-run run.json` writes,
-  for every turn (turn 0 is the initial state), the log line, each move, the
-  delivered count and where every undelivered drone is. If the run fails,
-  the turns played so far are written with `"complete": false`.
-
-  ```text
-  $ .venv/bin/python fly_in.py maps/subject_example.txt --parse-only world.json
-  world: wrote world.json (7 zones, 6 connections, 5 drones)
-  $ .venv/bin/python fly_in.py world.json --from-world --visual none --save-run run.json
-  D1-corridorA D2-hub-roof1
-  ...
-  run: wrote run.json
-  summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
-  ```
-
-- **Run summary** on standard error with the subject's secondary metrics
-  (average turns per drone, moves per turn).
-- **Step mode** (`--step`) in both views, and adjustable speed, pause, zoom,
-  pan and hover details in the graphical view.
-- **Clean streams**: the turn log is flushed line by line on standard
-  output and nothing else is written there (pygame's import banner is
-  hidden), so it can be piped or redirected; a reader that closes early
-  (`| head`) does not cause a traceback.
-- **Robust error handling**: every expected failure is one `error: ...` line
-  with a non-zero exit code; unexpected exceptions become one
-  `error: internal error: ...` line, unless `FLYIN_DEBUG=1` (`make debug`).
+Closing the window stops the drawing; the simulation then finishes at once,
+so the turn log is still complete. After the last turn the window stays open
+until it is closed. Without a display, the program stops with
+`error: cannot open the graphical window (no display?)`.
 
 ## Testing and quality
 
-- `make lint` and `make lint-strict` pass: running the same commands
-  (`flake8 .`, `mypy .` with the subject's flags, and `mypy . --strict`) on
-  this repository reports no issues in its 50 source files (flake8 7.4,
+- `make lint` and `make lint-strict` pass: `flake8 .`, `mypy .` with the
+  subject's flags, and `mypy . --strict` report no issues (flake8 7.4,
   mypy 2.4, Python 3.14).
 - Classes and public functions have Google-style docstrings, and the code is
   fully type-annotated (checked by `mypy --strict`).
@@ -529,15 +451,15 @@ the program stops with one error line and exit code 1, for example
   one; the engine also stops if no drone moves in a turn or a safety turn
   limit is exceeded.
 - The repository contains no unit tests. The behaviour shown in this README
-  (example output, terminal view, error messages, JSON files) was checked by
-  running the program on the subject example and on small hand-written maps.
+  (example output, terminal view, error messages) was checked by running the
+  program on the subject example and on small hand-written maps.
 
 ## Resources
 
 ### References
 
-- The Fly-in subject (42, version 1.6): rules, map format, output format
-  and benchmarks.
+- The Fly-in subject (42, version 2.0): rules, map format, output format
+  and the optimal turn counts of the provided maps.
 - [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
   (Wikipedia), used here from the end zone with zone-dependent costs.
 - [Python `heapq`](https://docs.python.org/3/library/heapq.html): the
@@ -545,19 +467,25 @@ the program stops with one error line and exit code 1, for example
 - [Python `argparse`](https://docs.python.org/3/library/argparse.html),
   [`dataclasses`](https://docs.python.org/3/library/dataclasses.html),
   [`typing.Protocol`](https://docs.python.org/3/library/typing.html#typing.Protocol).
-- [pygame-ce documentation](https://pyga.me/docs/): the graphical view.
 - [mypy](https://mypy.readthedocs.io/) and
   [flake8](https://flake8.pycqa.org/): static checks.
 - [PEP 257](https://peps.python.org/pep-0257/) (docstrings) and the
   [Google Python style guide](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings).
 - [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code) and
   [NO_COLOR](https://no-color.org): the terminal view's colors.
+- [matplotlib](https://matplotlib.org/): the graphical window (patches,
+  collections, `set_aspect("equal")`), and
+  [Bezier curves](https://en.wikipedia.org/wiki/B%C3%A9zier_curve) for the
+  arcs.
 
 ### How AI was used
 
 An AI assistant (Claude) was used throughout the project, under the
 developer's direction: to analyse the subject's requirements, to discuss
 design options (parser structure, pathfinding, scheduling, views), to review
-code and find bugs, and to write code as instructed. It also helped write
-this README from the code and real runs of the program. The developer
-reviewed all of the code and is responsible for it.
+code and find bugs, and to write code as instructed. At the developer's
+request, the assistant also removed the non-mandatory features from an
+earlier, larger version of the program and wrote the simple matplotlib
+window of `--graphical`. It also helped write this
+README from the code and real runs of the program. The developer reviews all
+of the code and is responsible for it.
