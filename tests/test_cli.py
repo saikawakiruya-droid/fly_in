@@ -20,16 +20,19 @@ def test_map_only() -> None:
     assert args == Args(map_path=Path("m.txt"))
     assert isinstance(args.map_path, Path)
     assert args.map_name == "./m.txt"
-    assert args.graphical is False
+    assert args.matplotlib_window is False
 
 
 @pytest.mark.parametrize(
-    "argv", [["--graphical", "m.txt"], ["m.txt", "--graphical"]],
+    "argv",
+    [["--matplotlib-window", "m.txt"], ["m.txt", "--matplotlib-window"]],
     ids=["before", "after"],
 )
-def test_graphical_flag(argv: list[str]) -> None:
-    """AC02: --graphical, before or after MAP, asks for the window."""
-    assert parse_args(argv) == Args(map_path=Path("m.txt"), graphical=True)
+def test_matplotlib_window_flag(argv: list[str]) -> None:
+    """AC02: --matplotlib-window, before or after MAP, asks for the window."""
+    assert parse_args(argv) == Args(
+        map_path=Path("m.txt"), matplotlib_window=True
+    )
 
 
 @pytest.mark.parametrize(

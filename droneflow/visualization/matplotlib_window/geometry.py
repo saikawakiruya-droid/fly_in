@@ -1,4 +1,4 @@
-"""Plane geometry for the graphical view, without matplotlib.
+"""Plane geometry for the matplotlib window, without matplotlib.
 
 Zones that share a position are spread apart, and a connection is drawn
 as a straight line unless that line would cross a zone it does not join;

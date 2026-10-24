@@ -72,7 +72,7 @@ class UnreachableGoalError(FlyInError):
 
 
 class VisualizationError(FlyInError):
-    """Raised when the graphical view cannot be used.
+    """Raised when the matplotlib window cannot be used.
 
     For example when matplotlib is not installed, or when no window can
     be opened (no display).

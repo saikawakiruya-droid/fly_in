@@ -1,4 +1,4 @@
-"""Tests for droneflow.visualization.graphical.scene (MapScene).
+"""Tests for droneflow.visualization.matplotlib_window.scene (MapScene).
 
 matplotlib runs on its Agg backend (set in ``conftest.py``), which draws
 without a display. ``MapScene`` is drawn on a plain ``Figure``.
@@ -13,7 +13,10 @@ from matplotlib.patches import Circle, RegularPolygon
 
 from droneflow.models.network import Network
 from droneflow.simulation.state import SimulationState
-from droneflow.visualization.graphical.scene import MapScene, zone_color
+from droneflow.visualization.matplotlib_window.scene import (
+    MapScene,
+    zone_color,
+)
 
 
 def scene_of(network: Network) -> MapScene:
