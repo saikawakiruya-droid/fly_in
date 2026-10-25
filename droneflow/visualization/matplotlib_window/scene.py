@@ -55,7 +55,7 @@ _SQUARE_REACH = 1.15
 below it."""
 
 
-def zone_color(name: str | None) -> Color | str:
+def _zone_color(name: str | None) -> Color | str:
     """Return a zone's fill for its ``color=`` value.
 
     Args:
@@ -277,7 +277,7 @@ def _fill(zone: Zone) -> Color | str:
     """
     if zone.zone_type is ZoneType.BLOCKED:
         return _BLOCKED_FILL
-    return zone_color(zone.color)
+    return _zone_color(zone.color)
 
 
 def _ring(zone: Zone) -> str:

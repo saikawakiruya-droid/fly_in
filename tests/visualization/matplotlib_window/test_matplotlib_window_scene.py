@@ -15,7 +15,7 @@ from droneflow.models.network import Network
 from droneflow.simulation.state import SimulationState
 from droneflow.visualization.matplotlib_window.scene import (
     MapScene,
-    zone_color,
+    _zone_color,
 )
 
 
@@ -106,8 +106,8 @@ def test_connection_in_use_is_highlighted(network: Network) -> None:
 
 def test_zone_color_falls_back_to_matplotlib_then_gray() -> None:
     """VG06: palette names, then matplotlib names, then a neutral gray."""
-    assert zone_color("red") == pytest.approx((220 / 255, 40 / 255, 40 / 255))
-    assert zone_color("Chocolate") == pytest.approx(
+    assert _zone_color("red") == pytest.approx((220 / 255, 40 / 255, 40 / 255))
+    assert _zone_color("Chocolate") == pytest.approx(
         (210 / 255, 105 / 255, 30 / 255)
     )
-    assert zone_color("rainbow") == zone_color(None)
+    assert _zone_color("rainbow") == _zone_color(None)
