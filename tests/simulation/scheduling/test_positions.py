@@ -55,7 +55,7 @@ def test_place_lists_drones_lowest_number_first() -> None:
     assert board.drones_in("b") == [2]
     assert board.where(3) == Position("a", 0)
     assert board.where(3) == ("a", 0)
-    assert board.where(2).zone == "b"
+    assert board.where(2).zone_name == "b"
     assert board.where(2).since_turn == 1
 
 

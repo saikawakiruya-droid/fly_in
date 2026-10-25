@@ -128,7 +128,7 @@ class HopTaker:
         if self.evictor.make_room(hop.zone, arrive + 1, 0):
             return True
         self.ledger.cancel(here, hop)
-        self.board.place(drone_id, before.zone, before.since_turn)
+        self.board.place(drone_id, before.zone_name, before.since_turn)
         return False
 
     def _record(self, drone_id: int, here: str, hop: Hop, arrive: int) -> None:
