@@ -96,16 +96,7 @@ class MapScene:
             {z.name: (z.x, z.y) for z in network.zones.values()},
             self.radius,
         )
-        self.paths: dict[str, Path] = {
-            link.name: route(
-                self.points[link.zone_a],
-                self.points[link.zone_b],
-                (p for name, p in self.points.items()
-                 if name not in (link.zone_a, link.zone_b)),
-                self.radius,
-            )
-            for link in network.connections
-        }
+        self.paths = self._route_connections(network)
         self._drones: list[Artist] = []
         self._links = list(network.connections)
         axes.set_facecolor(BACKGROUND)
@@ -116,7 +107,9 @@ class MapScene:
             zorder=1,
         )
         axes.add_collection(self.lines)
-        self._draw_zones(list(network.zones.values()))
+        zones = list(network.zones.values())
+        self._draw_zones(zones)
+        self._draw_zone_names(zones)
         axes.autoscale_view()
         axes.margins(0.08)
 
@@ -131,35 +124,32 @@ class MapScene:
         Args:
             state: The state to show.
         """
-        busy = [state.link_load(link) > 0 for link in self._links]
-        self.lines.set_color([_DRONE_FLYING if b else _LINK for b in busy])
-        self.lines.set_linewidth(
-            [_LINK_WIDTH * 2 if b else _LINK_WIDTH for b in busy]
-        )
-        for artist in self._drones:
-            artist.remove()
-        groups = self._drone_groups(state)
-        self._drones = []
-        for (x, y), drones in groups.items():
-            flying = drones[0].in_transit_connection is not None
-            self._drones.append(self.axes.scatter(
-                [x], [y], s=40 if len(drones) == 1 else 170,
-                c=_DRONE_FLYING if flying else _DRONE,
-                edgecolors=_OUTLINE, zorder=4,
-            ))
-            if len(drones) > 1:
-                self._drones.append(self.axes.text(
-                    x, y, str(len(drones)), ha="center", va="center",
-                    color=_OUTLINE, fontsize=7, zorder=5,
-                ))
-        self.axes.set_title(
-            f"Turn {state.turn_number}   "
-            f"delivered {state.delivered_count}/{len(state.drones)}",
-            loc="left", color=TEXT,
-        )
+        self._highlight_busy_links(state)
+        self._draw_drones(self._drone_groups(state))
+        self._draw_title(state)
+
+    def _route_connections(self, network: Network) -> dict[str, Path]:
+        """Route every connection round the zones it does not join.
+
+        Args:
+            network: The network whose connections to route.
+
+        Returns:
+            Each connection's line, by connection name.
+        """
+        return {
+            link.name: route(
+                self.points[link.zone_a],
+                self.points[link.zone_b],
+                (p for name, p in self.points.items()
+                 if name not in (link.zone_a, link.zone_b)),
+                self.radius,
+            )
+            for link in network.connections
+        }
 
     def _draw_zones(self, zones: list[Zone]) -> None:
-        """Draw the zones, and their names if at most ``_MAX_NAMED_ZONES``.
+        """Draw the zones, their fill and outline marking their kind.
 
         Args:
             zones: The zones to draw.
@@ -170,12 +160,6 @@ class MapScene:
             edgecolors=[_ring(zone) for zone in zones],
             linewidths=2, zorder=2,
         ))
-        if len(zones) <= _MAX_NAMED_ZONES:
-            for zone in zones:
-                x, y = self.points[zone.name]
-                self.axes.text(x, y - self.radius * 1.15, zone.name,
-                               ha="center", va="top", color=TEXT,
-                               fontsize=8, zorder=3)
 
     def _shape(self, zone: Zone) -> Patch:
         """Return a zone's shape: a square if restricted, else a circle.
@@ -191,6 +175,31 @@ class MapScene:
             return RegularPolygon(center, 4, radius=self.radius * 1.15,
                                   orientation=math.pi / 4)
         return Circle(center, self.radius)
+
+    def _draw_zone_names(self, zones: list[Zone]) -> None:
+        """Write each zone's name under it, if at most ``_MAX_NAMED_ZONES``.
+
+        Args:
+            zones: The zones to name.
+        """
+        if len(zones) <= _MAX_NAMED_ZONES:
+            for zone in zones:
+                x, y = self.points[zone.name]
+                self.axes.text(x, y - self.radius * 1.15, zone.name,
+                               ha="center", va="top", color=TEXT,
+                               fontsize=8, zorder=3)
+
+    def _highlight_busy_links(self, state: SimulationState) -> None:
+        """Draw the connections with drones in flight cyan and twice as thick.
+
+        Args:
+            state: The state whose connection loads to show.
+        """
+        busy = [state.link_load(link) > 0 for link in self._links]
+        self.lines.set_color([_DRONE_FLYING if b else _LINK for b in busy])
+        self.lines.set_linewidth(
+            [_LINK_WIDTH * 2 if b else _LINK_WIDTH for b in busy]
+        )
 
     def _drone_groups(
         self, state: SimulationState
@@ -215,6 +224,42 @@ class MapScene:
                 continue
             groups.setdefault(point, []).append(drone)
         return groups
+
+    def _draw_drones(self, groups: dict[Point, list[Drone]]) -> None:
+        """Replace the drones drawn before with one dot per group.
+
+        A group of several drones is a bigger dot holding their number.
+
+        Args:
+            groups: The drones at each point.
+        """
+        for artist in self._drones:
+            artist.remove()
+        self._drones = []
+        for (x, y), drones in groups.items():
+            flying = drones[0].in_transit_connection is not None
+            self._drones.append(self.axes.scatter(
+                [x], [y], s=40 if len(drones) == 1 else 170,
+                c=_DRONE_FLYING if flying else _DRONE,
+                edgecolors=_OUTLINE, zorder=4,
+            ))
+            if len(drones) > 1:
+                self._drones.append(self.axes.text(
+                    x, y, str(len(drones)), ha="center", va="center",
+                    color=_OUTLINE, fontsize=7, zorder=5,
+                ))
+
+    def _draw_title(self, state: SimulationState) -> None:
+        """Write the turn number and the delivered count above the map.
+
+        Args:
+            state: The state whose numbers to write.
+        """
+        self.axes.set_title(
+            f"Turn {state.turn_number}   "
+            f"delivered {state.delivered_count}/{len(state.drones)}",
+            loc="left", color=TEXT,
+        )
 
 
 def _fill(zone: Zone) -> Color | str:

@@ -77,6 +77,19 @@ class DetourPolicy:
             turn: The turn about to be planned.
             board: Where every drone is (or is landing) at its start.
         """
+        self._forget_from(turn)
+        zones = board.zone_by_drone()
+        self._reported[turn] = zones
+        self._visit(zones)
+
+    def _forget_from(self, turn: int) -> None:
+        """Drop the positions reported for ``turn`` and later turns.
+
+        The visited zones are then rebuilt from the earlier reports.
+
+        Args:
+            turn: The first turn whose report to drop.
+        """
         if any(earlier >= turn for earlier in self._reported):
             self._reported = {
                 earlier: zones for earlier, zones in self._reported.items()
@@ -85,9 +98,6 @@ class DetourPolicy:
             self._visited = {}
             for zones in self._reported.values():
                 self._visit(zones)
-        zones = board.zone_by_drone()
-        self._reported[turn] = zones
-        self._visit(zones)
 
     def _visit(self, zones: Mapping[int, str]) -> None:
         """Mark each drone's zone as visited by that drone.

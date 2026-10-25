@@ -15,6 +15,7 @@ from .pathfinding.pathfinder import Pathfinder
 from .simulation.engine import MoveDecider, SimulationEngine
 from .simulation.observer import ObserverGroup, TurnObserver
 from .simulation.scheduling.scheduler import Scheduler
+from .simulation.state import Move
 from .visualization.terminal.view import TerminalVisualizer
 
 
@@ -68,17 +69,8 @@ class Application:
         engine = SimulationEngine(
             world, self.make_scheduler(world.network, pathfinder)
         )
-        observers: list[TurnObserver] = [
-            TurnLogPrinter(self.stdout),
-            TerminalVisualizer(stream=self.stderr),
-        ]
-        if self.args.matplotlib_window:
-            observers.append(_matplotlib_window(world.network))
-        turns = engine.run(ObserverGroup(observers))
-        self.stderr.write(
-            RunSummary.from_turns(turns, world.nb_drones).describe() + "\n"
-        )
-        self.stderr.flush()
+        turns = engine.run(self._observers(world.network))
+        self._print_summary(turns, world.nb_drones)
 
     def _load_world(self) -> World:
         """Parse the map file.
@@ -99,6 +91,39 @@ class Application:
             raise MapFileError(name, reason) from exc
         except UnicodeDecodeError as exc:
             raise MapFileError(name, "not UTF-8 text") from exc
+
+    def _observers(self, network: Network) -> ObserverGroup:
+        """Gather what watches the run: the turn log and the views.
+
+        Args:
+            network: The network to draw in the matplotlib window.
+
+        Returns:
+            The turn log printer and the terminal view, then the
+            matplotlib window if ``--matplotlib-window`` was given.
+
+        Raises:
+            VisualizationError: If the matplotlib window cannot be used.
+        """
+        observers: list[TurnObserver] = [
+            TurnLogPrinter(self.stdout),
+            TerminalVisualizer(stream=self.stderr),
+        ]
+        if self.args.matplotlib_window:
+            observers.append(_matplotlib_window(network))
+        return ObserverGroup(observers)
+
+    def _print_summary(self, turns: list[list[Move]], nb_drones: int) -> None:
+        """Write the run's summary to ``stderr``.
+
+        Args:
+            turns: The moves of every turn.
+            nb_drones: How many drones the map has.
+        """
+        self.stderr.write(
+            RunSummary.from_turns(turns, nb_drones).describe() + "\n"
+        )
+        self.stderr.flush()
 
 
 def _matplotlib_window(network: Network) -> TurnObserver:

@@ -108,10 +108,7 @@ class Scheduler:
         ledger = TurnLedger(state, self._table)
         board = PositionBoard.from_state(state)
         self._detour_policy.remember(ledger.planning_turn, board)
-        orders: list[MoveOrder] = []
-        for move in self._table.due(ledger.planning_turn):
-            orders.append(MoveOrder(move.drone_id, move.to_zone))
-            board.place(move.drone_id, move.to_zone, move.arrive_turn)
+        orders = self._order_due_moves(ledger.planning_turn, board)
         ordered = {order.drone_id for order in orders}
         taker = HopTaker(
             ledger,
@@ -142,6 +139,25 @@ class Scheduler:
         self._table.start_turn(state)
         self._turn_mark = self._table.mark()
         self._planned_turn = turn
+
+    def _order_due_moves(
+        self, turn: int, board: PositionBoard
+    ) -> list[MoveOrder]:
+        """Order the moves planned for the turn, and place them on the board.
+
+        Args:
+            turn: The turn being planned.
+            board: Where every drone will be; each move's drone is placed
+                at its target.
+
+        Returns:
+            One order per move the table has due this turn.
+        """
+        orders: list[MoveOrder] = []
+        for move in self._table.due(turn):
+            orders.append(MoveOrder(move.drone_id, move.to_zone))
+            board.place(move.drone_id, move.to_zone, move.arrive_turn)
+        return orders
 
     def _decide(
         self,

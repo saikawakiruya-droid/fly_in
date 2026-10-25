@@ -226,19 +226,7 @@ class TurnResolver:
             SimulationError: If a zone would hold more drones than its
                 capacity, naming the stuck drone if one cannot land.
         """
-        delta: dict[str, int] = {}
-        landing: dict[str, _Step] = {}
-        for step in steps:
-            name = step.zone.name
-            if step.is_arrival:
-                landing.setdefault(name, step)  # lowest drone_id first
-            else:
-                source = step.drone.current_zone
-                if source is not None:
-                    delta[source] = delta.get(source, 0) - 1
-                if step.zone.zone_type is ZoneType.RESTRICTED:
-                    continue  # on the connection until next turn
-            delta[name] = delta.get(name, 0) + 1
+        delta, landing = self._zone_changes(steps)
         for name, change in delta.items():
             limit = self.network.get_zone(name).capacity
             if change <= 0 or limit is None:
@@ -257,6 +245,34 @@ class TurnResolver:
                 f"turn {turn}: zone {name!r} would hold more than "
                 f"{limit} drone(s)"
             )
+
+    @staticmethod
+    def _zone_changes(
+        steps: list[_Step],
+    ) -> tuple[dict[str, int], dict[str, _Step]]:
+        """Count how the turn changes each zone's drone count.
+
+        Args:
+            steps: The turn's checked steps.
+
+        Returns:
+            The change of each zone's drone count, and the first drone
+            landing in each zone from a connection.
+        """
+        delta: dict[str, int] = {}
+        landing: dict[str, _Step] = {}
+        for step in steps:
+            name = step.zone.name
+            if step.is_arrival:
+                landing.setdefault(name, step)  # lowest drone_id first
+            else:
+                source = step.drone.current_zone
+                if source is not None:
+                    delta[source] = delta.get(source, 0) - 1
+                if step.zone.zone_type is ZoneType.RESTRICTED:
+                    continue  # on the connection until next turn
+            delta[name] = delta.get(name, 0) + 1
+        return delta, landing
 
     @staticmethod
     def _apply(state: SimulationState, step: _Step) -> Move:
