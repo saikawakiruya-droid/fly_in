@@ -9,7 +9,11 @@ from .zone import Zone, ZoneRole
 
 
 class Network:
-    """Holds all zones and connections and exposes adjacency lookups."""
+    """The graph of zones and connections declared by a map.
+
+    Zones are kept by name, and each zone's connections are indexed for
+    neighbor lookups.
+    """
 
     def __init__(self) -> None:
         """Start with no zones and no connections."""
@@ -39,7 +43,7 @@ class Network:
         self._zones[zone.name] = zone
 
     def add_connection(self, connection: Connection) -> None:
-        """Register a new connection and update adjacency for both ends.
+        """Register a new connection with both of its zones.
 
         Does not check for duplicate connections; the caller (the parser)
         is responsible for enforcing that constraint.
