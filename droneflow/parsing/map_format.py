@@ -102,7 +102,11 @@ def to_zone_type(raw: str) -> ZoneType:
 
 
 def to_text(raw: str) -> str:
-    """Accept the raw string as is.
+    """Accept the raw string as is, for free-text values such as ``color=``.
+
+    Every FieldSpec needs a converter. Color names are not checked by the
+    parser: each view decides what to do with a name it does not know (see
+    ``palette.rgb``).
 
     Args:
         raw: The raw string from the map line.
