@@ -70,14 +70,12 @@ class Scheduler:
     """
 
     def __init__(self, network: Network, pathfinder: Pathfinder) -> None:
-        """Keep the network and cache what never changes during a run.
+        """Cache what never changes during a run.
 
         Args:
             network: The map being simulated.
             pathfinder: Answers distances, shortest hops and detours.
         """
-        self.network = network
-        self.pathfinder = pathfinder
         self._hops: dict[str, list[Hop]] = {
             name: pathfinder.next_hops(name) for name in network.zones
         }
