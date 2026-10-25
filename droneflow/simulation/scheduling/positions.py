@@ -88,7 +88,7 @@ class PositionBoard:
         """
         return self._where[drone_id]
 
-    def zone_by_drone(self) -> dict[int, str]:
+    def zone_name_by_drone(self) -> dict[int, str]:
         """Return the zone of every drone on the board.
 
         Returns:
@@ -109,15 +109,15 @@ class PositionBoard:
         """
         return sorted(self._drones_in.get(zone_name, ()))
 
-    def count_in(self, zones: Iterable[str]) -> int:
+    def count_in(self, zone_names: Iterable[str]) -> int:
         """Return how many drones the given zones hold together.
 
         Args:
-            zones: The zone names to count.
+            zone_names: The zone names to count.
 
         Returns:
             The total number of drones in them.
         """
         return sum(
-            len(self._drones_in.get(zone_name, ())) for zone_name in zones
+            len(self._drones_in.get(zone_name, ())) for zone_name in zone_names
         )

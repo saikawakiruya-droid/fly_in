@@ -31,8 +31,8 @@ def test_subject_example(subject_output: list[str]) -> None:
     summary = RunSummary.from_turns(turns, 5)
 
     assert summary == RunSummary(
-        turns=7,
-        drones=5,
+        total_turns=7,
+        nb_drones=5,
         average_turns_per_drone=5.0,
         moves_per_turn=15 / 7,
     )
@@ -52,7 +52,7 @@ def test_delivery_turn_is_the_last_appearance() -> None:
 
     summary = RunSummary.from_turns(turns, 2)
 
-    assert summary.turns == 3
+    assert summary.total_turns == 3
     assert summary.average_turns_per_drone == 3.0
     assert summary.moves_per_turn == pytest.approx(5 / 3)
     assert "3.00 turns per drone" in summary.describe()
@@ -69,7 +69,7 @@ def test_empty_run() -> None:
     )
 
     idle = RunSummary.from_turns([], 3)
-    assert idle.turns == 0
+    assert idle.total_turns == 0
     assert idle.average_turns_per_drone == 0.0
     assert idle.describe().startswith(
         "summary: 0 turns, 3 drones, 0.00 turns per drone"

@@ -113,8 +113,8 @@ class ReservationTable:
             True if one of its moves departs after ``turn``.
         """
         return any(
-            move.depart_turn > turn
-            for move in self._by_drone.get(drone_id, [])
+            reservation.depart_turn > turn
+            for reservation in self._by_drone.get(drone_id, [])
         )
 
     def entering(self, zone_name: str, turn: int) -> int:
@@ -160,7 +160,10 @@ class ReservationTable:
         Returns:
             The largest ``arrive_turn`` in the table, or 0.
         """
-        return max((r.arrive_turn for r in self._all()), default=0)
+        return max(
+            (reservation.arrive_turn for reservation in self._all()),
+            default=0,
+        )
 
     def mark(self) -> int:
         """Return a position to ``rollback`` to.
@@ -195,7 +198,11 @@ class ReservationTable:
         Returns:
             All the moves in the table, grouped by drone.
         """
-        return [r for moves in self._by_drone.values() for r in moves]
+        return [
+            reservation
+            for reservations in self._by_drone.values()
+            for reservation in reservations
+        ]
 
     @staticmethod
     def _still_valid(state: SimulationState, reservation: Reservation) -> bool:
@@ -253,9 +260,9 @@ class ReservationTable:
         departing.remove(reservation)
         if not departing:
             del self._departing[reservation.depart_turn]
-        moves = self._by_drone[reservation.drone_id]
-        moves.remove(reservation)
-        if not moves:
+        reservations = self._by_drone[reservation.drone_id]
+        reservations.remove(reservation)
+        if not reservations:
             del self._by_drone[reservation.drone_id]
 
 

@@ -62,7 +62,7 @@ class Pathfinder:
         return self._distance_map.distance(zone_name)
 
     def next_hops(self, zone_name: str) -> list[Hop]:
-        """Return every move that keeps a drone on a shortest route.
+        """Return every hop that keeps a drone on a shortest route.
 
         A neighbor qualifies when entering it and then following its own
         shortest route costs exactly this zone's distance. Priority zones
@@ -80,16 +80,16 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self._distance_map.distance(zone_name)
+        distance = self._distance_map.distance(zone_name)
         hops = [
-            hop for total, hop in self._costed_moves(zone_name)
-            if total == here
+            hop for total, hop in self._costed_hops(zone_name)
+            if total == distance
         ]
         hops.sort(key=lambda hop: hop.zone.zone_type is not ZoneType.PRIORITY)
         return hops
 
     def detour_hops(self, zone_name: str) -> list[Hop]:
-        """Return every move off the shortest routes that can still finish.
+        """Return every hop off the shortest routes that can still finish.
 
         A neighbor qualifies when the end zone can be reached from it and
         entering it is not one of ``next_hops``: entering it and then
@@ -109,12 +109,12 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self._distance_map.distance(zone_name)
-        if here is None:
+        distance = self._distance_map.distance(zone_name)
+        if distance is None:
             return []
         costed = [
-            (total, hop) for total, hop in self._costed_moves(zone_name)
-            if total > here
+            (total, hop) for total, hop in self._costed_hops(zone_name)
+            if total > distance
         ]
         costed.sort(key=lambda item: item[0])
         return [hop for _, hop in costed]
@@ -126,7 +126,7 @@ class Pathfinder:
         distance.
 
         Args:
-            hop: A move to a neighboring zone.
+            hop: A hop to a neighboring zone.
 
         Returns:
             The total turn count to the end zone through the hop.
@@ -136,15 +136,15 @@ class Pathfinder:
                 zone (never the case for ``next_hops`` and
                 ``detour_hops``).
         """
-        there = self._distance_map.distance(hop.zone.name)
-        if there is None:
+        distance = self._distance_map.distance(hop.zone.name)
+        if distance is None:
             raise ValueError(f"{hop.zone.name!r} cannot reach the end zone")
-        return hop.zone.zone_type.turn_cost + there
+        return hop.zone.zone_type.turn_cost + distance
 
-    def _costed_moves(self, zone_name: str) -> list[tuple[int, Hop]]:
-        """Return every move from the zone toward a zone that can finish.
+    def _costed_hops(self, zone_name: str) -> list[tuple[int, Hop]]:
+        """Return every hop from the zone toward a zone that can finish.
 
-        Each move comes with its ``route_cost``. Self-loops are left out,
+        Each hop comes with its ``route_cost``. Self-loops are left out,
         and so is everything when this zone is the end zone or cannot
         reach it. The order is connection declaration order.
 
@@ -157,10 +157,10 @@ class Pathfinder:
         Raises:
             ZoneNotFoundError: If no zone with this name exists.
         """
-        here = self._distance_map.distance(zone_name)
-        if here is None or here == 0:
+        distance = self._distance_map.distance(zone_name)
+        if distance is None or distance == 0:
             return []
-        moves: list[tuple[int, Hop]] = []
+        hops: list[tuple[int, Hop]] = []
         seen: set[str] = set()
         for connection in self.network.neighbors(zone_name):
             zone = self.network.get_zone(connection.other_end(zone_name))
@@ -170,5 +170,5 @@ class Pathfinder:
                 continue
             seen.add(zone.name)
             hop = Hop(connection, zone)
-            moves.append((self.route_cost(hop), hop))
-        return moves
+            hops.append((self.route_cost(hop), hop))
+        return hops

@@ -154,9 +154,13 @@ class Scheduler:
             One order per move the table has due this turn.
         """
         orders: list[MoveOrder] = []
-        for move in self._table.due(turn):
-            orders.append(MoveOrder(move.drone_id, move.to_zone))
-            board.place(move.drone_id, move.to_zone, move.arrive_turn)
+        for reservation in self._table.due(turn):
+            orders.append(MoveOrder(reservation.drone_id, reservation.to_zone))
+            board.place(
+                reservation.drone_id,
+                reservation.to_zone,
+                reservation.arrive_turn,
+            )
         return orders
 
     def _decide(

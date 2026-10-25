@@ -314,7 +314,7 @@ def test_reads_only_and_returns_new_lists(
     board = board_of({9: ("a", 0)})
 
     allowed = policy.allowed(1, "s", board)
-    assert board.zone_by_drone() == {9: "a"}
+    assert board.zone_name_by_drone() == {9: "a"}
     assert board.where(9) == ("a", 0)
     allowed.clear()
     policy.detours("s").clear()
