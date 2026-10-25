@@ -50,6 +50,9 @@ KEY = ("white ring: start/end   square, red ring: restricted   "
 """What the colors and shapes mean, for the window to show."""
 _MAX_NAMED_ZONES = 60
 """Maps with more zones are drawn without zone names."""
+_SQUARE_REACH = 1.15
+"""The restricted square's corner reach, in zone radii; names are drawn just
+below it."""
 
 
 def zone_color(name: str | None) -> Color | str:
@@ -172,7 +175,8 @@ class MapScene:
         """
         center = self.points[zone.name]
         if zone.zone_type is ZoneType.RESTRICTED:
-            return RegularPolygon(center, 4, radius=self.radius * 1.15,
+            return RegularPolygon(center, 4,
+                                  radius=self.radius * _SQUARE_REACH,
                                   orientation=math.pi / 4)
         return Circle(center, self.radius)
 
@@ -185,7 +189,7 @@ class MapScene:
         if len(zones) <= _MAX_NAMED_ZONES:
             for zone in zones:
                 x, y = self.points[zone.name]
-                self.axes.text(x, y - self.radius * 1.15, zone.name,
+                self.axes.text(x, y - self.radius * _SQUARE_REACH, zone.name,
                                ha="center", va="top", color=TEXT,
                                fontsize=8, zorder=3)
 
