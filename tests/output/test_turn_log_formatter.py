@@ -1,6 +1,6 @@
-"""Tests for droneflow.output.formatter."""
+"""Tests for droneflow.output.turn_log_formatter."""
 
-from droneflow.output.formatter import TurnLogFormatter
+from droneflow.output.turn_log_formatter import TurnLogFormatter
 from droneflow.simulation.state import Move
 
 

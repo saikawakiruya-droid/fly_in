@@ -1,4 +1,4 @@
-"""Color names to RGB, for the terminal view.
+"""Color names to RGB, shared by the terminal view and the matplotlib window.
 
 The subject accepts any single-word string as a zone color, with no fixed
 list. This table covers the common names, including every color used by

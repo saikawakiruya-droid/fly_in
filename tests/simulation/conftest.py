@@ -22,7 +22,7 @@ import pytest
 
 from droneflow.models.drone import DroneStatus
 from droneflow.models.network import Network
-from droneflow.output.formatter import TurnLogFormatter
+from droneflow.output.turn_log_formatter import TurnLogFormatter
 from droneflow.pathfinding.pathfinder import Hop, Pathfinder
 from droneflow.simulation.engine import MoveDecider
 from droneflow.simulation.scheduling.evictor import Evictor

@@ -64,7 +64,7 @@ python -m pytest tests/
   未知キーより重複を先に報告・キーは大文字小文字を区別)、`RawLine` が tuple と Mapping(NT09)
 - `tests/parsing/test_map_rules.py` — 行をまたぐ規則(ゾーン名重複・start/end重複・
   未定義ゾーンへの接続・接続重複と自己ループ)
-- `tests/output/test_formatter.py` — `TurnLogFormatter`: `D<ID>-<行き先>` の空白区切り整形、
+- `tests/output/test_turn_log_formatter.py` — `TurnLogFormatter`: `D<ID>-<行き先>` の空白区切り整形、
   呼び出し順の保持(ソートしない)、接続名のそのまま出力
 - `tests/output/test_turn_log_printer.py` — `TurnLogPrinter`(AP01〜AP04): begin は何も書かない・既定の出力先は stdout、
   1ターン1行で書いた直後に flush、空のターンは書かず flush もしない、close は flush だけでストリームを閉じない、

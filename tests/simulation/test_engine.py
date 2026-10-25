@@ -9,7 +9,7 @@ from droneflow.errors import SimulationError
 from droneflow.models.network import Network
 from droneflow.models.world import World
 from droneflow.models.zone import ZoneType
-from droneflow.output.formatter import TurnLogFormatter
+from droneflow.output.turn_log_formatter import TurnLogFormatter
 from droneflow.parsing.map_parser import MapParser
 from droneflow.simulation.engine import (
     MoveDecider,
