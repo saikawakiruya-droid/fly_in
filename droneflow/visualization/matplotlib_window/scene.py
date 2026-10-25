@@ -116,18 +116,7 @@ class MapScene:
             zorder=1,
         )
         axes.add_collection(self.lines)
-        zones = list(network.zones.values())
-        axes.add_collection(PatchCollection(
-            [self._shape(zone) for zone in zones],
-            facecolors=[_fill(zone) for zone in zones],
-            edgecolors=[_ring(zone) for zone in zones],
-            linewidths=2, zorder=2,
-        ))
-        if len(zones) <= _MAX_NAMED_ZONES:
-            for zone in zones:
-                x, y = self.points[zone.name]
-                axes.text(x, y - self.radius * 1.15, zone.name, ha="center",
-                          va="top", color=TEXT, fontsize=8, zorder=3)
+        self._draw_zones(list(network.zones.values()))
         axes.autoscale_view()
         axes.margins(0.08)
 
@@ -149,15 +138,7 @@ class MapScene:
         )
         for artist in self._drones:
             artist.remove()
-        groups: dict[Point, list[Drone]] = {}
-        for drone in state.drones.values():
-            if drone.in_transit_connection is not None:
-                point = middle(self.paths[drone.in_transit_connection])
-            elif drone.current_zone is not None:
-                point = self.points[drone.current_zone]
-            else:
-                continue
-            groups.setdefault(point, []).append(drone)
+        groups = self._drone_groups(state)
         self._drones = []
         for (x, y), drones in groups.items():
             flying = drones[0].in_transit_connection is not None
@@ -177,6 +158,25 @@ class MapScene:
             loc="left", color=TEXT,
         )
 
+    def _draw_zones(self, zones: list[Zone]) -> None:
+        """Draw the zones, and their names if at most ``_MAX_NAMED_ZONES``.
+
+        Args:
+            zones: The zones to draw.
+        """
+        self.axes.add_collection(PatchCollection(
+            [self._shape(zone) for zone in zones],
+            facecolors=[_fill(zone) for zone in zones],
+            edgecolors=[_ring(zone) for zone in zones],
+            linewidths=2, zorder=2,
+        ))
+        if len(zones) <= _MAX_NAMED_ZONES:
+            for zone in zones:
+                x, y = self.points[zone.name]
+                self.axes.text(x, y - self.radius * 1.15, zone.name,
+                               ha="center", va="top", color=TEXT,
+                               fontsize=8, zorder=3)
+
     def _shape(self, zone: Zone) -> Patch:
         """Return a zone's shape: a square if restricted, else a circle.
 
@@ -191,6 +191,30 @@ class MapScene:
             return RegularPolygon(center, 4, radius=self.radius * 1.15,
                                   orientation=math.pi / 4)
         return Circle(center, self.radius)
+
+    def _drone_groups(
+        self, state: SimulationState
+    ) -> dict[Point, list[Drone]]:
+        """Group the drones by the point they are drawn at.
+
+        Args:
+            state: The state whose drones to group.
+
+        Returns:
+            The drones at each point: the middle of the connection for a
+            drone in flight, else the center of its zone. Drones that are
+            in neither are left out.
+        """
+        groups: dict[Point, list[Drone]] = {}
+        for drone in state.drones.values():
+            if drone.in_transit_connection is not None:
+                point = middle(self.paths[drone.in_transit_connection])
+            elif drone.current_zone is not None:
+                point = self.points[drone.current_zone]
+            else:
+                continue
+            groups.setdefault(point, []).append(drone)
+        return groups
 
 
 def _fill(zone: Zone) -> Color | str:
