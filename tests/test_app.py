@@ -1,7 +1,7 @@
 """Tests for droneflow.app (Application).
 
-``Application(args, out, err)`` writes to two ``StringIO`` objects, so the
-turn log (stdout) and everything else (stderr) are compared as text.
+``Application(args, stdout, stderr)`` writes to two ``StringIO`` objects,
+so the turn log (stdout) and everything else (stderr) are compared as text.
 Decisions 2026-10-18 "the CLI's shape", "turn log", "summary", "error
 handling" and 2026-10-17 "terminal view on stderr".
 """

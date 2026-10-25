@@ -40,11 +40,11 @@ class MapParser:
         """
         tokenizer = LineTokenizer(DEFAULT_FORMAT)
         validator = MapValidator(default_rules())
-        for src in MapReader(self.path):
-            if src.number == 1:
-                validator.accept(tokenizer.tokenize_header(src))
+        for line in MapReader(self.path):
+            if line.number == 1:
+                validator.accept(tokenizer.tokenize_header(line))
                 continue
-            raw = tokenizer.tokenize(src)
+            raw = tokenizer.tokenize(line)
             if raw is not None:
                 validator.accept(raw)
         return validator.finish()

@@ -39,11 +39,11 @@ class LineTokenizer:
         """
         self._format = map_format
 
-    def tokenize_header(self, src: SourceLine) -> RawLine:
+    def tokenize_header(self, line: SourceLine) -> RawLine:
         """Tokenize the mandatory first line (``nb_drones: <n>``).
 
         Args:
-            src: The first line of the file.
+            line: The first line of the file.
 
         Returns:
             The header split into its parts.
@@ -53,20 +53,20 @@ class LineTokenizer:
                 its parts do not match the header's usage.
         """
         spec = self._format.header
-        text = src.text.strip()
+        text = line.text.strip()
         keyword, separator, rest = text.partition(":")
         if not separator or keyword != spec.keyword:
             raise ParseError(
-                src.number,
+                line.number,
                 f"the first line must be '{spec.keyword}: {spec.usage}'",
             )
-        return self._split(src.number, spec, rest, text)
+        return self._split(line.number, spec, rest, text)
 
-    def tokenize(self, src: SourceLine) -> RawLine | None:
+    def tokenize(self, line: SourceLine) -> RawLine | None:
         """Tokenize a body line; blank lines and comments return None.
 
         Args:
-            src: A line after the header.
+            line: A line after the header.
 
         Returns:
             The line split into its parts, or None for a blank line or a
@@ -76,14 +76,14 @@ class LineTokenizer:
             droneflow.errors.ParseError: If the keyword is unknown or the
                 parts do not match its usage.
         """
-        text = src.text.strip()
+        text = line.text.strip()
         if not text or text.startswith("#"):
             return None
         keyword, separator, rest = text.partition(":")
         spec = self._format.find(keyword) if separator else None
         if spec is None:
-            raise ParseError(src.number, f"unrecognized line: {text!r}")
-        return self._split(src.number, spec, rest, text)
+            raise ParseError(line.number, f"unrecognized line: {text!r}")
+        return self._split(line.number, spec, rest, text)
 
     def _split(
         self, number: int, spec: LineSpec, rest: str, text: str

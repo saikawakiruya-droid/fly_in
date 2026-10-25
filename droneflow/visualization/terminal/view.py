@@ -181,7 +181,7 @@ class TerminalVisualizer:
             for drone in state.drones_in_transit()
         ]
         if in_flight:
-            lines.extend(self._wrap("in flight:", in_flight, sep=", "))
+            lines.extend(self._wrap("in flight:", in_flight, separator=", "))
         return lines
 
     def _zone_grid(self, state: SimulationState) -> list[str]:
@@ -344,14 +344,14 @@ class TerminalVisualizer:
         )
 
     def _wrap(
-        self, label: str, chunks: list[_Chunk], sep: str = " "
+        self, label: str, chunks: list[_Chunk], separator: str = " "
     ) -> list[str]:
         """Lay out chunks after a label, wrapping on the plain width.
 
         Args:
             label: The text the first line starts with.
             chunks: The pieces to lay out, in order.
-            sep: What goes between two pieces on the same line.
+            separator: What goes between two pieces on the same line.
 
         Returns:
             The lines; ``<label> -`` if there are no chunks.
@@ -362,7 +362,7 @@ class TerminalVisualizer:
         lines: list[str] = []
         shown, used = label, len(label)
         for index, chunk in enumerate(chunks):
-            joiner = " " if index == 0 else sep
+            joiner = " " if index == 0 else separator
             fits = used + len(joiner) + len(chunk.plain) <= self.width
             if index > 0 and not fits:
                 lines.append(shown.rstrip())
