@@ -161,42 +161,6 @@ class Scheduler:
             )
         return orders
 
-    def _decide(
-        self,
-        drone: Drone,
-        turn: int,
-        taker: HopTaker,
-        board: PositionBoard,
-    ) -> MoveOrder | None:
-        """Pick the drone's move this turn, or None if it waits.
-
-        A drone holding a planned eviction (from an earlier turn, or from
-        an earlier decision this turn) first gives it up; it gets it back
-        if it cannot move now.
-
-        Args:
-            drone: The drone to decide, standing in a zone.
-            turn: The turn being planned.
-            taker: Takes and records the first hop that fits.
-            board: Where every drone will be.
-
-        Returns:
-            The drone's order, or None if it waits.
-        """
-        drone_id = drone.drone_id
-        here = self._zone_of(drone)
-        mark = self._table.mark()
-        if self._table.leaves_after(drone_id, turn):
-            self._table.remove(drone_id)
-        hop = taker.take_first(drone_id, here, self._hops.get(here, []))
-        if hop is None:
-            detours = self._detour_policy.allowed(drone_id, here, board)
-            hop = taker.take_first(drone_id, here, detours)
-        if hop is not None:
-            return MoveOrder(drone_id, hop.zone.name)
-        self._table.rollback(mark)
-        return None
-
     def _decision_order(
         self, state: SimulationState, ordered: set[int]
     ) -> list[Drone]:
@@ -238,6 +202,42 @@ class Scheduler:
                 "the end zone"
             )
         return rank
+
+    def _decide(
+        self,
+        drone: Drone,
+        turn: int,
+        taker: HopTaker,
+        board: PositionBoard,
+    ) -> MoveOrder | None:
+        """Pick the drone's move this turn, or None if it waits.
+
+        A drone holding a planned eviction (from an earlier turn, or from
+        an earlier decision this turn) first gives it up; it gets it back
+        if it cannot move now.
+
+        Args:
+            drone: The drone to decide, standing in a zone.
+            turn: The turn being planned.
+            taker: Takes and records the first hop that fits.
+            board: Where every drone will be.
+
+        Returns:
+            The drone's order, or None if it waits.
+        """
+        drone_id = drone.drone_id
+        here = self._zone_of(drone)
+        mark = self._table.mark()
+        if self._table.leaves_after(drone_id, turn):
+            self._table.remove(drone_id)
+        hop = taker.take_first(drone_id, here, self._hops.get(here, []))
+        if hop is None:
+            detours = self._detour_policy.allowed(drone_id, here, board)
+            hop = taker.take_first(drone_id, here, detours)
+        if hop is not None:
+            return MoveOrder(drone_id, hop.zone.name)
+        self._table.rollback(mark)
+        return None
 
     @staticmethod
     def _zone_of(drone: Drone) -> str:

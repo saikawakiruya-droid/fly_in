@@ -82,33 +82,6 @@ class DetourPolicy:
         self._reported[turn] = zone_names
         self._visit(zone_names)
 
-    def _forget_from(self, turn: int) -> None:
-        """Drop the positions reported for ``turn`` and later turns.
-
-        The visited zones are then rebuilt from the earlier reports.
-
-        Args:
-            turn: The first turn whose report to drop.
-        """
-        if any(earlier >= turn for earlier in self._reported):
-            self._reported = {
-                earlier: zone_names
-                for earlier, zone_names in self._reported.items()
-                if earlier < turn
-            }
-            self._visited = {}
-            for zone_names in self._reported.values():
-                self._visit(zone_names)
-
-    def _visit(self, zone_names: Mapping[int, str]) -> None:
-        """Mark each drone's zone as visited by that drone.
-
-        Args:
-            zone_names: The zone name by drone_id.
-        """
-        for drone_id, zone_name in zone_names.items():
-            self._visited.setdefault(drone_id, set()).add(zone_name)
-
     def allowed(
         self,
         drone_id: int,
@@ -146,6 +119,33 @@ class DetourPolicy:
             if total + board.count_in(self._queue_zones[hop.zone.name])
             <= budget
         ]
+
+    def _forget_from(self, turn: int) -> None:
+        """Drop the positions reported for ``turn`` and later turns.
+
+        The visited zones are then rebuilt from the earlier reports.
+
+        Args:
+            turn: The first turn whose report to drop.
+        """
+        if any(earlier >= turn for earlier in self._reported):
+            self._reported = {
+                earlier: zone_names
+                for earlier, zone_names in self._reported.items()
+                if earlier < turn
+            }
+            self._visited = {}
+            for zone_names in self._reported.values():
+                self._visit(zone_names)
+
+    def _visit(self, zone_names: Mapping[int, str]) -> None:
+        """Mark each drone's zone as visited by that drone.
+
+        Args:
+            zone_names: The zone name by drone_id.
+        """
+        for drone_id, zone_name in zone_names.items():
+            self._visited.setdefault(drone_id, set()).add(zone_name)
 
     @staticmethod
     def _costed(pathfinder: Pathfinder, name: str) -> list[tuple[int, Hop]]:
