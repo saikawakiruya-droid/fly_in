@@ -48,6 +48,24 @@
 - R04/R05 を v2.0 の最適値に合わせた(`test/subject_v2_optimum`、c89d4b4。develop へのマージは未)。
 - `new_fly_in.pdf` を `fly_in.pdf` に置き換えた(旧 v1.6 は会話中のみ scratchpad に写しあり)。
 
+## 2026-10-26(日付変更)
+
+### 依頼
+
+PDF は残して、ほかは main まで反映する。
+
+### 作業
+
+- `test/subject_v2_optimum` を develop にマージした(7288faa)。develop で pytest 662 件成功、flake8・mypy(課題のフラグ)問題なし。
+  ブランチは削除。使っていたワークツリーは登録が外れていたので、ディレクトリを削除した。
+- この会話の docs(調査記録・決定記録・このログ)は、別のセッションで develop にコミット済みだった(53fc3a2)。
+- main: tests は main に含めないので、テストの変更は反映するものが無い。develop に入っていて main に未反映だった
+  読みやすさの改善(`droneflow/` の変更)を、`droneflow/` と `fly_in.py` を develop からそのまま取って反映した(d2d54cd)。
+  main と develop の差(docs・tests を除く)は、決まった tests 関連の行(Makefile・README・requirements.txt・setup.cfg)と
+  `maps.tar.gz` だけであることを確認した。main で flake8・mypy(課題のフラグと --strict)問題なし、課題の例は5ターン。
+- `fly_in.pdf`(v2.0)はそのまま残した(`.gitignore` の対象)。
+- push はしていない。
+
 ## 未決事項
 
-- `test/subject_v2_optimum` を develop にマージするか(ユーザーの許可待ち)。
+- main と develop の push。

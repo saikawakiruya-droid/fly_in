@@ -1608,7 +1608,8 @@ sequenceDiagram
   1. `tests/simulation/scheduling/test_scheduler_maps.py` の `PROVIDED_MAPS` の上限を、VII.7 の旧目標から VII.6 の最適値に変えた
      (4, 4, 4, 8, 10, 6, 13, 16, 26、challenger 43)。R04 は必須の9枚が最適値以内(= ちょうど)、R05 は challenger が
      最適値 43 の 25% 以内(評価表の加点の条件)を確かめる。R19 の固定値(challenger 44)は変えない。
-     ブランチ `test/subject_v2_optimum`(c89d4b4、develop から。ワークツリー `D:\WorkSpaceclaude_code\fly_in_optimum`)。develop へのマージは未。
+     ブランチ `test/subject_v2_optimum`(c89d4b4)。2026-10-26 にユーザーの許可を得て develop にマージした(7288faa)。
+     tests は main に含めないので、main に反映するものは無い。
   2. `new_fly_in.pdf`(v2.0)を `fly_in.pdf` に置き換えた(`.gitignore` の対象で、git には載らない)。
 - 理由: v2.0 で旧目標と IX の「45 未満」が無くなり、テストの根拠が古くなったため。R05 は 43 に届かないので
   (上の「43 にする変更は行わない」)、評価表の 25% の条件にした。
