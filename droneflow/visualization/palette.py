@@ -3,8 +3,9 @@
 The subject accepts any single-word string as a zone color, with no fixed
 list. This table covers the common names, including every color used by
 the maps handed out with the subject except ``rainbow`` (not a single
-color, so it is deliberately left out); a name not in the table is
-left in the terminal's default color instead of failing.
+color, so it is deliberately left out). For a name not in the table,
+``rgb`` returns None and each view falls back on its own default
+instead of failing.
 """
 
 RGB = tuple[int, int, int]
