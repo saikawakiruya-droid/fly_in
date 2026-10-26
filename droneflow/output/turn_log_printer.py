@@ -4,7 +4,7 @@ import sys
 from typing import TextIO
 
 from ..simulation.state import Move, SimulationState
-from .formatter import TurnLogFormatter
+from .turn_log_formatter import TurnLogFormatter
 
 
 class TurnLogPrinter:

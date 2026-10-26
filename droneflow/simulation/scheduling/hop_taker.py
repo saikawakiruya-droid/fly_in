@@ -33,13 +33,13 @@ class HopTaker:
         self.board = board
 
     def take_first(
-        self, drone_id: int, here: str, hops: list[Hop]
+        self, drone_id: int, from_zone: str, hops: list[Hop]
     ) -> Hop | None:
         """Take the first of ``hops`` the drone can make, or return None.
 
         Args:
             drone_id: The drone to move.
-            here: The zone it stands in.
+            from_zone: The zone it leaves.
             hops: The hops to try, in order.
 
         Returns:
@@ -47,18 +47,18 @@ class HopTaker:
         """
         for may_evict in (False, True):
             for hop in hops:
-                if self._take(drone_id, here, hop, may_evict):
+                if self._take(drone_id, from_zone, hop, may_evict):
                     return hop
         return None
 
     def _take(
-        self, drone_id: int, here: str, hop: Hop, may_evict: bool
+        self, drone_id: int, from_zone: str, hop: Hop, may_evict: bool
     ) -> bool:
         """Take ``hop`` if it can be made; return whether it was taken.
 
         Args:
             drone_id: The drone to move.
-            here: The zone it stands in.
+            from_zone: The zone it leaves.
             hop: The hop to try.
             may_evict: Whether the ``Evictor`` may make room.
 
@@ -68,41 +68,43 @@ class HopTaker:
         turn = self.ledger.planning_turn
         if not self.ledger.link_free(hop.connection, turn):
             return False
-        arrive = self.ledger.arrival_turn(hop.zone)
-        if self.ledger.has_seat_from(hop.zone, arrive):
-            self._record(drone_id, here, hop, arrive)
+        arrive_turn = self.ledger.arrival_turn(hop.zone)
+        if self.ledger.has_seat_from(hop.zone, arrive_turn):
+            self._record(drone_id, from_zone, hop, arrive_turn)
             return True
         if not may_evict:
             return False
         if hop.zone.zone_type is ZoneType.RESTRICTED:
-            return self._land_after_evicting(drone_id, here, hop, arrive)
-        return self._enter_then_evict(drone_id, here, hop, arrive)
+            return self._land_after_evicting(
+                drone_id, from_zone, hop, arrive_turn
+            )
+        return self._enter_then_evict(drone_id, from_zone, hop, arrive_turn)
 
     def _land_after_evicting(
-        self, drone_id: int, here: str, hop: Hop, arrive: int
+        self, drone_id: int, from_zone: str, hop: Hop, arrive_turn: int
     ) -> bool:
         """Fly to a full restricted zone if occupants can leave in time.
 
-        The drone must land on ``arrive`` (it cannot wait on the
+        The drone must land on ``arrive_turn`` (it cannot wait on the
         connection), so the zone needs one more seat (``extra=1``) from
         that turn on.
 
         Args:
             drone_id: The drone to move.
-            here: The zone it stands in.
+            from_zone: The zone it leaves.
             hop: The hop into the restricted zone.
-            arrive: The turn it lands.
+            arrive_turn: The turn it lands.
 
         Returns:
             True if room was made and the hop recorded.
         """
-        if not self.evictor.make_room(hop.zone, arrive, 1):
+        if not self.evictor.make_room(hop.zone, arrive_turn, 1):
             return False
-        self._record(drone_id, here, hop, arrive)
+        self._record(drone_id, from_zone, hop, arrive_turn)
         return True
 
     def _enter_then_evict(
-        self, drone_id: int, here: str, hop: Hop, arrive: int
+        self, drone_id: int, from_zone: str, hop: Hop, arrive_turn: int
     ) -> bool:
         """Enter a zone whose seat is kept for a later drone, then evict.
 
@@ -114,31 +116,33 @@ class HopTaker:
 
         Args:
             drone_id: The drone to move.
-            here: The zone it stands in.
+            from_zone: The zone it leaves.
             hop: The hop into the zone.
-            arrive: The turn it enters the zone.
+            arrive_turn: The turn it enters the zone.
 
         Returns:
             True if the hop was recorded and room made; False if undone.
         """
-        if not self.ledger.fits(hop.zone, arrive, 1):
+        if not self.ledger.fits(hop.zone, arrive_turn, 1):
             return False
         before = self.board.where(drone_id)
-        self._record(drone_id, here, hop, arrive)
-        if self.evictor.make_room(hop.zone, arrive + 1, 0):
+        self._record(drone_id, from_zone, hop, arrive_turn)
+        if self.evictor.make_room(hop.zone, arrive_turn + 1, 0):
             return True
-        self.ledger.cancel(here, hop)
-        self.board.place(drone_id, before.zone, before.since_turn)
+        self.ledger.cancel(from_zone, hop)
+        self.board.place(drone_id, before.zone_name, before.since_turn)
         return False
 
-    def _record(self, drone_id: int, here: str, hop: Hop, arrive: int) -> None:
+    def _record(
+        self, drone_id: int, from_zone: str, hop: Hop, arrive_turn: int
+    ) -> None:
         """Record the hop in the ledger and move the drone on the board.
 
         Args:
             drone_id: The drone to move.
-            here: The zone it leaves.
+            from_zone: The zone it leaves.
             hop: The hop it takes.
-            arrive: The turn it enters the hop's zone.
+            arrive_turn: The turn it enters the hop's zone.
         """
-        self.ledger.record(here, hop)
-        self.board.place(drone_id, hop.zone.name, arrive)
+        self.ledger.record(from_zone, hop)
+        self.board.place(drone_id, hop.zone.name, arrive_turn)

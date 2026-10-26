@@ -11,11 +11,11 @@ class Position(NamedTuple):
     """Where a drone will be, and from the end of which turn for sure.
 
     Attributes:
-        zone: The zone the drone stands in, or is landing in.
+        zone_name: The zone the drone stands in, or is landing in.
         since_turn: The turn from whose end the drone is surely there.
     """
 
-    zone: str
+    zone_name: str
     since_turn: int
 
 
@@ -60,19 +60,19 @@ class PositionBoard:
                 board.place(drone.drone_id, drone.current_zone, played)
         return board
 
-    def place(self, drone_id: int, zone: str, since_turn: int) -> None:
-        """Put the drone in ``zone`` from the end of ``since_turn`` on.
+    def place(self, drone_id: int, zone_name: str, since_turn: int) -> None:
+        """Put the drone in ``zone_name`` from the end of ``since_turn`` on.
 
         Args:
             drone_id: The drone to place.
-            zone: The zone it will be in.
+            zone_name: The zone it will be in.
             since_turn: The turn from whose end it is surely there.
         """
         old = self._where.get(drone_id)
         if old is not None:
-            self._drones_in[old.zone].discard(drone_id)
-        self._where[drone_id] = Position(zone, since_turn)
-        self._drones_in.setdefault(zone, set()).add(drone_id)
+            self._drones_in[old.zone_name].discard(drone_id)
+        self._where[drone_id] = Position(zone_name, since_turn)
+        self._drones_in.setdefault(zone_name, set()).add(drone_id)
 
     def where(self, drone_id: int) -> Position:
         """Return the drone's position.
@@ -88,32 +88,36 @@ class PositionBoard:
         """
         return self._where[drone_id]
 
-    def zone_by_drone(self) -> dict[int, str]:
+    def zone_name_by_drone(self) -> dict[int, str]:
         """Return the zone of every drone on the board.
 
         Returns:
             The zone name by drone_id.
         """
-        return {drone_id: pos.zone for drone_id, pos in self._where.items()}
+        return {
+            drone_id: pos.zone_name for drone_id, pos in self._where.items()
+        }
 
-    def drones_in(self, zone: str) -> list[int]:
+    def drones_in(self, zone_name: str) -> list[int]:
         """Return the drones in the zone, lowest number first.
 
         Args:
-            zone: Name of the zone.
+            zone_name: Name of the zone.
 
         Returns:
             The drone_ids in the zone (empty if none).
         """
-        return sorted(self._drones_in.get(zone, ()))
+        return sorted(self._drones_in.get(zone_name, ()))
 
-    def count_in(self, zones: Iterable[str]) -> int:
+    def count_in(self, zone_names: Iterable[str]) -> int:
         """Return how many drones the given zones hold together.
 
         Args:
-            zones: The zone names to count.
+            zone_names: The zone names to count.
 
         Returns:
             The total number of drones in them.
         """
-        return sum(len(self._drones_in.get(zone, ())) for zone in zones)
+        return sum(
+            len(self._drones_in.get(zone_name, ())) for zone_name in zone_names
+        )
