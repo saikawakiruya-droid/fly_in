@@ -19,7 +19,7 @@ from droneflow.models.drone import DroneStatus
 from droneflow.models.network import Network
 from droneflow.models.world import World
 from droneflow.models.zone import ZoneType
-from droneflow.output.formatter import TurnLogFormatter
+from droneflow.output.turn_log_formatter import TurnLogFormatter
 from droneflow.parsing.map_parser import MapParser
 from droneflow.pathfinding.pathfinder import Pathfinder
 from droneflow.simulation.engine import SimulationEngine, default_turn_limit

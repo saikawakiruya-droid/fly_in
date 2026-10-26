@@ -15,23 +15,24 @@ from .pathfinding.pathfinder import Pathfinder
 from .simulation.engine import MoveDecider, SimulationEngine
 from .simulation.observer import ObserverGroup, TurnObserver
 from .simulation.scheduling.scheduler import Scheduler
+from .simulation.state import Move
 from .visualization.terminal.view import TerminalVisualizer
 
 
 class Application:
     """Wires together every stage of the pipeline for a single run.
 
-    The turn log goes to ``out`` (standard output), one line per turn as
+    The turn log goes to ``stdout`` (standard output), one line per turn as
     the run goes on, and nothing else does. The terminal view and the
-    final summary go to ``err`` (standard error). With
+    final summary go to ``stderr`` (standard error). With
     ``--matplotlib-window``, a matplotlib window shows the run as well.
     """
 
     def __init__(
         self,
         args: Args,
-        out: TextIO | None = None,
-        err: TextIO | None = None,
+        stdout: TextIO | None = None,
+        stderr: TextIO | None = None,
         make_scheduler: Callable[[Network, Pathfinder], MoveDecider] = (
             Scheduler
         ),
@@ -40,16 +41,16 @@ class Application:
 
         Args:
             args: The parsed command-line arguments.
-            out: Where the turn log goes; defaults to ``sys.stdout``.
-            err: Where the terminal view and the summary go; defaults to
+            stdout: Where the turn log goes; defaults to ``sys.stdout``.
+            stderr: Where the terminal view and the summary go; defaults to
                 ``sys.stderr``.
             make_scheduler: Builds what decides each turn's moves from the
                 network and its pathfinder; defaults to ``Scheduler``. Any
                 other ``MoveDecider`` can be plugged in here.
         """
         self.args = args
-        self.out: TextIO = sys.stdout if out is None else out
-        self.err: TextIO = sys.stderr if err is None else err
+        self.stdout: TextIO = sys.stdout if stdout is None else stdout
+        self.stderr: TextIO = sys.stderr if stderr is None else stderr
         self.make_scheduler = make_scheduler
 
     def run(self) -> None:
@@ -68,17 +69,8 @@ class Application:
         engine = SimulationEngine(
             world, self.make_scheduler(world.network, pathfinder)
         )
-        observers: list[TurnObserver] = [
-            TurnLogPrinter(self.out),
-            TerminalVisualizer(stream=self.err),
-        ]
-        if self.args.matplotlib_window:
-            observers.append(_matplotlib_window(world.network))
-        turns = engine.run(ObserverGroup(observers))
-        self.err.write(
-            RunSummary.from_turns(turns, world.nb_drones).describe() + "\n"
-        )
-        self.err.flush()
+        turns = engine.run(self._observers(world.network))
+        self._print_summary(turns, world.nb_drones)
 
     def _load_world(self) -> World:
         """Parse the map file.
@@ -99,6 +91,39 @@ class Application:
             raise MapFileError(name, reason) from exc
         except UnicodeDecodeError as exc:
             raise MapFileError(name, "not UTF-8 text") from exc
+
+    def _observers(self, network: Network) -> ObserverGroup:
+        """Gather what watches the run: the turn log and the views.
+
+        Args:
+            network: The network to draw in the matplotlib window.
+
+        Returns:
+            The turn log printer and the terminal view, then the
+            matplotlib window if ``--matplotlib-window`` was given.
+
+        Raises:
+            VisualizationError: If the matplotlib window cannot be used.
+        """
+        observers: list[TurnObserver] = [
+            TurnLogPrinter(self.stdout),
+            TerminalVisualizer(stream=self.stderr),
+        ]
+        if self.args.matplotlib_window:
+            observers.append(_matplotlib_window(network))
+        return ObserverGroup(observers)
+
+    def _print_summary(self, turns: list[list[Move]], nb_drones: int) -> None:
+        """Write the run's summary to ``stderr``.
+
+        Args:
+            turns: The moves of every turn.
+            nb_drones: How many drones the map has.
+        """
+        self.stderr.write(
+            RunSummary.from_turns(turns, nb_drones).describe() + "\n"
+        )
+        self.stderr.flush()
 
 
 def _matplotlib_window(network: Network) -> TurnObserver:

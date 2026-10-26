@@ -11,7 +11,7 @@ from typing import Callable
 import pytest
 
 from droneflow.models.network import Network
-from droneflow.output.formatter import TurnLogFormatter
+from droneflow.output.turn_log_formatter import TurnLogFormatter
 from droneflow.output.turn_log_printer import TurnLogPrinter
 from droneflow.simulation.state import Move, SimulationState
 

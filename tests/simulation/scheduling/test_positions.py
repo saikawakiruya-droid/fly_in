@@ -4,7 +4,7 @@ Covers Position and PositionBoard.
 
 The board tells where every drone will be as a turn's moves are decided:
 ``drones_in`` lists the drones of a zone lowest number first (a new list
-each time), ``zone_by_drone`` returns a new dict, and ``count_in`` adds
+each time), ``zone_name_by_drone`` returns a new dict, and ``count_in`` adds
 up the zones it is given (callers pass a set). ``from_state`` puts a
 standing drone in its zone from the turn just played and a drone in
 flight in the zone it lands in from the next turn; delivered drones are
@@ -39,7 +39,7 @@ def test_empty_board() -> None:
     """PB01: a new board holds nothing; ``where`` raises KeyError."""
     board = PositionBoard()
 
-    assert board.zone_by_drone() == {}
+    assert board.zone_name_by_drone() == {}
     assert board.drones_in("a") == []
     assert board.count_in(["a"]) == 0
     with pytest.raises(KeyError):
@@ -55,7 +55,7 @@ def test_place_lists_drones_lowest_number_first() -> None:
     assert board.drones_in("b") == [2]
     assert board.where(3) == Position("a", 0)
     assert board.where(3) == ("a", 0)
-    assert board.where(2).zone == "b"
+    assert board.where(2).zone_name == "b"
     assert board.where(2).since_turn == 1
 
 
@@ -69,7 +69,7 @@ def test_moving_to_another_zone_leaves_the_old_one() -> None:
     assert board.drones_in("a") == [1]
     assert board.drones_in("b") == [2, 3]
     assert board.where(3) == ("b", 2)
-    assert board.zone_by_drone() == {1: "a", 2: "b", 3: "b"}
+    assert board.zone_name_by_drone() == {1: "a", 2: "b", 3: "b"}
 
 
 def test_placing_again_in_the_same_zone_updates_the_turn() -> None:
@@ -99,10 +99,10 @@ def test_returned_values_are_copies() -> None:
     board = pb02_board()
 
     board.drones_in("a").append(99)
-    board.zone_by_drone()[1] = "x"
+    board.zone_name_by_drone()[1] = "x"
 
     assert board.drones_in("a") == [1, 3]
-    assert board.zone_by_drone()[1] == "a"
+    assert board.zone_name_by_drone()[1] == "a"
 
 
 def test_from_state(make_network: MakeNetwork, place: Place) -> None:
@@ -114,7 +114,7 @@ def test_from_state(make_network: MakeNetwork, place: Place) -> None:
 
     board = PositionBoard.from_state(state)
 
-    assert board.zone_by_drone() == {1: "a", 3: "r", 4: "s"}
+    assert board.zone_name_by_drone() == {1: "a", 3: "r", 4: "s"}
     assert board.where(1) == ("a", 2)
     assert board.where(3) == ("r", 3)
     assert board.where(4) == ("s", 2)

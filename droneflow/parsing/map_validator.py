@@ -13,7 +13,7 @@ from .map_rules import Rule
 
 
 class MapValidator:
-    """Builds the World line by line, delegating the actual checks.
+    """Turns tokenized lines, checked one by one, into a validated World.
 
     Field conversion belongs to each line's LineSpec; checks that span
     several lines belong to the Rule objects. This class only coordinates.

@@ -107,13 +107,15 @@ class Evictor:
         for hop in self.hops.get(zone.name, []):
             if not self.ledger.link_free(hop.connection, turn):
                 continue
-            arrive = hop.zone.arrival_turn(turn)
+            arrive_turn = hop.zone.arrival_turn(turn)
             mark = self.table.mark()
-            if not self._keep_seats(hop.zone, arrive, 1):
+            if not self._keep_seats(hop.zone, arrive_turn, 1):
                 self.table.rollback(mark)
                 continue
             self.table.reserve(
-                Reservation(drone_id, zone.name, hop.zone.name, turn, arrive)
+                Reservation(
+                    drone_id, zone.name, hop.zone.name, turn, arrive_turn
+                )
             )
             return True
         return False

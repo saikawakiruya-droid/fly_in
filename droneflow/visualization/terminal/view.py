@@ -30,6 +30,8 @@ _LEGEND = (
 )
 _NAME_WIDTH_LIMIT = 18
 _CELL_GAP = "   "
+_ROW_INDENT = "  "
+_COUNT_WIDTH = 8
 
 
 def color_enabled(stream: TextIO) -> bool:
@@ -181,7 +183,7 @@ class TerminalVisualizer:
             for drone in state.drones_in_transit()
         ]
         if in_flight:
-            lines.extend(self._wrap("in flight:", in_flight, sep=", "))
+            lines.extend(self._wrap("in flight:", in_flight, separator=", "))
         return lines
 
     def _zone_grid(self, state: SimulationState) -> list[str]:
@@ -200,13 +202,13 @@ class TerminalVisualizer:
         cells = [self._zone_cell(state, z, name_width) for z in zones]
         cell_width = len(cells[0].plain) if cells else 1
         per_line = max(
-            1, (self.width - 2) // (cell_width + len(_CELL_GAP))
+            1, (self.width - len(_ROW_INDENT)) // (cell_width + len(_CELL_GAP))
         )
         lines = []
         for first in range(0, len(cells), per_line):
             row = cells[first:first + per_line]
             lines.append(
-                ("  " + _CELL_GAP.join(c.shown for c in row)).rstrip()
+                (_ROW_INDENT + _CELL_GAP.join(c.shown for c in row)).rstrip()
             )
         return lines
 
@@ -230,7 +232,7 @@ class TerminalVisualizer:
         tag = _ROLE_TAGS.get(zone.role, _TYPE_TAGS[zone.zone_type])
         count = self._count_text(state, zone)
         full = count.endswith("*")
-        padding = " " * max(0, 8 - len(count))
+        padding = " " * max(0, _COUNT_WIDTH - len(count))
         plain = f"{name} {tag} {count}{padding}"
         shown = (
             f"{self._paint(name, zone.color)} {tag} "
@@ -344,14 +346,14 @@ class TerminalVisualizer:
         )
 
     def _wrap(
-        self, label: str, chunks: list[_Chunk], sep: str = " "
+        self, label: str, chunks: list[_Chunk], separator: str = " "
     ) -> list[str]:
         """Lay out chunks after a label, wrapping on the plain width.
 
         Args:
             label: The text the first line starts with.
             chunks: The pieces to lay out, in order.
-            sep: What goes between two pieces on the same line.
+            separator: What goes between two pieces on the same line.
 
         Returns:
             The lines; ``<label> -`` if there are no chunks.
@@ -362,7 +364,7 @@ class TerminalVisualizer:
         lines: list[str] = []
         shown, used = label, len(label)
         for index, chunk in enumerate(chunks):
-            joiner = " " if index == 0 else sep
+            joiner = " " if index == 0 else separator
             fits = used + len(joiner) + len(chunk.plain) <= self.width
             if index > 0 and not fits:
                 lines.append(shown.rstrip())

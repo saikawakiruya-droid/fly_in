@@ -79,9 +79,9 @@ class TurnLedger:
             True if its departures that turn are below its capacity.
         """
         used = sum(
-            1 for move in self._table.due(turn)
-            if connection.involves(move.from_zone)
-            and connection.involves(move.to_zone)
+            1 for reservation in self._table.due(turn)
+            if connection.involves(reservation.from_zone)
+            and connection.involves(reservation.to_zone)
         )
         if turn == self.planning_turn:
             used += self._link_use.get(connection.name, 0)
