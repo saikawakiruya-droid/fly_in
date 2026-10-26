@@ -66,6 +66,12 @@ PDF は残して、ほかは main まで反映する。
 - `fly_in.pdf`(v2.0)はそのまま残した(`.gitignore` の対象)。
 - push はしていない。
 
+## 2026-10-27(日付変更)
+
+- ユーザーの指示で main と develop を push した(main d2d54cd、develop 0570bdf)。push 前に、送るコミットのメッセージと差分に
+  個人情報・セッションURLが無いことを確認した(作業場所の `D:\WorkSpaceclaude_code\...` のパスが1か所あるが、ユーザー名を含まず、
+  同じ形のパスは origin にすでにある)。
+
 ## 未決事項
 
-- main と develop の push。
+- なし。
