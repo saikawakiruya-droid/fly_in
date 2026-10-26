@@ -50,7 +50,6 @@ def test_enter_zone_moves_occupancy(make_network: MakeNetwork) -> None:
 
     assert state.occupancy("s") == 2
     assert state.occupancy("a") == 1
-    assert [d.drone_id for d in state.drones_at("a")] == [1]
 
 
 def test_entering_end_delivers(make_network: MakeNetwork) -> None:
@@ -61,7 +60,6 @@ def test_entering_end_delivers(make_network: MakeNetwork) -> None:
     assert state.drones[1].status is DroneStatus.DELIVERED
     assert state.occupancy("g") == 0
     assert 1 not in [d.drone_id for d in state.active_drones()]
-    assert state.drones_at("g") == []
     assert state.delivered_count == 1
     assert state.is_complete is False
 

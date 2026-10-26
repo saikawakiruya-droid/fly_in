@@ -157,19 +157,6 @@ class SimulationState:
             if d.status is DroneStatus.IN_TRANSIT
         ]
 
-    def drones_at(self, zone_name: str) -> list[Drone]:
-        """Return the undelivered drones currently in the zone.
-
-        Args:
-            zone_name: Name of the zone.
-
-        Returns:
-            The drones in the zone, in drone_id order.
-        """
-        return [
-            d for d in self.active_drones() if d.current_zone == zone_name
-        ]
-
     @property
     def delivered_count(self) -> int:
         """Return how many drones have reached the end zone."""
