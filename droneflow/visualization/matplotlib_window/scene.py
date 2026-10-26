@@ -152,7 +152,7 @@ class MapScene:
         }
 
     def _draw_zones(self, zones: list[Zone]) -> None:
-        """Draw the zones, their fill and outline marking their kind.
+        """Draw each zone in its shape, fill and outline color.
 
         Args:
             zones: The zones to draw.
