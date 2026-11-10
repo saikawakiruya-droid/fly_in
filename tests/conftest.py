@@ -219,8 +219,8 @@ def make_network() -> NetworkFactory:
 def write_map(tmp_path: Path) -> Callable[[str], Path]:
     """Return a function writing a map file under tmp_path.
 
-    The map text must start with ``nb_drones: <n>`` on its physical first
-    line (decisions 2026-10-16).
+    Comments and blank lines may come before ``nb_drones: <n>``
+    (decisions 2026-11-10).
     """
 
     def write(text: str) -> Path:
@@ -349,20 +349,15 @@ def open_archive() -> tarfile.TarFile:
 
 
 def read_provided_map(member: str) -> str:
-    """Return a provided map without its leading comments and blank lines.
+    """Return a provided map as it is in the archive, comments included.
 
-    Only those are removed, so that ``nb_drones`` is on the physical first
-    line as the parser requires (decisions 2026-10-16); comments further
-    down are kept, the parser handles them.
+    The parser skips the comments and blank lines before ``nb_drones``
+    (decisions 2026-11-10).
     """
     with open_archive() as archive:
         stream = archive.extractfile(member)
         assert stream is not None, f"{member} is not a file"
-        text = stream.read().decode("utf-8")
-    lines = text.splitlines(keepends=True)
-    while lines and lines[0].strip()[:1] in ("", "#"):
-        lines.pop(0)
-    return "".join(lines)
+        return stream.read().decode("utf-8")
 
 
 @pytest.fixture

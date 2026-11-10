@@ -36,7 +36,7 @@ SUMMARY = (
     "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
     "3.40 moves per turn"
 )
-COMMENT_FIRST_MAP = "# c\nnb_drones: 1\n"
+HUB_FIRST_MAP = "# c\nstart_hub: s 0 0\nnb_drones: 1\n"
 UNREACHABLE_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: g 1 1\n"
 
 
@@ -192,9 +192,10 @@ def test_unreadable_map(case: str, tmp_path: Path) -> None:
     ("text", "expected", "message"),
     [
         (
-            COMMENT_FIRST_MAP,
+            HUB_FIRST_MAP,
             ParseError,
-            "line 1: the first line must be 'nb_drones: <n>'",
+            "line 2: the first line that is not a comment must be "
+            "'nb_drones: <n>'",
         ),
         (
             UNREACHABLE_MAP,
@@ -289,7 +290,8 @@ def test_map_with_bom_is_rejected(tmp_path: Path, subject_map: str) -> None:
     info, out, _ = run_failing(Args(path), ParseError)
 
     assert info.value.args[0] == (
-        "line 1: the first line must be 'nb_drones: <n>'"
+        "line 1: the first line that is not a comment must be "
+        "'nb_drones: <n>'"
     )
     assert out == ""
 

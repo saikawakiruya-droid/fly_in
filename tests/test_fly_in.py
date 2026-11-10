@@ -26,7 +26,7 @@ SUMMARY = (
     "summary: 5 turns, 5 drones, 4.20 turns per drone on average, "
     "3.40 moves per turn"
 )
-COMMENT_FIRST_MAP = "# c\nnb_drones: 1\n"
+HUB_FIRST_MAP = "# c\nstart_hub: s 0 0\nnb_drones: 1\n"
 UNREACHABLE_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: g 1 1\n"
 
 
@@ -89,8 +89,11 @@ def test_fly_in_errors(
             "No such file or directory"
         )
     elif case == "parse":
-        path = write_map(COMMENT_FIRST_MAP)
-        expected = "error: line 1: the first line must be 'nb_drones: <n>'"
+        path = write_map(HUB_FIRST_MAP)
+        expected = (
+            "error: line 2: the first line that is not a comment must be "
+            "'nb_drones: <n>'"
+        )
     else:
         path = write_map(UNREACHABLE_MAP)
         expected = "error: goal 'g' is unreachable from 's'"

@@ -40,7 +40,7 @@ connection: corridorA-tunnelB [max_link_capacity=2]
 
 | 行 | 意味 |
 | --- | --- |
-| `nb_drones: <n>` | ドローン数(正の整数)。**ファイルの物理的な 1 行目でなければならない。** |
+| `nb_drones: <n>` | ドローン数(正の整数)。**コメントと空行を除いた最初の行でなければならない。** |
 | `start_hub: <name> <x> <y> [metadata]` | スタートゾーン(ちょうど 1 つ)。 |
 | `end_hub: <name> <x> <y> [metadata]` | エンドゾーン(ちょうど 1 つ)。 |
 | `hub: <name> <x> <y> [metadata]` | 通常のゾーン。 |
@@ -51,10 +51,11 @@ connection: corridorA-tunnelB [max_link_capacity=2]
 `color=<単語>`(既定なし)、`max_drones=<n>`(既定 1)。
 コネクションのメタデータ: `max_link_capacity=<n>`(既定 1)。
 
-パーサは最初に見つけた問題で止まり、行番号と原因を表示します。主に次のものを拒否します: 1 行目が
-`nb_drones:` でない、ドローン数や容量が正でない、座標が整数でない、未知のゾーン種別、未知または重複した
+パーサは最初に見つけた問題で止まり、行番号と原因を表示します。主に次のものを拒否します: コメントと空行を除いた
+最初の行が `nb_drones:` でない、ドローン数や容量が正でない、座標が整数でない、未知のゾーン種別、未知または重複した
 メタデータのキー、`[...]` ブロックの書式誤り、`-` を含むゾーン名、ゾーン名の重複、2 つ目の `start_hub` /
-`end_hub`、未宣言のゾーンへのコネクション、コネクションの重複(`a-b` と `b-a` は同じもの)、
+`end_hub`、未宣言のゾーンへのコネクション、ゾーンからそれ自身へのコネクション(`a-a`)、
+コネクションの重複(`a-b` と `b-a` は同じもの)、
 `start_hub` / `end_hub` の欠落。スタートとエンドには `zone=blocked` を指定できません。課題のとおり、
 スタートとエンドの `max_drones` は受け付けたうえで無視します。スタートからエンドへ到達できないマップは、
 解析の後にエラーとして報告します。
@@ -123,20 +124,18 @@ make install
 - `--terminal-view`: 各ターンをターミナル(標準エラー出力)に描きます。
 - `--matplotlib-window`: 実行の様子を matplotlib のウィンドウに表示します。
 
-**コメントで始まるマップ。** パーサは物理的な 1 行目を `nb_drones:` のヘッダとして読みます(課題:
-"The first line must define the number of drones")。そのため 1 行目がコメントや空行のファイルは拒否されます。
-
-```text
-$ .venv/bin/python fly_in.py comment_first.txt
-error: line 1: the first line must be 'nb_drones: <n>'
-```
-
-課題と一緒に配布されるマップはコメント行で始まります。実行するには、`nb_drones:` の行より前を取り除いた
-一時ファイルを作り、それを実行してください。
+**コメントで始まるマップ。** パーサは `nb_drones:` のヘッダより前のコメントと空行を読み飛ばします(課題:
+"The first line must define the number of drones")。そのため、コメント行で始まる配布マップもそのまま実行できます。
 
 ```sh
-sed -n '/^nb_drones:/,$p' path/to/map.txt > /tmp/map.txt
-make run MAP=/tmp/map.txt
+make run MAP=path/to/maps/easy/01_linear_path.txt
+```
+
+ヘッダより前にそれ以外の行があるとエラーになり、その行の番号を表示します。
+
+```text
+$ .venv/bin/python fly_in.py hub_first.txt
+error: line 2: the first line that is not a comment must be 'nb_drones: <n>'
 ```
 
 ### Exit codes
@@ -157,6 +156,7 @@ error: line 3: name must not contain '-', got 'a-b'
 error: line 4: zone must be one of normal, blocked, restricted, priority, got 'lava'
 error: line 4: unknown zone: x
 error: line 4: max_link_capacity must be a positive integer, got 0
+error: line 5: a connection must join two different zones, got a-a
 error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub

@@ -39,11 +39,25 @@ class LineTokenizer:
         """
         self._format = map_format
 
-    def tokenize_header(self, line: SourceLine) -> RawLine:
-        """Tokenize the mandatory first line (``nb_drones: <n>``).
+    @staticmethod
+    def skips(line: SourceLine) -> bool:
+        """Return whether the line is blank or a comment.
 
         Args:
-            line: The first line of the file.
+            line: A line of the file.
+
+        Returns:
+            True for a blank line or a line starting with ``#``.
+        """
+        text = line.text.strip()
+        return not text or text.startswith("#")
+
+    def tokenize_header(self, line: SourceLine) -> RawLine:
+        """Tokenize the mandatory header (``nb_drones: <n>``).
+
+        Args:
+            line: The first line of the file that is not blank or a
+                comment.
 
         Returns:
             The header split into its parts.
@@ -58,7 +72,8 @@ class LineTokenizer:
         if not separator or keyword != spec.keyword:
             raise ParseError(
                 line.number,
-                f"the first line must be '{spec.keyword}: {spec.usage}'",
+                "the first line that is not a comment must be "
+                f"'{spec.keyword}: {spec.usage}'",
             )
         return self._split(line.number, spec, rest, text)
 
@@ -76,9 +91,9 @@ class LineTokenizer:
             errors.ParseError: If the keyword is unknown or the
                 parts do not match its usage.
         """
-        text = line.text.strip()
-        if not text or text.startswith("#"):
+        if self.skips(line):
             return None
+        text = line.text.strip()
         keyword, separator, rest = text.partition(":")
         spec = self._format.find(keyword) if separator else None
         if spec is None:

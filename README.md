@@ -47,7 +47,7 @@ connection: corridorA-tunnelB [max_link_capacity=2]
 
 | Line | Meaning |
 | --- | --- |
-| `nb_drones: <n>` | Number of drones, a positive integer. **Must be the physical first line of the file.** |
+| `nb_drones: <n>` | Number of drones, a positive integer. **Must be the first line that is not a comment or blank.** |
 | `start_hub: <name> <x> <y> [metadata]` | The start zone (exactly one). |
 | `end_hub: <name> <x> <y> [metadata]` | The end zone (exactly one). |
 | `hub: <name> <x> <y> [metadata]` | A regular zone. |
@@ -59,12 +59,14 @@ Zone metadata (optional, any order): `zone=normal|blocked|restricted|priority`
 Connection metadata: `max_link_capacity=<n>` (default 1).
 
 The parser stops at the first problem and reports the line and the cause.
-It rejects, among others: a first line that is not `nb_drones:`, a
+It rejects, among others: a first line (after comments and blank lines)
+that is not `nb_drones:`, a
 non-positive drone count or capacity, a non-integer coordinate, an unknown
 zone type, an unknown or repeated metadata key, a malformed `[...]` block, a
 zone name containing `-`, a duplicate zone name, a second `start_hub` or
-`end_hub`, a connection to a zone not declared yet, a duplicate connection
-(`a-b` and `b-a` are the same), and a missing `start_hub` or `end_hub`.
+`end_hub`, a connection to a zone not declared yet, a connection from a zone
+to itself (`a-a`), a duplicate connection (`a-b` and `b-a` are the same),
+and a missing `start_hub` or `end_hub`.
 `zone=blocked` is not allowed on the start or end zone. As the subject says,
 `max_drones` on the start and end zones is accepted and ignored. A map whose
 end zone cannot be reached from the start zone is reported after parsing.
@@ -141,23 +143,20 @@ two can be combined; the turn log on standard output is the same either way:
 - `--terminal-view` draws each turn in the terminal, on standard error;
 - `--matplotlib-window` shows the run in a matplotlib window.
 
-**Maps that start with comments.** The parser reads the physical first line
-as the `nb_drones:` header (the subject: "The first line must define the
-number of drones"), so a file whose first line is a comment or a blank line is
-rejected:
-
-```text
-$ .venv/bin/python fly_in.py comment_first.txt
-error: line 1: the first line must be 'nb_drones: <n>'
-```
-
-The maps distributed with the subject begin with comment lines. To run one,
-drop everything before its `nb_drones:` line into a temporary file and run
-that file:
+**Maps that start with comments.** The parser skips comments and blank
+lines before the `nb_drones:` header (the subject: "The first line must
+define the number of drones"), so the maps distributed with the subject,
+which begin with comment lines, run as they are:
 
 ```sh
-sed -n '/^nb_drones:/,$p' path/to/map.txt > /tmp/map.txt
-make run MAP=/tmp/map.txt
+make run MAP=path/to/maps/easy/01_linear_path.txt
+```
+
+Any other line before the header is an error, reported on its line:
+
+```text
+$ .venv/bin/python fly_in.py hub_first.txt
+error: line 2: the first line that is not a comment must be 'nb_drones: <n>'
 ```
 
 ### Exit codes
@@ -178,6 +177,7 @@ error: line 3: name must not contain '-', got 'a-b'
 error: line 4: zone must be one of normal, blocked, restricted, priority, got 'lava'
 error: line 4: unknown zone: x
 error: line 4: max_link_capacity must be a positive integer, got 0
+error: line 5: a connection must join two different zones, got a-a
 error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub

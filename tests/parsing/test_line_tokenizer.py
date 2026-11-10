@@ -57,7 +57,8 @@ def test_syntax_errors_carry_the_line_number(text: str) -> None:
 
 
 def test_header_is_tokenized_separately() -> None:
-    """The first line must be nb_drones, even if it is a comment."""
+    """The header must be nb_drones; the parser skips comments before it
+    (``skips``), the tokenizer does not."""
     raw = TOKENIZER.tokenize_header(line("nb_drones: 4", number=1))
     assert raw.positional == ("4",)
     with pytest.raises(ParseError):
