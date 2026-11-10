@@ -1671,7 +1671,7 @@ sequenceDiagram
   4. 表示はオプションを付けたときだけ使う。`--terminal-view` を新しく足し、付けないと標準エラーにはエラーと要約行だけが出る。
      `--matplotlib-window` は従来どおり。
   - ブランチ `feature/flat_layout`(c50dd14・494c952、develop 3d61dc4 から)。テスト 666 件成功、flake8・mypy(課題のフラグと
-    --strict)問題なし。develop・main へのマージは未(ユーザーの許可待ち)。
+    --strict)問題なし。2026-11-10 にユーザーの指示で develop にマージした(7a0bc1b)。main への反映は未。
 - 理由: ユーザー判断。課題の文を厳しく読む評価者がいても問題にならないようにし、直下に並んだファイルを名前順で読めるようにするため。
   旧 palette は両方の表示で共有していたが、表示ごとに1ファイルにする指示のため、matplotlib 側は matplotlib の色名に任せ、
   色の表を二重に持たないようにした。

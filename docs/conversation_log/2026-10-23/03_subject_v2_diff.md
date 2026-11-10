@@ -97,7 +97,14 @@ PDF は残して、ほかは main まで反映する。
     `requirements.txt` から入れ直した(入っていないと mypy が matplotlib の型を Any とみなしてエラーになる。develop でも同じ)。
 - 決定記録: `docs/decisions.md` 2026-11-10。
 
+### 依頼: 移動しているように見えない・キャッシュを消す、マージして不要なものを削除
+
+- メインのチェックアウト(develop)にはブランチの変更がまだ入っていなかったため、移動していないように見えていた。
+- `feature/flat_layout` を develop にマージした(7a0bc1b)。develop でテスト 666 件成功、flake8・mypy --strict 問題なし、課題の例は5ターン。
+- 削除したもの: キャッシュだけが残った `droneflow/`、`__pycache__`・`.mypy_cache`・`.pytest_cache`(`.venv` の外)、
+  空になった `tests/interchange/`・`tests/visualization/graphical/`、ワークツリー `.claude/worktrees/flat_layout`、
+  ブランチ `feature/flat_layout`、`_tmp/flat_rename_plan.md`(内容は決定記録と README に移した)。
+
 ## 未決事項
 
-- `feature/flat_layout` を develop にマージし、main に反映するか(ユーザーの許可待ち)。main の README は tests の記述を除いた版にする。
-- `_tmp/flat_rename_plan.md` は、決定記録と README に内容を移したので、昇格の確認後に削除してよい。
+- main への反映(main の README は tests の記述を除いた版にする)と push。
