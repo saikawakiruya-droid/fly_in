@@ -20,8 +20,9 @@ respecting the movement rules of the subject:
   be entered;
 - `priority` zones are preferred when several routes are equally short.
 
-The program parses and validates the map, computes distances to the goal,
-schedules the moves of every drone turn by turn, checks every turn against
+The program parses and validates the map, finds the routes the drones take
+and how many each route takes per turn, moves every drone along its route
+turn by turn, checks every turn against
 the rules, prints the turn log in the required format, and, when asked,
 shows the run in the terminal with colors (`--terminal-view`) or in a window
 (`--matplotlib-window`).
@@ -232,7 +233,7 @@ in 5 turns.
 ### Pipeline
 
 ```text
-map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
+map file -> MapParser -> World -> Pathfinder (FlowMap) -> Scheduler
                                                                  |
      TurnLogPrinter (+ the views asked for)  <-  SimulationEngine + TurnResolver
 ```
@@ -245,62 +246,48 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    connections) to check what spans several lines. The result is a `World`:
    a hand-built `Network` (zones and an adjacency list) plus the drone count.
 
-2. **Distances** (`pathfinder.py`). `DistanceMap` runs **one
-   Dijkstra search from the end zone** (with `heapq`) over the reversed
-   connections. Moving into a zone costs that zone's turn cost (1, or 2 for a
-   restricted zone); blocked zones are never entered. It gives, for every
-   zone, the minimum number of turns to reach the goal. Capacities are
-   deliberately ignored here: they change every turn and are the scheduler's
-   concern. `Pathfinder` checks that the goal is reachable from the start
-   and answers two questions per zone:
-   - `next_hops`: the neighbors on a shortest route (entering them plus their
-     own distance equals this zone's distance), **priority zones first**,
-     then in declaration order;
-   - `detour_hops`: the neighbors off the shortest routes from which the goal
-     can still be reached, cheapest first.
+2. **Routes** (`pathfinder.py`). The `Pathfinder` builds a **flow map**
+   once, before the first turn: the routes the drones take, and how many
+   drones each route takes per turn. The drones flow like a steady stream:
+   if each route never takes more drones per turn than every zone and
+   connection on it can pass on, no drone ever waits after leaving the start
+   zone. The routes are found with a **minimum cost flow** (successive
+   shortest paths) on the `FlowGraph`, a residual graph written by hand:
+   - each zone is two nodes, "in" and "out", joined by an arc of capacity
+     `max_drones`; each connection gives an arc of capacity
+     `max_link_capacity` in each direction; entering a zone costs its turn
+     cost (1, or 2 for a restricted zone); blocked zones get no nodes;
+   - a priority zone costs slightly less, so that among equally fast routes
+     the one through priority zones is taken (never at the price of a turn);
+   - back arcs cost less than nothing, so the shortest path search is
+     Bellman-Ford with a queue.
 
-   The distances and each zone's next hops are computed once per run and
-   cached; nothing is recomputed during the simulation.
+   A route of `turns` turns that takes `rate` drones per turn has delivered
+   `rate * (T - turns + 1)` drones by turn `T`, so the last drone arrives on
+   the first turn `T` where the routes together have delivered them all.
+   Each shortest path found adds drones per turn but may be longer, so paths
+   are added while `T` goes down (sending a fixed flow this way is optimal
+   for one start and one end: Ford and Fulkerson's temporally repeated
+   flows). The result is a `FlowMap`: the **held map**, a `Network` cut down
+   to the zones and connections the routes use, whose capacities are the
+   drones per turn the routes send through them, plus the routes and `T`.
+   `Pathfinder` also checks that the goal is reachable from the start.
 
-3. **Scheduling** (`scheduler.py`, `scheduler_reservation_table.py`). Every turn, the
-   `Scheduler` decides one order per drone standing in a zone (no order means
-   it waits):
-   - drones in flight toward a restricted zone get no order; they land
-     automatically;
-   - moves planned on earlier turns that are due now are ordered first;
-   - the other drones are decided zone by zone in the order of
-     `ZoneRanking`: **closest to the goal first** (so drones leaving a zone
-     free room before the drones behind ask for it), then zones on the
-     priority route, then zones with fewer exits (so a drone with a choice
-     does not take the only way out of another), then declaration order;
-   - a drone takes the first of its shortest hops that has room according to
-     a `TurnLedger`: the connection has capacity this turn, and the zone has
-     a seat on the turn the drone enters it and on every later turn with a
-     planned move;
-   - if none has room, the same hops are tried again letting an `Evictor`
-     make room, as a last resort: occupants of the target zone are planned to
-     move on along their own shortest hops on a given turn (recursively, if
-     their target is full too). This is how a drone can fly to a full
-     restricted zone: it must land on the next turn, so an occupant is
-     planned to leave on that turn. Planned moves are kept in a
-     `ReservationTable` with mark/rollback, so a failed attempt leaves no
-     trace;
-   - if that fails too, the drone may take a detour allowed by the
-     `DetourPolicy`: never into a zone it has already been in, and only when
-     it is expected to be no slower than waiting, i.e.
-     `turn_cost(v) + distance(v) + queue(v) <= distance(u) + ahead(u)`,
-     where `ahead(u)` counts the drones already ahead of it on the shortest
-     route and `queue(v)` the drones in and ahead of the detour zone `v`.
-     This spreads drones over several paths when the shortest one is
-     congested;
-   - otherwise the drone waits.
-
-   The scheduler's docstring explains why every run ends: a shortest move
-   strictly lowers the drone's distance to the goal, and a detour enters a
-   zone the drone has never been in, so each drone makes finitely many moves;
-   and at least one drone moves every turn (planned moves and landings always
-   happen, and the drone closest to the goal always has room on its shortest
-   route).
+3. **Scheduling** (`scheduler.py`). `plan_departures` gives every drone a
+   route and a turn to leave the start zone on: each route has `rate` seats
+   per turn, and the drones take the seats that arrive first. A longer route
+   is therefore taken only when waiting for a seat on a shorter one would
+   arrive later. Every turn, the `Scheduler` visits the zones of the held
+   map **nearest to the goal first**, and each zone **pulls** the drones
+   whose next zone on their route it is: drones in the start zone whose turn
+   has come, and every drone already on its way. Drones in flight toward a
+   restricted zone get no order; they land automatically. Each pull is
+   checked against the held map: the drone has never been in the zone (each
+   `Drone` keeps the `history` of the zones it has been in), and the
+   connection and the zone still have room this turn. The checks always pass
+   when the flow map is right; if one fails, a `SimulationError` is raised
+   instead of breaking a rule. Every run ends: each drone makes as many
+   moves as its route has steps.
 
 4. **Rule checking** (`engine.py`). The `SimulationEngine` runs
    the turn loop. Each turn, the `TurnResolver` lands drones in flight, checks
@@ -319,12 +306,12 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    and the views asked for on the command line draw the state. At the end,
    `RunSummary` writes the summary line.
 
-**Cost.** With Z zones, C connections and D drones: the Dijkstra search is
-O((Z + C) log Z), done once. Each turn, every drone standing in a zone tries
-a few hops, each checked against the ledger over the few turns that hold
-planned moves; landing and eviction plans only look a few turns ahead. Memory
-is O(Z + C + D) for the network, the distances, the cached hops and the
-drone positions, plus the planned moves.
+**Cost.** With Z zones, C connections and D drones: the flow map is built
+once, with at most one shortest path search (Bellman-Ford, O(Z * C)) per
+route added, and there are at most D routes. Each turn, every drone standing
+in a zone is pulled at most once, with constant-time checks. Memory is
+O(Z + C + D) for the network, the held map, the routes and the drones'
+departures and histories.
 
 ### Code structure
 
@@ -338,12 +325,12 @@ world.py                        Zone, Connection, Network (the hand-built graph)
 map_parser.py                   MapReader, LineTokenizer, MapValidator, MapParser
 map_parser_format.py            MapFormat (the table of line kinds) and the rules
                                 that span several lines
-pathfinder.py                   DistanceMap (Dijkstra from the goal), Pathfinder
+pathfinder.py                   Route, FlowMap (the held map), FlowGraph (the
+                                minimum cost flow), Pathfinder
 engine.py                       Drone, SimulationState, TurnResolver (the rules),
                                 TurnObserver, SimulationEngine (the turn loop)
-scheduler.py                    DetourPolicy, ZoneRanking, HopTaker, Scheduler
-scheduler_reservation_table.py  PositionBoard, ReservationTable, TurnLedger,
-                                Evictor: the plans for later turns
+scheduler.py                    Departure, plan_departures, Scheduler (pulls
+                                the drones along the flow map)
 turn_log_printer.py             TurnLogFormatter, TurnLogPrinter, RunSummary
 terminal_view.py                TerminalVisualizer and its color names
                                 (--terminal-view)
@@ -355,22 +342,22 @@ Every source file is at the root of the repository, as the subject asks.
 Each file holds one part of the program with the classes it delegates to,
 defined in the order they are used: the classes a file needs come first,
 and the one the rest of the program uses is last; the file's docstring
-lists them. The two biggest parts are split in two, and the second file is
-named after the first (`scheduler_reservation_table.py` holds the
-scheduler's plans for later turns, `map_parser_format.py` the parser's
-tables). Each view is one file.
+lists them. The biggest part is split in two, and the second file is named
+after the first (`map_parser_format.py` holds the parser's tables). Each
+view is one file.
 
 Design choices visible in the code:
 
 - **Composition is preferred to inheritance.** The `Application` composes the stages;
   the engine composes a state, a `TurnResolver` (the rules) and a
-  `MoveDecider` (the `Scheduler`); the scheduler delegates to small classes
-  (ledger, evictor, detour policy, ranking).
+  `MoveDecider` (the `Scheduler`); the scheduler gets its routes from the
+  `Pathfinder`, which builds them on a `FlowGraph`.
 - **Protocols for the seams.** `MoveDecider`, `TurnObserver` and `Rule` are
   `typing.Protocol`s, so the turn log printer and the terminal view are both
   observers of the same engine, and another decider can be plugged into the
   `Application`.
-- **The rules are separate from the decisions.** The scheduler plans; the
+- **The rules are separate from the decisions.** The pathfinder and the
+  scheduler plan; the
   resolver checks and applies. A scheduling bug becomes a clear
   `SimulationError` instead of an invalid turn log.
 
@@ -402,7 +389,7 @@ are bold, and blocked zones are dimmed. Colors are turned off when standard
 error is not a terminal or when `NO_COLOR` is set. The terminal width sets
 how many zones fit on a line, and long names are shortened with `~`. Seeing
 the loads, the drones in flight and the moves of each turn side by side makes
-it easy to follow why a drone waits or takes a detour.
+it easy to follow which route each drone takes and when it leaves.
 
 The initial state and the first two turns of the example
 (`NO_COLOR=1 .venv/bin/python fly_in.py --terminal-view maps/subject_example.txt`,
@@ -479,10 +466,13 @@ until it is closed. Without a display, the program stops with
 
 - The Fly-in subject (42, version 2.0): rules, map format, output format
   and the optimal turn counts of the provided maps.
-- [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
-  (Wikipedia), used here from the end zone with zone-dependent costs.
-- [Python `heapq`](https://docs.python.org/3/library/heapq.html): the
-  priority queue of the search.
+- [Minimum-cost flow problem](https://en.wikipedia.org/wiki/Minimum-cost_flow_problem)
+  and the [Bellman-Ford algorithm](https://en.wikipedia.org/wiki/Bellman%E2%80%93Ford_algorithm)
+  (Wikipedia): the successive shortest paths that find the routes.
+- L. R. Ford and D. R. Fulkerson, "Constructing maximal dynamic flows from
+  static flows", Operations Research 6(3), 1958: sending a fixed flow over
+  time (temporally repeated flows), and why it is optimal for one source and
+  one sink.
 - [Python `argparse`](https://docs.python.org/3/library/argparse.html),
   [`dataclasses`](https://docs.python.org/3/library/dataclasses.html),
   [`typing.Protocol`](https://docs.python.org/3/library/typing.html#typing.Protocol).
