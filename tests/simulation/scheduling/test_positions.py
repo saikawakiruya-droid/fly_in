@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.scheduling.positions.
+"""Tests for scheduler_positions.
 
 Covers Position and PositionBoard.
 
@@ -15,10 +15,10 @@ from typing import Callable
 
 import pytest
 
-from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
-from droneflow.simulation.scheduling.positions import Position, PositionBoard
-from droneflow.simulation.state import SimulationState
+from engine_state import SimulationState
+from scheduler_positions import Position, PositionBoard
+from world_network import Network
+from world_network_zone import ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

@@ -1,13 +1,13 @@
-"""Tests for droneflow.models.zone."""
+"""Tests for world_network_zone."""
 
 import dataclasses
 
 import pytest
 
-from droneflow.models.connection import Connection
-from droneflow.models.network import Network
-from droneflow.models.world import World
-from droneflow.models.zone import Zone, ZoneRole, ZoneType
+from world import World
+from world_network import Network
+from world_network_connection import Connection
+from world_network_zone import Zone, ZoneRole, ZoneType
 
 
 @pytest.mark.parametrize("zone_type", [ZoneType.NORMAL, ZoneType.PRIORITY])

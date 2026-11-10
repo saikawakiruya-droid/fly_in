@@ -1,4 +1,4 @@
-"""Tests for droneflow.app (Application).
+"""Tests for app (Application).
 
 ``Application(args, stdout, stderr)`` writes to two ``StringIO`` objects,
 so the turn log (stdout) and everything else (stderr) are compared as text.
@@ -12,21 +12,21 @@ from pathlib import Path
 
 import pytest
 
-from droneflow.app import Application
-from droneflow.cli import Args, parse_args
-from droneflow.errors import (
+from app import Application
+from cli import Args, parse_args
+from engine import MoveDecider
+from engine_state import Move, MoveOrder, SimulationState
+from errors import (
     FlyInError,
     MapFileError,
     ParseError,
     SimulationError,
     UnreachableGoalError,
 )
-from droneflow.models.network import Network
-from droneflow.output.turn_log_printer import TurnLogPrinter
-from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.engine import MoveDecider
-from droneflow.simulation.scheduling.scheduler import Scheduler
-from droneflow.simulation.state import Move, MoveOrder, SimulationState
+from pathfinder import Pathfinder
+from scheduler import Scheduler
+from turn_log_printer import TurnLogPrinter
+from world_network import Network
 
 WriteMap = Callable[[str], Path]
 SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]
@@ -112,7 +112,7 @@ def record_terminal(
     def factory(stream: object = None) -> RecordingView:
         return view
 
-    monkeypatch.setattr("droneflow.app.TerminalVisualizer", factory)
+    monkeypatch.setattr("app.TerminalVisualizer", factory)
     return view
 
 
@@ -120,13 +120,26 @@ def test_terminal_keeps_stdout_identical(
     sample_path: Path, log: str
 ) -> None:
     """AA02: the terminal view goes to stderr; stdout is unchanged."""
-    out, err = run_app(Args(sample_path))
+    out, err = run_app(Args(sample_path, terminal_view=True))
 
     assert out == log
     assert err.startswith("=== Turn 0 (start)")
     assert err.splitlines()[-1] == SUMMARY
     for text in ("===", "\x1b", "summary"):
         assert text not in out
+
+
+def test_no_terminal_view_without_its_option(
+    sample_path: Path, log: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AA15: without --terminal-view, stderr holds only the summary."""
+    view = record_terminal(monkeypatch, io.StringIO())
+
+    out, err = run_app(Args(sample_path))
+
+    assert out == log
+    assert err == SUMMARY + "\n"
+    assert view.at_begin == []
 
 
 def test_log_lines_come_before_each_frame(
@@ -136,7 +149,7 @@ def test_log_lines_come_before_each_frame(
     out = io.StringIO()
     view = record_terminal(monkeypatch, out)
 
-    run_app(Args(sample_path), out)
+    run_app(Args(sample_path, terminal_view=True), out)
 
     assert view.at_begin == [0]
     assert view.at_render == [1, 2, 3, 4, 5]
@@ -218,7 +231,10 @@ def test_failed_run_keeps_the_log_so_far(
 
     with pytest.raises(SimulationError, match="^turn 4: no drone moved"):
         Application(
-            Args(sample_path), out, err, make_scheduler=stuck_after(3)
+            Args(sample_path, terminal_view=True),
+            out,
+            err,
+            make_scheduler=stuck_after(3),
         ).run()
 
     assert out.getvalue() == "".join(log.splitlines(keepends=True)[:3])

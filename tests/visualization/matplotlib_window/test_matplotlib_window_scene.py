@@ -1,4 +1,4 @@
-"""Tests for droneflow.visualization.matplotlib_window.scene (MapScene).
+"""Tests for matplotlib_window (MapScene).
 
 matplotlib runs on its Agg backend (set in ``conftest.py``), which draws
 without a display. ``MapScene`` is drawn on a plain ``Figure``.
@@ -11,12 +11,12 @@ from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, RegularPolygon
 
-from droneflow.models.network import Network
-from droneflow.simulation.state import SimulationState
-from droneflow.visualization.matplotlib_window.scene import (
+from engine_state import SimulationState
+from matplotlib_window import (
     MapScene,
     _zone_color,
 )
+from world_network import Network
 
 
 def scene_of(network: Network) -> MapScene:
@@ -105,8 +105,8 @@ def test_connection_in_use_is_highlighted(network: Network) -> None:
 
 
 def test_zone_color_falls_back_to_matplotlib_then_gray() -> None:
-    """VG06: palette names, then matplotlib names, then a neutral gray."""
-    assert _zone_color("red") == pytest.approx((220 / 255, 40 / 255, 40 / 255))
+    """VG06: matplotlib names (ignoring case), then a neutral gray."""
+    assert _zone_color("red") == pytest.approx((1.0, 0.0, 0.0))
     assert _zone_color("Chocolate") == pytest.approx(
         (210 / 255, 105 / 255, 30 / 255)
     )

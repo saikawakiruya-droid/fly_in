@@ -1,21 +1,21 @@
-"""Tests for droneflow.pathfinding.pathfinder."""
+"""Tests for pathfinder."""
 
 from pathlib import Path
 from typing import Callable
 
 import pytest
 
-from droneflow.errors import (
+from errors import (
     ParseError,
     UnreachableGoalError,
     ZoneNotFoundError,
 )
-from droneflow.models.connection import Connection
-from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
-from droneflow.parsing.map_parser import MapParser
-from droneflow.pathfinding.distance_map import DistanceMap
-from droneflow.pathfinding.pathfinder import Hop, Pathfinder
+from map_parser import MapParser
+from pathfinder import Hop, Pathfinder
+from pathfinder_distance_map import DistanceMap
+from world_network import Network
+from world_network_connection import Connection
+from world_network_zone import ZoneType
 
 MakeNetwork = Callable[..., Network]
 WriteMap = Callable[[str], Path]

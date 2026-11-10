@@ -11,9 +11,9 @@ from typing import Protocol
 import matplotlib
 import pytest
 
-from droneflow.models.connection import Connection
-from droneflow.models.network import Network
-from droneflow.models.zone import Zone, ZoneRole, ZoneType
+from world_network import Network
+from world_network_connection import Connection
+from world_network_zone import Zone, ZoneRole, ZoneType
 
 matplotlib.use("Agg")
 

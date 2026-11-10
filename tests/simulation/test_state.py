@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.state (SimulationState)."""
+"""Tests for engine_state (SimulationState)."""
 
 from typing import Callable
 
@@ -6,13 +6,13 @@ import dataclasses
 
 import pytest
 
-from droneflow.errors import SimulationError
-from droneflow.models.connection import Connection
-from droneflow.models.drone import DroneStatus
-from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
-from droneflow.simulation.state import Move, MoveOrder, SimulationState
-from droneflow.simulation.turn_resolver import TurnResolver
+from engine_state import Move, MoveOrder, SimulationState
+from engine_state_drone import DroneStatus
+from engine_turn_resolver import TurnResolver
+from errors import SimulationError
+from world_network import Network
+from world_network_connection import Connection
+from world_network_zone import ZoneType
 
 MakeNetwork = Callable[..., Network]
 

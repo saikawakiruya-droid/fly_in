@@ -1,8 +1,8 @@
-"""Tests for droneflow.models.drone."""
+"""Tests for engine_state_drone."""
 
 import pytest
 
-from droneflow.models.drone import Drone, DroneStatus
+from engine_state_drone import Drone, DroneStatus
 
 
 def test_is_delivered_true_when_status_is_delivered() -> None:

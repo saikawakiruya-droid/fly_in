@@ -1,19 +1,19 @@
-"""Tests for droneflow.simulation.scheduling.turn_ledger (TurnLedger)."""
+"""Tests for scheduler_turn_ledger (TurnLedger)."""
 
 from typing import Callable
 
 import pytest
 
-from droneflow.models.connection import Connection
-from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
-from droneflow.pathfinding.pathfinder import Hop
-from droneflow.simulation.scheduling.reservation_table import (
+from engine_state import SimulationState
+from pathfinder import Hop
+from scheduler_reservation_table import (
     Reservation,
     ReservationTable,
 )
-from droneflow.simulation.state import SimulationState
-from droneflow.simulation.scheduling.turn_ledger import TurnLedger
+from scheduler_turn_ledger import TurnLedger
+from world_network import Network
+from world_network_connection import Connection
+from world_network_zone import ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

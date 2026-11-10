@@ -1,16 +1,16 @@
-"""Tests for droneflow.simulation.scheduling.scheduler (Scheduler)."""
+"""Tests for scheduler (Scheduler)."""
 
 from typing import Callable
 
 import pytest
 
-from droneflow.errors import SimulationError
-from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
-from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.scheduling.scheduler import Scheduler
-from droneflow.simulation.state import Move, MoveOrder, SimulationState
-from droneflow.simulation.turn_resolver import TurnResolver
+from engine_state import Move, MoveOrder, SimulationState
+from engine_turn_resolver import TurnResolver
+from errors import SimulationError
+from pathfinder import Pathfinder
+from scheduler import Scheduler
+from world_network import Network
+from world_network_zone import ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

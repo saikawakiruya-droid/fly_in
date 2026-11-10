@@ -15,9 +15,9 @@ from pathlib import Path
 import pytest
 
 import fly_in
-from droneflow.output.turn_log_printer import TurnLogPrinter
-from droneflow.simulation.state import Move, SimulationState
-from droneflow.visualization.terminal.view import TerminalVisualizer
+from engine_state import Move, SimulationState
+from terminal_view import TerminalVisualizer
+from turn_log_printer import TurnLogPrinter
 
 WriteMap = Callable[[str], Path]
 
@@ -66,7 +66,7 @@ def test_success(
     sample_path: Path, log: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """AM01: a good run returns 0; stdout is the log, stderr the summary."""
-    assert call_main(str(sample_path)) == 0
+    assert call_main("--terminal-view", str(sample_path)) == 0
 
     captured = capsys.readouterr()
     assert captured.out == log
@@ -161,7 +161,7 @@ def test_interrupt_during_the_run(
     monkeypatch.setattr(TurnLogPrinter, "render", render)
     monkeypatch.setattr(TerminalVisualizer, "close", close)
 
-    assert call_main(str(sample_path)) == 130
+    assert call_main("--terminal-view", str(sample_path)) == 130
 
     captured = capsys.readouterr()
     assert captured.out == "".join(log.splitlines(keepends=True)[:2])

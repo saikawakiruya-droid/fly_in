@@ -15,17 +15,17 @@ from typing import Callable, NamedTuple
 
 import pytest
 
-from droneflow.models.drone import DroneStatus
-from droneflow.models.network import Network
-from droneflow.models.world import World
-from droneflow.models.zone import ZoneType
-from droneflow.output.turn_log_formatter import TurnLogFormatter
-from droneflow.parsing.map_parser import MapParser
-from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.engine import SimulationEngine, default_turn_limit
-from droneflow.simulation.scheduling.scheduler import Scheduler
-from droneflow.simulation.state import Move, SimulationState
-from droneflow.simulation.turn_resolver import TurnResolver
+from engine import SimulationEngine, default_turn_limit
+from engine_state import Move, SimulationState
+from engine_state_drone import DroneStatus
+from engine_turn_resolver import TurnResolver
+from map_parser import MapParser
+from pathfinder import Pathfinder
+from scheduler import Scheduler
+from turn_log_printer_formatter import TurnLogFormatter
+from world import World
+from world_network import Network
+from world_network_zone import ZoneType
 
 WriteMap = Callable[[str], Path]
 MakeNetwork = Callable[..., Network]

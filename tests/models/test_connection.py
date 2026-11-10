@@ -1,8 +1,8 @@
-"""Tests for droneflow.models.connection."""
+"""Tests for world_network_connection."""
 
 import pytest
 
-from droneflow.models.connection import Connection
+from world_network_connection import Connection
 
 
 def test_involves_both_endpoints() -> None:

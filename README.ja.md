@@ -18,8 +18,8 @@ Fly-in は、Python で書いたドローン群のルーティングシミュレ
 - 同じ長さの経路が複数あるときは `priority` ゾーンを優先する。
 
 プログラムはマップを解析・検証し、ゴールまでの距離を計算し、ドローンの移動をターンごとに決め、
-各ターンをルールに照らして検査したうえで、決められた形式でターンログを出力し、実行の様子を色付きで
-ターミナルに(`--matplotlib-window` を付ければウィンドウにも)表示します。課題の指定どおりグラフ系ライブラリは使っておらず、グラフ、最短経路探索、
+各ターンをルールに照らして検査したうえで、決められた形式でターンログを出力します。オプションを付ければ、
+実行の様子を色付きでターミナルに(`--terminal-view`)、またはウィンドウに(`--matplotlib-window`)表示します。課題の指定どおりグラフ系ライブラリは使っておらず、グラフ、最短経路探索、
 スケジューラはすべて自作です。コードはオブジェクト指向で型注釈付きで書かれており、`flake8` と
 `mypy --strict` を通ります。
 
@@ -69,7 +69,7 @@ connection: corridorA-tunnelB [max_link_capacity=2]
   コネクション名はマップでの宣言どおり(`zone_a-zone_b`)。
 - 動かなかったドローンは書かれず、配送済みのドローンはもう出てきません。全機がエンドゾーンに着いたら終了します。
 
-それ以外はすべて標準エラー出力に出ます: ターミナル表示、エラー、そして最後の要約行です。要約には
+それ以外はすべて標準エラー出力に出ます: エラー、ターミナル表示(`--terminal-view` を付けたときだけ)、そして最後の要約行です。要約には
 総ターン数と、課題の副次的な指標のうち 2 つ(1 機あたりの平均配送ターン、1 ターンあたりの平均移動数)が入ります。
 
 ```text
@@ -114,11 +114,14 @@ Linux 向けです(`.venv/bin/python` を使う)。
 
 ```sh
 make install
-.venv/bin/python fly_in.py MAP [--matplotlib-window]
+.venv/bin/python fly_in.py MAP [--terminal-view] [--matplotlib-window]
 ```
 
-必須の引数はマップファイルだけです(`-h` で使い方を表示)。`--matplotlib-window` を付けると、ウィンドウにも
-実行の様子を表示します(「Visual representation」を参照)。ターンログとターミナル表示は変わりません。
+必須の引数はマップファイルだけです(`-h` で使い方を表示)。表示はそれぞれのオプションを付けたときだけ使われ
+(「Visual representation」を参照)、両方を同時に付けることもできます。どちらでも標準出力のターンログは同じです。
+
+- `--terminal-view`: 各ターンをターミナル(標準エラー出力)に描きます。
+- `--matplotlib-window`: 実行の様子を matplotlib のウィンドウに表示します。
 
 **コメントで始まるマップ。** パーサは物理的な 1 行目を `nb_drones:` のヘッダとして読みます(課題:
 "The first line must define the number of drones")。そのため 1 行目がコメントや空行のファイルは拒否されます。
@@ -209,16 +212,16 @@ D2 がコネクション上にいるターン)です。ドローンは両方の�
 ```text
 map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
                                                                  |
-        TurnLogPrinter, TerminalVisualizer  <-  SimulationEngine + TurnResolver
+     TurnLogPrinter (+ the views asked for)  <-  SimulationEngine + TurnResolver
 ```
 
-1. **解析**(`droneflow/parsing`)。`MapReader` が行番号付きで行を渡します。`LineTokenizer` が各行の構文を
+1. **解析**(`map_parser*.py`)。`MapReader` が行番号付きで行を渡します。`LineTokenizer` が各行の構文を
    `MapFormat`(行の種類、フィールド、既定値、変換関数を宣言的にまとめた表)に照らして検査し、分割します。
    `MapValidator` がフィールドを変換し、複数行にまたがる検査を `Rule` オブジェクトの列(名前の一意性、
    スタートとエンドが 1 つずつ、既知の端点、コネクションの一意性)に任せます。結果は `World` で、自作の
    `Network`(ゾーンと隣接リスト)とドローン数をまとめたものです。
 
-2. **距離**(`droneflow/pathfinding`)。`DistanceMap` が、逆向きにたどったコネクション上で**エンドゾーンから
+2. **距離**(`pathfinder*.py`)。`DistanceMap` が、逆向きにたどったコネクション上で**エンドゾーンから
    1 回だけ Dijkstra 探索**(`heapq` を使用)を行います。あるゾーンに入るコストはそのゾーンのターンコスト
    (1、restricted なら 2)で、blocked ゾーンには入りません。これで各ゾーンからゴールまでの最小ターン数が
    得られます。容量はここでは意図的に無視します。容量はターンごとに変わり、スケジューラが扱うものだからです。
@@ -229,7 +232,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
 
    距離と各ゾーンの次の一手は 1 回の実行につき 1 度だけ計算してキャッシュし、シミュレーション中に計算し直すことはありません。
 
-3. **スケジューリング**(`droneflow/simulation/scheduling`)。`Scheduler` は毎ターン、ゾーンにいる各ドローンに
+3. **スケジューリング**(`scheduler*.py`)。`Scheduler` は毎ターン、ゾーンにいる各ドローンに
    最大 1 つの命令を出します(命令が無ければ待機)。
    - restricted ゾーンへ飛行中のドローンには命令を出さない。自動的に着地する。
    - 前のターンまでに計画され、このターンに実行すべき移動を最初に命令する。
@@ -255,7 +258,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    さらに毎ターン少なくとも 1 機は動きます(計画された移動と着地は必ず起き、そうでなくてもゴールに最も
    近いドローンは最短経路上に必ず空きがある)。
 
-4. **ルール検査**(`droneflow/simulation`)。`SimulationEngine` がターンのループを回します。毎ターン
+4. **ルール検査**(`engine*.py`)。`SimulationEngine` がターンのループを回します。毎ターン
    `TurnResolver` が、飛行中のドローンを着地させ、各命令(存在する・blocked でない・隣接したゾーンへ、
    1 機に 1 命令)を検査し、出発するドローンについてコネクション容量を、最終的な人数についてゾーン容量を
    検査します(同じターンにゾーンを出るドローンは入るドローンのための空きを作る。restricted ゾーンへ
@@ -263,9 +266,9 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    ターン、誰も動かないターン、安全上限(`2 * ゾーン数 * ドローン数`)を超えるターン数は、エラーで実行を止めます。
    つまりスケジューラを無条件には信用しておらず、出力されたターンはすべて検査済みです。
 
-5. **出力**(`droneflow/output`、`droneflow/visualization`)。エンジンは毎ターンの後にオブザーバを呼びます:
-   `TurnLogPrinter` がそのターンの行を標準出力に書いてフラッシュし、`TerminalVisualizer` がその状態を
-   標準エラー出力に描きます。最後に `RunSummary` が要約行を書きます。
+5. **出力**(`turn_log_printer*.py`、`run_summary.py`、`terminal_view.py`、`matplotlib_window.py`)。
+   エンジンは毎ターンの後にオブザーバを呼びます: `TurnLogPrinter` がそのターンの行を標準出力に書いて
+   フラッシュし、コマンドラインで指定された表示がその状態を描きます。最後に `RunSummary` が要約行を書きます。
 
 **コスト。** ゾーン数 Z、コネクション数 C、ドローン数 D として、Dijkstra 探索は O((Z + C) log Z) で 1 度だけ。
 毎ターン、ゾーンにいる各ドローンが少数の一手を試し、それぞれを計画済みの移動がある数ターン分だけ台帳で
@@ -275,27 +278,46 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
 ### Code structure
 
 ```text
-fly_in.py                    エントリポイント: 引数、終了コード、エラー行
-droneflow/
-  cli.py                     マップの引数(argparse) -> Args
-  app.py                     Application: 各段階をつなぐ
-  errors.py                  FlyInError とそのサブクラス
-  models/                    Zone, ZoneType, ZoneRole, Connection, Drone,
-                             Network(自作のグラフ), World
-  parsing/                   MapReader, LineTokenizer, MapFormat(行の表),
-                             MapValidator, マップのルール, MapParser
-  pathfinding/               DistanceMap(ゴールからの Dijkstra), Pathfinder
-  simulation/                SimulationState, TurnResolver(ルール),
-                             SimulationEngine(ターンループ), TurnObserver
-    scheduling/              Scheduler, ZoneRanking, TurnLedger, HopTaker,
-                             Evictor, ReservationTable, DetourPolicy,
-                             PositionBoard
-  output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
-  visualization/             palette(色名。両方の表示で共有)
-    terminal/                TerminalVisualizer
-    matplotlib_window/       MatplotlibWindowVisualizer と MapScene,
-                             geometry(コネクションを描く位置)
+fly_in.py                         エントリポイント: 引数、終了コード、エラー行
+cli.py                            マップの引数と表示のオプション -> Args
+errors.py                         FlyInError とそのサブクラス
+app.py                            Application: 下の各部分をつなぐ
+map_parser.py                     MapParser: マップファイル -> World
+  map_parser_reader.py            MapReader: 行番号付きの行
+  map_parser_tokenizer.py         LineTokenizer: 各行の構文
+  map_parser_format.py            MapFormat: 行の種類の表
+  map_parser_validator.py         MapValidator: フィールド -> Network と World
+  map_parser_rules.py             複数行にまたがるルール
+world.py                          World: ネットワークとドローン数
+  world_network.py                Network: 自作のグラフ
+  world_network_zone.py           Zone, ZoneType, ZoneRole
+  world_network_connection.py     Connection
+pathfinder.py                     Pathfinder: 最短の一手と遠回り
+  pathfinder_distance_map.py      DistanceMap: ゴールからの Dijkstra
+engine.py                         SimulationEngine: ターンループ
+  engine_state.py                 SimulationState, Move, MoveOrder
+  engine_state_drone.py           Drone
+  engine_turn_resolver.py         TurnResolver: ルール
+turn_observer.py                  TurnObserver, ObserverGroup
+scheduler.py                      Scheduler: 毎ターンの指示
+  scheduler_zone_ranking.py       ZoneRanking: 判断の順序
+  scheduler_detour_policy.py      DetourPolicy
+  scheduler_reservation_table.py  ReservationTable: 計画済みの移動
+  scheduler_positions.py          PositionBoard
+  scheduler_turn_ledger.py        TurnLedger: このターンと後のターンの空き
+  scheduler_evictor.py            Evictor
+  scheduler_hop_taker.py          HopTaker
+turn_log_printer.py               TurnLogPrinter: 標準出力のターンログ
+  turn_log_printer_formatter.py   TurnLogFormatter
+run_summary.py                    RunSummary: 要約行
+terminal_view.py                  TerminalVisualizer とその色名(--terminal-view)
+matplotlib_window.py              MatplotlibWindowVisualizer, MapScene と平面の計算
+                                  (--matplotlib-window)
 ```
+
+ソースファイルは、課題の指定どおりすべてリポジトリ直下にあります。ファイル名は、そのファイルを作って持つ側の
+名前で始まります(`scheduler_evictor.py` は `scheduler.py` が使う)。そのため名前順に並べると、一緒に働くファイルが
+並び、上の字下げも同じ関係を表しています。表示はそれぞれ 1 ファイルです。
 
 コードから読み取れる設計上の選択:
 
@@ -310,8 +332,10 @@ droneflow/
 ## Visual representation
 
 課題は、色付きのターミナル出力、グラフィカルインターフェース、またはその両方による視覚的なフィードバックを
-求めています。このプログラムは、色付きのターミナル出力と、`--matplotlib-window` によるシンプルな matplotlib のウィンドウを
-提供します。
+求めています。このプログラムは両方を、それぞれのオプションで提供します: `--terminal-view` で色付きのターミナル出力、
+`--matplotlib-window` でシンプルな matplotlib のウィンドウです。
+
+### ターミナル表示(`--terminal-view`)
 
 ターミナル表示は、1 ターンごとに 1 フレームを標準エラー出力に書くので、標準出力のターンログと混ざりません。
 各フレームの内容:
@@ -328,7 +352,7 @@ droneflow/
 `~` で短縮されます。各ターンの負荷、飛行中のドローン、移動を並べて見られるので、ドローンが待つ理由や
 迂回する理由を追いやすくなります。
 
-例の初期状態と最初の 2 ターン(`NO_COLOR=1`、100 桁):
+例の初期状態と最初の 2 ターン(`NO_COLOR=1 .venv/bin/python fly_in.py --terminal-view maps/subject_example.txt`、100 桁):
 
 ```text
 === Turn 0 (start) | 5 drones | 7 zones, 6 connections ===
@@ -357,7 +381,7 @@ in flight: D4 hub-roof1 -> roof1
 
 ウィンドウ(matplotlib)は、マップを一度描いたあと、0.5 秒に 1 ターンずつドローンを描きます:
 
-- ゾーンは `color=` の色で塗った円です。restricted ゾーンは四角、blocked ゾーンは濃い灰色で、縁の色が
+- ゾーンは `color=` の色(matplotlib の色名。知らない名前は灰色)で塗った円です。restricted ゾーンは四角、blocked ゾーンは濃い灰色で、縁の色が
   スタートとエンド(白)、restricted(赤)、priority(金)を示します。ゾーンが 60 個までのマップでは、
   ゾーンの下に名前を書きます。
 - コネクションは直線で、直線のままだと他のゾーンの上を通る場合だけ弧に曲げます。ゾーンは、弧がよけるときに

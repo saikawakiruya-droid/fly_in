@@ -1,4 +1,4 @@
-"""Tests for droneflow.visualization.matplotlib_window.view (the window).
+"""Tests for matplotlib_window (the window).
 
 A real window cannot be opened under the Agg backend (set in
 ``conftest.py``), so these tests either expect that error or let the Agg
@@ -13,12 +13,12 @@ import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import fly_in
-from droneflow.errors import VisualizationError
-from droneflow.models.network import Network
-from droneflow.simulation.state import SimulationState
-from droneflow.visualization.matplotlib_window.view import (
+from engine_state import SimulationState
+from errors import VisualizationError
+from matplotlib_window import (
     MatplotlibWindowVisualizer,
 )
+from world_network import Network
 
 WriteMap = Callable[[str], Path]
 

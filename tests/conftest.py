@@ -24,15 +24,15 @@ from typing import Callable, Protocol
 
 import pytest
 
-from droneflow.models.connection import Connection
-from droneflow.models.network import Network
-from droneflow.models.world import World
-from droneflow.models.zone import Zone, ZoneRole, ZoneType
-from droneflow.parsing.map_parser import MapParser
-from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.engine import MoveDecider
-from droneflow.simulation.scheduling.scheduler import Scheduler
-from droneflow.simulation.state import MoveOrder, SimulationState
+from engine import MoveDecider
+from engine_state import MoveOrder, SimulationState
+from map_parser import MapParser
+from pathfinder import Pathfinder
+from scheduler import Scheduler
+from world import World
+from world_network import Network
+from world_network_connection import Connection
+from world_network_zone import Zone, ZoneRole, ZoneType
 
 Snapshot = dict[str, object]
 

@@ -1,17 +1,17 @@
-"""Tests for droneflow.simulation.scheduling.reservation_table.
+"""Tests for scheduler_reservation_table.
 
 Covers ReservationTable.
 """
 
 from typing import Callable
 
-from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
-from droneflow.simulation.scheduling.reservation_table import (
+from engine_state import SimulationState
+from scheduler_reservation_table import (
     Reservation,
     ReservationTable,
 )
-from droneflow.simulation.state import SimulationState
+from world_network import Network
+from world_network_zone import ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

@@ -1,4 +1,4 @@
-"""Tests for droneflow.simulation.observer (ObserverGroup).
+"""Tests for turn_observer (ObserverGroup).
 
 The group forwards each call to its observers in order (the application
 gives the engine the turn log printer and the chosen views as one
@@ -12,13 +12,13 @@ from typing import Callable
 
 import pytest
 
-from droneflow.models.network import Network
-from droneflow.models.world import World
-from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.engine import SimulationEngine
-from droneflow.simulation.observer import ObserverGroup
-from droneflow.simulation.scheduling.scheduler import Scheduler
-from droneflow.simulation.state import Move, SimulationState
+from engine import SimulationEngine
+from engine_state import Move, SimulationState
+from pathfinder import Pathfinder
+from scheduler import Scheduler
+from turn_observer import ObserverGroup
+from world import World
+from world_network import Network
 
 MakeNetwork = Callable[..., Network]
 Entry = tuple[str, str]

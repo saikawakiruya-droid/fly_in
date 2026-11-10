@@ -1,4 +1,4 @@
-"""Tests for droneflow.output.summary (RunSummary).
+"""Tests for run_summary (RunSummary).
 
 Decisions 2026-10-18 "print the total turns and two secondary metrics to
 stderr at the end of a run".
@@ -6,8 +6,8 @@ stderr at the end of a run".
 
 import pytest
 
-from droneflow.output.summary import RunSummary
-from droneflow.simulation.state import Move
+from engine_state import Move
+from run_summary import RunSummary
 
 SUBJECT_SUMMARY = (
     "summary: 7 turns, 5 drones, 5.00 turns per drone on average, "

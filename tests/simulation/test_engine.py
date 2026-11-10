@@ -1,23 +1,23 @@
-"""Tests for droneflow.simulation.engine (SimulationEngine)."""
+"""Tests for engine (SimulationEngine)."""
 
 from pathlib import Path
 from typing import Callable
 
 import pytest
 
-from droneflow.errors import SimulationError
-from droneflow.models.network import Network
-from droneflow.models.world import World
-from droneflow.models.zone import ZoneType
-from droneflow.output.turn_log_formatter import TurnLogFormatter
-from droneflow.parsing.map_parser import MapParser
-from droneflow.simulation.engine import (
+from engine import (
     MoveDecider,
     SimulationEngine,
     default_turn_limit,
 )
-from droneflow.simulation.state import MoveOrder
-from droneflow.simulation.observer import TurnObserver
+from engine_state import MoveOrder
+from errors import SimulationError
+from map_parser import MapParser
+from turn_log_printer_formatter import TurnLogFormatter
+from turn_observer import TurnObserver
+from world import World
+from world_network import Network
+from world_network_zone import ZoneType
 
 MakeNetwork = Callable[..., Network]
 WriteMap = Callable[[str], Path]
