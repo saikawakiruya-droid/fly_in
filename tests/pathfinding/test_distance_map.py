@@ -1,4 +1,4 @@
-"""Tests for pathfinder_distance_map."""
+"""Tests for pathfinder (DistanceMap)."""
 
 import time
 from typing import Callable
@@ -6,9 +6,8 @@ from typing import Callable
 import pytest
 
 from errors import ZoneNotFoundError
-from pathfinder_distance_map import DistanceMap
-from world_network import Network
-from world_network_zone import ZoneType
+from pathfinder import DistanceMap
+from world import Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 

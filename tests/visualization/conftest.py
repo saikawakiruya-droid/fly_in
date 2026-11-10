@@ -11,9 +11,7 @@ from typing import Protocol
 import matplotlib
 import pytest
 
-from world_network import Network
-from world_network_connection import Connection
-from world_network_zone import Zone, ZoneRole, ZoneType
+from world import Connection, Network, Zone, ZoneRole, ZoneType
 
 matplotlib.use("Agg")
 

@@ -2,8 +2,7 @@
 
 import sys
 
-from app import Application
-from cli import parse_args
+from app import Application, parse_args
 from errors import FlyInError
 
 EXIT_INTERRUPTED = 130

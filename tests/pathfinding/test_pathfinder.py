@@ -11,11 +11,8 @@ from errors import (
     ZoneNotFoundError,
 )
 from map_parser import MapParser
-from pathfinder import Hop, Pathfinder
-from pathfinder_distance_map import DistanceMap
-from world_network import Network
-from world_network_connection import Connection
-from world_network_zone import ZoneType
+from pathfinder import DistanceMap, Hop, Pathfinder
+from world import Connection, Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 WriteMap = Callable[[str], Path]

@@ -1,4 +1,4 @@
-"""Tests for scheduler_evictor (Evictor).
+"""Tests for scheduler_reservation_table (Evictor).
 
 Every case builds the table, the ledger and the evictor with
 ``evictor_for`` for the state's next turn (turn 1, unless the state says
@@ -9,16 +9,15 @@ from typing import Callable
 
 import pytest
 
-from engine_state import SimulationState
+from engine import SimulationState
 from pathfinder import Pathfinder
-from scheduler_evictor import Evictor
 from scheduler_reservation_table import (
+    Evictor,
     Reservation,
     ReservationTable,
+    TurnLedger,
 )
-from scheduler_turn_ledger import TurnLedger
-from world_network import Network
-from world_network_zone import ZoneType
+from world import Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

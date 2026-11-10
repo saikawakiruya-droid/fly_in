@@ -1,16 +1,14 @@
-"""Tests for map_parser_rules."""
+"""Tests for map_parser_format (the rules)."""
 
 import pytest
 
-from map_parser_rules import (
+from map_parser_format import (
     KnownEndpoints,
     SingleStartAndEnd,
     UniqueConnection,
     UniqueZoneName,
 )
-from world_network import Network
-from world_network_connection import Connection
-from world_network_zone import Zone, ZoneRole, ZoneType
+from world import Connection, Network, Zone, ZoneRole, ZoneType
 
 
 def zone(name: str, role: ZoneRole = ZoneRole.HUB) -> Zone:

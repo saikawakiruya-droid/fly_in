@@ -5,13 +5,9 @@ Covers ReservationTable.
 
 from typing import Callable
 
-from engine_state import SimulationState
-from scheduler_reservation_table import (
-    Reservation,
-    ReservationTable,
-)
-from world_network import Network
-from world_network_zone import ZoneType
+from engine import SimulationState
+from scheduler_reservation_table import Reservation, ReservationTable
+from world import Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

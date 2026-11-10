@@ -1,4 +1,4 @@
-"""Tests for scheduler_hop_taker (HopTaker).
+"""Tests for scheduler (HopTaker).
 
 ``taker_for(state, table=None)`` builds the table, the ledger, the board
 and the taker for the state's next turn (moves reserved in ``table``
@@ -13,18 +13,16 @@ and a failure undoes the move.
 
 from typing import Callable
 
-from engine_state import SimulationState
+from engine import SimulationState
 from pathfinder import Hop, Pathfinder
-from scheduler_hop_taker import HopTaker
-from scheduler_positions import PositionBoard
+from scheduler import HopTaker
 from scheduler_reservation_table import (
+    PositionBoard,
     Reservation,
     ReservationTable,
+    TurnLedger,
 )
-from scheduler_turn_ledger import TurnLedger
-from world_network import Network
-from world_network_connection import Connection
-from world_network_zone import ZoneType
+from world import Connection, Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

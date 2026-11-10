@@ -30,11 +30,9 @@ from matplotlib.collections import LineCollection, PatchCollection
 from matplotlib.colors import is_color_like, to_rgb
 from matplotlib.patches import Circle, Patch, RegularPolygon
 
-from engine_state import Move, SimulationState
-from engine_state_drone import Drone
+from engine import Drone, Move, SimulationState
 from errors import VisualizationError
-from world_network import Network
-from world_network_zone import Zone, ZoneRole, ZoneType
+from world import Network, Zone, ZoneRole, ZoneType
 
 
 # --- types and settings -----------------------------------------------

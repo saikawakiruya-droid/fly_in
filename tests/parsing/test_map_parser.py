@@ -6,7 +6,7 @@ import pytest
 
 from errors import ParseError, UnreachableGoalError
 from map_parser import MapParser
-from world_network_zone import ZoneRole, ZoneType
+from world import ZoneRole, ZoneType
 
 MINIMAL_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: e 1 1\n"
 

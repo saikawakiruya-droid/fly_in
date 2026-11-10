@@ -24,15 +24,11 @@ from typing import Callable, Protocol
 
 import pytest
 
-from engine import MoveDecider
-from engine_state import MoveOrder, SimulationState
+from engine import MoveDecider, MoveOrder, SimulationState
 from map_parser import MapParser
 from pathfinder import Pathfinder
 from scheduler import Scheduler
-from world import World
-from world_network import Network
-from world_network_connection import Connection
-from world_network_zone import Zone, ZoneRole, ZoneType
+from world import Connection, Network, World, Zone, ZoneRole, ZoneType
 
 Snapshot = dict[str, object]
 

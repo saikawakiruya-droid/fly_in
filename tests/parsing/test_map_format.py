@@ -19,8 +19,7 @@ from map_parser_format import (
     to_zone_name,
     to_zone_type,
 )
-from world_network_connection import Connection
-from world_network_zone import Zone, ZoneRole, ZoneType
+from world import Connection, Zone, ZoneRole, ZoneType
 
 
 def test_to_int_rejects_non_integers() -> None:

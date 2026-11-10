@@ -1,13 +1,10 @@
-"""Tests for world_network_zone."""
+"""Tests for world (Zone)."""
 
 import dataclasses
 
 import pytest
 
-from world import World
-from world_network import Network
-from world_network_connection import Connection
-from world_network_zone import Zone, ZoneRole, ZoneType
+from world import Connection, Network, World, Zone, ZoneRole, ZoneType
 
 
 @pytest.mark.parametrize("zone_type", [ZoneType.NORMAL, ZoneType.PRIORITY])

@@ -7,17 +7,15 @@ import pytest
 
 from engine import (
     MoveDecider,
+    MoveOrder,
     SimulationEngine,
+    TurnObserver,
     default_turn_limit,
 )
-from engine_state import MoveOrder
 from errors import SimulationError
 from map_parser import MapParser
-from turn_log_printer_formatter import TurnLogFormatter
-from turn_observer import TurnObserver
-from world import World
-from world_network import Network
-from world_network_zone import ZoneType
+from turn_log_printer import TurnLogFormatter
+from world import Network, World, ZoneType
 
 MakeNetwork = Callable[..., Network]
 WriteMap = Callable[[str], Path]

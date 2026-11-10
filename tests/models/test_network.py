@@ -1,13 +1,11 @@
-"""Tests for world_network."""
+"""Tests for world (Network)."""
 
 from typing import Callable, cast
 
 import pytest
 
 from errors import SimulationError, ZoneNotFoundError
-from world_network import Network
-from world_network_connection import Connection
-from world_network_zone import Zone, ZoneRole, ZoneType
+from world import Connection, Network, Zone, ZoneRole, ZoneType
 
 MakeNetwork = Callable[..., Network]
 

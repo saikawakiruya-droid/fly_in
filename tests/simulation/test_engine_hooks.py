@@ -10,11 +10,15 @@ from typing import Callable, Protocol
 
 import pytest
 
-from engine import MoveDecider, SimulationEngine
-from engine_state import Move, MoveOrder, SimulationState
+from engine import (
+    Move,
+    MoveDecider,
+    MoveOrder,
+    SimulationEngine,
+    SimulationState,
+)
 from errors import SimulationError
-from world import World
-from world_network import Network
+from world import Network, World
 
 MakeNetwork = Callable[..., Network]
 Script = list[list[MoveOrder]]

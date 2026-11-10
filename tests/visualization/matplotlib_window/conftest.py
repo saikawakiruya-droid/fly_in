@@ -8,8 +8,7 @@ from collections.abc import Callable
 
 import pytest
 
-from world_network import Network
-from world_network_zone import ZoneType
+from world import Network, ZoneType
 
 CoordNetwork = Callable[..., Network]
 

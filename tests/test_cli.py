@@ -1,4 +1,4 @@
-"""Tests for cli (argument parsing).
+"""Tests for app (Args, parse_args).
 
 ``parse_args(argv)`` is called directly. Usage errors are checked through
 ``SystemExit.code`` and the text argparse writes to standard error.
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from cli import Args, parse_args
+from app import Args, parse_args
 
 
 def test_map_only() -> None:
