@@ -3,9 +3,8 @@
 The subject's sample map comes from the shared fixtures. The ten maps
 handed out with the subject are read from ``maps.tar.gz`` at the
 repository root (tracked by git) without extracting it, by the shared
-``provided_map`` and ``maps_archive`` fixtures: only the leading comment
-and blank lines are removed, so that ``nb_drones`` is on the physical
-first line as the parser requires (decisions 2026-10-16).
+``provided_map`` and ``maps_archive`` fixtures, as they are: the parser
+skips the comments before ``nb_drones`` (decisions 2026-11-10).
 """
 
 import random
@@ -242,7 +241,11 @@ def test_provided_maps_archive(
     maps_archive: Callable[[], tarfile.TarFile],
     provided_map: Callable[[str], str],
 ) -> None:
-    """R06: the archive holds exactly the ten maps with these drone counts."""
+    """R06: the archive holds exactly the ten maps with these drone counts.
+
+    Every map starts with comments, so the runs on them also check that
+    the parser skips the comments before ``nb_drones``.
+    """
     with maps_archive() as archive:
         members = sorted(
             info.name for info in archive.getmembers()
@@ -250,8 +253,13 @@ def test_provided_maps_archive(
         )
     assert members == sorted(entry[0] for entry in PROVIDED_MAPS)
     for member, nb_drones, _, _ in PROVIDED_MAPS:
-        first = provided_map(member).splitlines()[0]
-        assert first.split() == ["nb_drones:", str(nb_drones)], member
+        lines = provided_map(member).splitlines()
+        assert lines[0].startswith("#"), member
+        header = next(
+            line for line in lines
+            if line.strip() and not line.strip().startswith("#")
+        )
+        assert header.split() == ["nb_drones:", str(nb_drones)], member
 
 
 # --- determinism and lower bound --------------------------------------

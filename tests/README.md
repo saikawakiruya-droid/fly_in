@@ -41,7 +41,9 @@ python -m pytest tests/
   (zone/color/max_drones/max_link_capacity)、start/end hubのmax_drones正規化、
   重複(ゾーン名・接続・start/end hub)の即時検出、start/end hub欠落、不正な
   ゾーンタイプ・メタデータキー・メタデータ構文・座標・ゾーン名、未定義ゾーンへの
-  接続参照、空ファイル、自己ループ接続・座標重複の許容(いずれもParseErrorにしない)、
+  接続参照、空ファイルとコメント・空行だけのファイル、自己ループ接続(`a-a`)の拒否、座標重複の許容(ParseErrorにしない)、
+  `nb_drones` より前のコメント・空行の読み飛ばし(後の行のエラーはファイルの行番号のまま)と、それ以外の行がある場合の
+  その行の ParseError(2026-11-10 に変更)、
   BOM と改行(BM01〜BM03、2026-10-23 に変更: BOM は読み飛ばさず1行目の ParseError・CRLF のマップは LF と同じ World・
   2つ目や途中の行の BOM もその行の ParseError)、
   start/end hubの禁止オプション(`zone=blocked` は行番号つきの ParseError。コメント・空行を挟んだ
@@ -98,7 +100,7 @@ python -m pytest tests/
   使うテスト(`test_summary.py` の AS01、`test_engine.py` の E2E)だけが使う)。後の4つは Stage 7 で `tests/simulation/conftest.py` から移した
   (simulation と visualization のテストで共有)。`tty_stream`(`isatty()` が True の `StringIO`。端末の代わり)は CLI の
   フェーズで `tests/visualization/conftest.py` から移した(visualization と Application のテストで共有)。
-  `provided_map`(配布マップ `maps.tar.gz` の1枚を展開せずに読み、先頭のコメント行・空行だけを取り除いた文字列)と
+  `provided_map`(配布マップ `maps.tar.gz` の1枚を展開せずに、先頭のコメントも含めてそのまま読んだ文字列)と
   `maps_archive`(アーカイブを開く。無ければ分かりやすいメッセージで失敗する)は、詰まる場所の発見のテストフェーズで
   `tests/simulation/scheduling/test_scheduler_maps.py` から移した(Scheduler と詰まる場所の発見の E2E で共有)。
   `StuckScheduler` / `stuck_after`(本物の `Scheduler` に指定ターンだけ委譲し、その後は何も指示しない。
@@ -206,8 +208,8 @@ python -m pytest tests/
   遠回りの E2E(R16〜R20): 課題の例のターンごとの指示(順序ごと)、priority_puzzle の出力6行、M1'(`s-a a-g s-r r-g`)を
   2・3・4機で、配布マップ10枚のターン数の固定値(改善でターン数が変わったときは、この表とベンチマークの記録を一緒に更新する)、
   各マップで使われる遠回りの数(課題の例2・priority_puzzle 2・maze_nightmare 3・ほか0)。
-  配布マップはリポジトリ直下の `maps.tar.gz`(git 管理)を共有の `provided_map` が `tarfile` でメモリ上で読み、先頭のコメント行・空行だけを
-  取り除く(アーカイブが無ければ分かりやすいメッセージで失敗する。skip にはしない)
+  配布マップはリポジトリ直下の `maps.tar.gz`(git 管理)を共有の `provided_map` が `tarfile` でメモリ上で、先頭のコメントも含めてそのまま
+  読む(パーサがコメントを読み飛ばすことも確かめる。アーカイブが無ければ分かりやすいメッセージで失敗する。skip にはしない)
 
 - `tests/simulation/test_engine_hooks.py` — `SimulationEngine.run` が観測者(`TurnObserver`)を呼ぶ契約(Stage 7): `begin` は1ターン目の前に
   1回(ターン0・全機が start)、`render` は毎ターンそのターンの `moves` で、`close` は最後に1回。`SimulationError`

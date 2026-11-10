@@ -60,13 +60,13 @@ class MapValidator:
                 missing.
         """
         if self._nb_drones is None:
-            # Line 1 is always read as the header (anything else there is
-            # already an error), so no header means the file has no line:
-            # report line 1, where 'nb_drones:' was expected.
+            # The first line that is not a comment or blank is always read
+            # as the header (anything else there is already an error), so
+            # no header means the file has no such line: report line 1.
             raise ParseError(
                 1,
-                "map file is empty, expected 'nb_drones: <n>' as the first "
-                "line",
+                "map file has only comments and blank lines, expected "
+                "'nb_drones: <n>'",
             )
         roles = {zone.role for zone in self._network.zones.values()}
         for role in (ZoneRole.START, ZoneRole.END):
