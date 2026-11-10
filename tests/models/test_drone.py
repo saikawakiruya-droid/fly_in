@@ -47,3 +47,13 @@ def test_transit_target_kept_while_in_transit() -> None:
         transit_target="r",
     )
     assert drone.transit_target == "r"
+
+
+def test_history_defaults_to_a_new_empty_list() -> None:
+    """DH01: every drone gets its own empty history."""
+    first = Drone(1, "s")
+    second = Drone(2, "s")
+
+    assert first.history == []
+    assert second.history == []
+    assert first.history is not second.history
