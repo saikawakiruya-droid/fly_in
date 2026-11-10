@@ -8,8 +8,8 @@
 - プロジェクト本体(リポジトリ直下の `*.py`)から独立したディレクトリとして分離している。
   `tests/` ごと削除してもアプリケーション本体は動作する。
 - ソースはすべて直下にあるが、テストは役割ごとのフォルダに分けている
-  (例: `world.py` の `Zone` のテストは `tests/models/test_zone.py`、`scheduler_reservation_table.py` の `Evictor` の
-  テストは `tests/simulation/scheduling/test_evictor.py`)。
+  (例: `world.py` の `Zone` のテストは `tests/models/test_zone.py`、`pathfinder.py` の `FlowMap` の
+  テストは `tests/pathfinding/test_flow_map.py`)。
 
 ## 実行方法
 
@@ -27,7 +27,7 @@ python -m pytest tests/
   frozen なこと(ZC01〜ZC04)
 - `tests/models/test_connection.py` — `Connection.involves` / `other_end`、`Connection.name`
   (宣言どおりの `zone_a-zone_b` で並べ替えない)
-- `tests/models/test_drone.py` — `Drone.is_delivered`、`Drone.transit_target`(既定は `None`・飛行中は値を保持)
+- `tests/models/test_drone.py` — `Drone.is_delivered`、`Drone.transit_target`(既定は `None`・飛行中は値を保持)、`Drone.history`(DH01: 既定は空のリストで、機ごとに別のリスト)
 - `tests/models/test_network.py` — `Network` の登録・検索・隣接・start/end取得と、
   それぞれの例外契約(`ZoneNotFoundError` / `SimulationError`)、`connection_between`
   (両方向で同じ接続・つながっていない/存在しない名前は `None`・同じ名前2つで自己ループ)、
@@ -108,40 +108,33 @@ python -m pytest tests/
   `test_app.py` と `test_fly_in.py` から移した
 
 - `tests/pathfinding/conftest.py` — `grid_network`(20×20 の格子。`make_network` で組む)
-- `tests/pathfinding/test_distance_map.py` — `DistanceMap`: ゾーンタイプ別の進入コスト(restricted=2・priority=1、
-  restricted な end を含む)、blocked の除外と通過不可、行き止まり・孤立ゾーン、自己ループ・閉路、
-  存在しない名前の `ZoneNotFoundError`、end が blocked のときの防御的な挙動、20×20 格子での距離
-- `tests/pathfinding/test_pathfinder.py` — `Pathfinder`: 構築時の到達不能検出(`UnreachableGoalError`、4パターン)、
-  `distance` の委譲、`next_hops` の判定(`turn_cost + 距離` で比較)・並び順(priority は次の1手の同点の中だけで先頭、
-  それ以外は接続の宣言順、安定ソート)・遠回りの priority を選ばないこと・blocked の除外・空リストを返す場所、
-  パーサー経由の E2E(課題のサンプルマップ、到達不能マップはパース成功・経路探索で失敗)。
-  `detour_hops`(H01〜H12): 近づく・横・後ろ(遠ざかる)の隣を含むこと、`next_hops` と重ならず、2つでゴールに届く
-  自分以外の隣をちょうど分けること(課題の例と配布マップ10枚の全ゾーンで確認)、blocked・届かない隣・自己ループを
-  含めないこと、end・届かないゾーンは空、並び順(総コスト → 宣言順。接続の向きによらない)、存在しない名前の
-  `ZoneNotFoundError`、end に隣接しない遠回り、課題の例の全ゾーンの遠回りと配布マップ10枚の遠回りの個数。
-  `route_cost`(RC01〜RC03): 進入コスト + 距離(後ろ向きの一手でも)、届かないゾーンへの一手の `ValueError`、
-  課題の例と配布マップ10枚の全ゾーンで最短の一手は距離と等しく、遠回りは距離より大きく昇順なこと
-- `tests/simulation/scheduling/test_detour_policy.py` — `DetourPolicy`(DP01〜DP18。`Scheduler.__init__` と同じ作り方で組む):
-  `detours` が `detour_hops` と一致、条件 `総コスト(v) + queue(v) ≤ 距離(u) + ahead(u)` の境界(等しければ許す・
-  遠回り先に1機多いと断る)、着陸先の機もゾーンで数えること、共通の下流(end・合流先)は両辺で打ち消すこと、
-  自分のゾーン・別の枝の機は数えないこと、2手以上先・最短の枝が複数・遠回りが複数(遠回りごとの行列)、許された遠回りを
-  総コストの順に返すこと、u を通って戻る遠回りは決して許さないこと、end・届かない・存在しないゾーン、引数を変えず毎回
-  新しいリストを返すこと、一度いたゾーン(着陸先を含む)へは遠回りしないこと(機ごと・ターンをまたいで積み重なる)、
-  同じターンを報告し直すと置き換わり、前のターンを報告するとそれより後の記録を捨てること
+- `tests/pathfinding/test_flow_map.py` — `pathfinder.py` のフローマップ:
+  `last_turn` と `Route.arrival_turn`(LT01〜LT07: ドローン0は経路なしでも0・経路なしで機がいれば `ValueError`、
+  rate 1・2 の1本、長さの違う2本の和、T より長い経路は数えない、出発ターンに1ゾーン目に入る数え方)、
+  フローと経路の分け方(FM01〜FM16: 一本道、分岐を1機では1本・2機以上で2本、細い合流・広い合流、
+  接続容量・ゾーン容量で決まる rate、restricted の2ターン、T が下がらない経路は足さない・残さない、
+  priority は同じ長さの中のタイブレークだけで priority の数が多い方、押し戻し(back arc)での組み替え、
+  start / end は無制限・restricted な end、`max_drones` の無いハブ。`FlowGraph` を直接使う補助のケース
+  (経路なし、弧のコストと `push` 後の経路、priority の弧のコスト))、
+  押さえた地図(HM01〜HM08: 使うゾーン・接続だけ、blocked は入らない、容量は1ターンに流す数、共有するゾーン・接続は合計、
+  宣言順と接続名を保つ、`max_drones` 以外の属性を保つ、元の地図を変えない、ドローン0は start と end だけ)、
+  `Pathfinder` の構築と E2E(PF01〜PF05: 構築時の到達不能検出(4パターン)、孤立ゾーン、パーサー経由
+  (到達不能マップはパース成功・経路探索で失敗)、課題の例と配布マップ10枚の1機の最短、20×20 の格子が1秒以内)。
+  `FlowMap` は `Network` に `__eq__` が無いので `==` で比べず、`routes` / `last_turn` / 押さえた地図の中身を別々に比べる
 
-- `tests/simulation/conftest.py` — スタブのスケジューラ(台本どおりの `ScriptedScheduler`、最短経路を貪欲にたどる
-  `FollowerScheduler`、何もしない `IdleScheduler`、往復し続ける `OscillatingScheduler`。どれも `decide_moves` だけの
+- `tests/simulation/conftest.py` — スタブのスケジューラ(台本どおりの `ScriptedScheduler`、1機のフローマップの最速の経路を
+  貪欲にたどる `FollowerScheduler`、何もしない `IdleScheduler`、往復し続ける `OscillatingScheduler`。どれも `decide_moves` だけの
   ふつうのクラスで、`MoveDecider` を満たし、エンジンに直接渡す)、
   render の呼び出しを記録する `recorder`、`begin` / `render` / `close` を呼ばれた順に1つのリストに記録し、指定した
   メソッドで失敗もできる `call_log`(Stage 7)、1ターンを出力の文字列にする `fmt`、
-  Stage 5 用の `hop`(隣接する2ゾーン間の `Hop` を向きを問わず作る)・`real_scheduler`(本物の `Scheduler`)、
-  予約表と立ち退き用の `evictor_for`(`ReservationTable` に `start_turn` してから `TurnLedger` と `Evictor` を組む。
-  盤面は `PositionBoard.from_state` で作る)、`moves_of`(公開の `due` と `last_turn` から機の予約を出発の早い順に
-  集める)、`taker_for`(`evictor_for` と同じ手順で盤面と `HopTaker` まで組む)
+  本物の `Scheduler` を作る `real_scheduler`、本物の `Pathfinder` の `flow_map` を `monkeypatch` で差し替えて、テストが
+  渡したフローマップで本物の `Scheduler` を作る `fixed_scheduler`(壊れたフローマップの検査用)
 - `tests/simulation/test_state.py` — `SimulationState`: 構築(全機が start に `AT_ZONE`)、`enter_zone` の数え方、
   end への到着で配達済み(占有に残らない)、`enter_transit` の予約と接続の使用、`complete_transit` で予約が占有に置き換わること、restricted な end への到着、基本操作の前提違反。
   `Move`(MV01〜MV03): `text` と接続名の既定値 `None`、resolver が付ける接続名(出発は使った接続・restricted への
-  出発は行き先も接続名・着陸は `None`)、frozen で接続名も等価性に入ること
+  出発は行き先も接続名・着陸は `None`)、frozen で接続名も等価性に入ること。
+  `Drone.history`(DH02〜DH07): 構築時は機ごとに別の `["s"]`、入ったゾーンを足す(動いた機だけ)、restricted は飛行中には
+  足さず着陸で足す、end も足す、restricted な end への着陸、resolver が拒否したターンでは履歴も変わらないこと
 - `tests/simulation/test_turn_resolver.py` — `TurnResolver`: 出力のドローンID順(自動の到着と指示が混ざっても)、
   ゾーン容量(上限ちょうどは合法・同じターンに出ていく分は使える・3機の循環)、start/end は無制限、接続容量
   (両方向で共有・入れ替わり)、restricted の2ターン移動(出発時は宣言どおりの接続名、次ターンに自動到着・
@@ -159,55 +152,33 @@ python -m pytest tests/
   ターンでは render しないこと、構築直後の状態、パーサー経由の E2E(課題のサンプルマップの出力7行、corridorA を
   blocked にして restricted の roof1 を通る出力12行。これは貪欲なスタブ `FollowerScheduler` の結果)、
   「接続上で詰まった」がエンジンからそのまま伝わり、詰まったターンでは render しないこと(G12)
-- `tests/simulation/scheduling/test_turn_ledger.py` — `TurnLedger`: ゾーン・接続の両方の空き、ゾーン容量の境界(上限ちょうどまで)、
-  記録した退出だけが同じターンの空きになること(記録前の退出は数えない=保守的)、start/end は無制限、
-  restricted の予約で満杯になること、着陸する機は接続を使わないこと(接続の使用数は出発だけ)、
-  接続は両方向で共有、記録が他の接続・ゾーンに漏れないこと、台帳が状態を変えないこと。
-  予約表との組み合わせ(L13〜L21): `link_free`(このターンの記録は将来のターンに数えない・予約した移動は出発のターンだけ
-  両方向で数える・着陸は数えない)、`fits` の `extra` の境界、`projected_load` が累積で将来のターンにも記録が残ること、
-  restricted への記録は着陸のターンに数えること、将来の予約された席は使わないこと(規則6、台帳は立ち退きをしない)、
-  `horizon` の下限と `arrival_turn`(restricted な end も2ターン)、`cancel` が `record` を打ち消すこと、表を渡さないと
-  着陸だけの表を作ること(公開の `projected_load` / `horizon` で確かめる)
-- `tests/simulation/scheduling/test_reservation_table.py` — `ReservationTable`(Q01〜Q10): `entering` / `leaving` / `due`(ID 順)/
-  `last_turn` の数え方(restricted は depart_turn に出て arrive_turn に入る)、1機2行と `remove`(索引がすべて消える)、
-  `mark` / `rollback` の入れ子と `remove` の取り消し、`clear`(取り消しの記録も消える)、`start_turn`(着陸の読み込み・
-  2回呼んでも1行・済んだ予約と出発元にいない機の予約を捨てる・このターンに出る予約は残す・飛行中の機の立ち退きは残る)、
-  `leaves_after`(LA01〜LA03: 出発のターンより厳密に前だけ True・ほかの機に漏れない・`remove` / `rollback` に追従・
-  restricted は到着でなく出発のターンで見る)
-- `tests/simulation/scheduling/test_evictor.py` — `Evictor.make_room`(X01〜X09): end への立ち退き、空いている normal への立ち退き、
-  normal・restricted を通る再帰(restricted の席は t+2)、長い連鎖が終わること(距離が真に減る)、失敗したら内側の接続・
-  席まで全部取り消すこと、立ち退かせる機がいない(先に出る予約がある・着いたばかり)、席がすでにある・end では何もしない、
-  最初の候補の接続が埋まったら次の候補
-- `tests/simulation/scheduling/test_scheduler.py` — `Scheduler`: 判断の順序(ゾーン単位: 距離 → 優先ルート → 出口(最短+遠回り)が
-  少ない → 宣言順。同じゾーンの中は `active_drones` の順で、drone_id は使わない。並びをリストの順序ごと検査)、
-  退出で空いたゾーンを同じターンに後ろの機が使うこと、
-  待つことになる機は許された遠回り(横・後ろを含む。いたゾーンには戻らない、遠回り先が混んでいれば断る)をすること
-  (D09・D27〜D40)、最短の一手が使えるなら遠回りしないこと、遠回りは立ち退きなし → あり・最短の立ち退きより後、
-  遠回りのある網でも届かないゾーンの機はエラー、新しい実行や同じターンの計画し直しで古い「いたゾーン」が残らないこと、
-  先頭の候補のゾーン/接続が満杯なら次の最短候補、飛行中の機には指示せず、その着陸で空く接続を
-  後ろの機が使うこと、配達済みの機には指示しないこと、
-  restricted への指示はゾーン名、restricted な end は接続容量だけで止まること、end に届かないゾーンにいる機の
-  `SimulationError`、状態を変えず指示が `TurnResolver` に受理されること。
-  予約と立ち退き(D18〜D26): 予約した移動はふつうの判断より先、立ち退きの予約を持つ機が先に動いたら予約を消す(規則7)、
-  restricted への出発で在室機の立ち退きを作る、立ち退きに失敗したら取り消して待つ、立ち退きは最後の手段(Q-C)、
-  規則6'(後で予約された席に入り、自分の立ち退きを予約する)、同じターンに呼び直しても同じ指示(立ち退きが二重に
-  ならない)、新しい実行は表を空にして始める、同じターンに別の状態を渡すとその状態から計画し直す。
-  このターンに立ち退きが決まった機も判断する(RV01〜RV03、レビューの反例マップ: 予約を外して今動く・最後まで予約が
-  残らない・同じターンを2回判断しても同じ指示)
+- `tests/simulation/scheduling/test_scheduler.py` — `scheduler.py`: `plan_departures`(PD01〜PD09: 1ターンに rate 席、
+  出発ターンは `1 .. T − turns + 1`、到着の早い順 → 出発の早い順 → 経路の番号順(名前ではなく `routes` の並び)、
+  T までに着けない経路には席がない、ドローン0、席が足りないときの `SimulationError`、課題の例の出発(D2・D4 が roof1)、
+  `Departure` の値と frozen)。
+  `Scheduler`(SC01〜SC20): フローマップは最初の判断で作ること、指示の並びは end に近いゾーンから(ID 順ではない。
+  課題の例の指示を順序ごと)、start で出発のターンを待つこと、飛行中・配達済みには指示しないこと、restricted への指示は
+  ゾーン名、同じターンに2回呼んでも状態と履歴を変えず同じ指示、ターン0では呼ぶたびに計画し直しそれ以降は作らないこと、
+  エラー(出発のターンを過ぎた・経路のない機・経路から外れた・経路の最後まで来たのに配達されていない・いたゾーンに戻る・
+  押さえた地図に接続がない・押さえた接続/ゾーンが満杯・計画の席が足りない。どれもメッセージの完全一致。壊れたフローマップは
+  `fixed_scheduler` で渡す)、課題の例と restricted だけの例が resolver に受理されて `flow_map.last_turn` ターンで終わること
 - `tests/simulation/scheduling/test_scheduler_maps.py` — 本物の `Scheduler` の E2E: 課題のサンプルマップで本物のスケジューラの出力5行
   (`scheduler_output`)と完全一致、
-  restricted だけの経路の出力8行(roof1 に着陸した機を次のターンに立ち退かせ、毎ターン1機ずつ出発する)、
-  毎ターンの不変条件(1機1指示・指示は `AT_ZONE` の機だけ・最短の一手で距離が減る、または一度もいたことのないゾーンへの
-  遠回り(いたゾーンは `run_checked` が自分で記録する)・遠回りの回数は1機あたりゾーン数未満・
-  resolver が受理・誰かが動く・既定の上限内)を課題の例と配布マップ10枚で確認、配布マップのターン数(VII.6 の最適値以内、
-  challenger は最適値43の25%以内。最適値そのものには届かない)、アーカイブの中身、決定的であること、1機の最短距離を下回らないこと。
-  予約表と立ち退きの E2E(R09〜R15。出力の行を完全一致で比べ、`run_checked` でも同じ行で完走すること):
-  restricted 1つ(4行)、出口の細い restricted(K1 6行・K2 7行)、最後の手段の例(5行)、restricted が続く網
-  (6行・9行・間に normal で8行)、規則6' の網(11行)、規則7 の網(8行)、restricted の多いランダムなマップ300枚
-  (`random.Random(2026)`。詰まり・容量違反なしで完走し、遠回りが1手以上使われること。失敗時はマップの記述をメッセージに出す)。
-  遠回りの E2E(R16〜R20): 課題の例のターンごとの指示(順序ごと)、priority_puzzle の出力6行、M1'(`s-a a-g s-r r-g`)を
-  2・3・4機で、配布マップ10枚のターン数の固定値(改善でターン数が変わったときは、この表とベンチマークの記録を一緒に更新する)、
-  各マップで使われる遠回りの数(課題の例2・priority_puzzle 2・maze_nightmare 3・ほか0)。
+  restricted だけの経路の出力8行(1本の経路に毎ターン1機)、
+  毎ターンの不変条件(`run_checked`: 最初の判断の後に公開の `plan_departures` で出発を作り直し、1機1指示・指示は `AT_ZONE` の機だけ・
+  行き先はその機の経路の次のゾーンで `history` に無い・start 以外の機は待たず、start の機は出発ターンだけ指示を受ける・
+  resolver が受理・誰かが動く・既定の上限内。終わったとき各機の `history` は経路と等しく、配達のターンは
+  `route.arrival_turn(出発ターン)`、全体のターン数は `flow_map.last_turn`)を課題の例と配布マップ10枚で確認、
+  配布マップのターン数(VII.6 の最適値以内、challenger は最適値43ちょうど)、アーカイブの中身、決定的であること、
+  1機の最速の経路(`flow_map(1).last_turn`)を下回らないこと。
+  小さな網の出力(R09〜R15。出力の行を完全一致で比べ、`run_checked` でも同じ行で完走すること):
+  restricted 1つ(4行)、出口の細い restricted(K1 6行・K2 7行)、restricted の2本(5行)、restricted が続く網
+  (6行・9行・間に normal で8行)、restricted 2つを通る1本の経路の網(11行)、restricted の連なり(8行)、restricted の多いランダムなマップ300枚
+  (`random.Random(2026)`。詰まり・容量違反なしで完走し、2本以上の経路を使うマップが少なくとも1枚あること。失敗時はマップの記述をメッセージに出す)。
+  実際のマップ(R16〜R20): 課題の例のターンごとの指示(順序ごと。SC03 と同じ値)、priority_puzzle の出力6行(4ターンと5ターンの2本)、
+  `s-a a-g s-r r-g` を2・3・4機で(2機では r を使わない)、配布マップ10枚のターン数の固定値(すべて最適値。変わったときは、
+  この表とベンチマークの記録を一緒に更新する)、各マップで使う経路の数(課題の例2・easy 1/2/1・medium 1/1/2・hard 1/1/1・
+  challenger 1。`flow_map.routes` の数と実際に使われた経路の数の両方)。
   配布マップはリポジトリ直下の `maps.tar.gz`(git 管理)を共有の `provided_map` が `tarfile` でメモリ上で、先頭のコメントも含めてそのまま
   読む(パーサがコメントを読み飛ばすことも確かめる。アーカイブが無ければ分かりやすいメッセージで失敗する。skip にはしない)
 
@@ -216,23 +187,10 @@ python -m pytest tests/
   (誰も動かない・ターン数の上限・不正な指示)、`begin` の失敗、`render` の失敗のどれでも `close` を呼び、例外はそのまま伝わること。
   `run(observer=...)` のキーワード(EO01)、観測者なしの `run()` とコンストラクタのキーワード `world` / `decider` /
   `max_turns`・既定の上限(EO02)
-- `tests/simulation/scheduling/test_positions.py` — `PositionBoard`(PB01〜PB07): 空の盤面(`where` は `KeyError`)、ゾーンの機は
-  番号の昇順、`Position` は NamedTuple、ゾーン間の移動で前のゾーンから外れる、同じゾーンに置き直すとターンだけ変わる、
-  `count_in` はゾーンの集合の合計、返す値は複製、`from_state`(立っている機は今のターンから、飛行中の機は着陸先に
-  次のターンから、配達済みは置かない)
 - `tests/simulation/test_observer.py` — `ObserverGroup`(OG01〜OG07。OG01〜OG05 は旧 `test_composite.py` の VC01〜VC05):
   呼び出しを観測者の順に配る(同じ `state` / `moves`)、1つの close が失敗しても残りを閉じる、複数の失敗は最後を送出し
   前の失敗を `__context__` でつなぐ、観測者なし、render の失敗はそのまま伝わる、受け取った列の複製(タプルからも
   `list`)、エンジンからは1つの観測者に見え各観測者に順に届くこと
-- `tests/simulation/scheduling/test_hop_taker.py` — `HopTaker.take_first`(HT01〜HT08): 空いている一手を台帳と盤面に記録する、
-  restricted へは在室機を立ち退かせて着陸する(`extra=1`)、立ち退きの連鎖、立ち退かせられなければ何も変わらない、
-  後で予約された席に先に入って自分を立ち退かせる(`extra=0`)とその失敗時の取り消し(台帳・盤面・表が戻る)、
-  すべての一手を立ち退きなしで試してから立ち退きありを試す順、一手が無いときの `None`
-- `tests/simulation/scheduling/test_zone_ranking.py` — `ZoneRanking`(ZR01〜ZR08。ZR07・ZR08 は旧 `test_scheduler.py` の D07・D08):
-  判断の順の4つの鍵(距離 → 優先ルート(ゾーン自身・次の一手)→ 出口(最短 + 遠回り)が少ない → 宣言順)、
-  ゴールに届かないゾーンは順位なし・存在しない名前の `rank` は `ZoneNotFoundError`、`is_on_priority_route`
-  (今いるゾーン・次の一手が priority なら True、2手先・遠回りの priority・end は False、存在しない名前の
-  `ZoneNotFoundError`)
 
 - `tests/visualization/conftest.py` — `coord_network`(座標と色つきでゾーンを登録する。最初が start、最後が end)。
   matplotlib を Agg バックエンド(ディスプレイ不要)に切り替える
