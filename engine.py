@@ -11,7 +11,7 @@ it; the last one is what the rest of the program uses):
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
@@ -43,6 +43,9 @@ class Drone:
             only while status is IN_TRANSIT.
         transit_target: Name of the zone the drone will arrive at, set only
             while status is IN_TRANSIT.
+        history: The zones the drone has been in, in order, from the start
+            zone to the one it is in now (the one it last landed in while
+            in flight). The scheduler never sends a drone back into one.
     """
 
     drone_id: int
@@ -50,6 +53,7 @@ class Drone:
     status: DroneStatus = DroneStatus.AT_ZONE
     in_transit_connection: str | None = None
     transit_target: str | None = None
+    history: list[str] = field(default_factory=list)
 
     @property
     def is_delivered(self) -> bool:
@@ -132,7 +136,9 @@ class SimulationState:
         self.turn_number = 0
         start = network.start_zone.name
         self.drones: dict[int, Drone] = {
-            drone_id: Drone(drone_id=drone_id, current_zone=start)
+            drone_id: Drone(
+                drone_id=drone_id, current_zone=start, history=[start]
+            )
             for drone_id in range(1, nb_drones + 1)
         }
         self._occupancy: dict[str, int] = {start: nb_drones}
@@ -307,6 +313,7 @@ class SimulationState:
             zone_name: The zone it arrives in.
         """
         drone.current_zone = zone_name
+        drone.history.append(zone_name)
         if self.network.get_zone(zone_name).role is ZoneRole.END:
             drone.status = DroneStatus.DELIVERED
             return
