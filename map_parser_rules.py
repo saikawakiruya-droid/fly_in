@@ -138,6 +138,28 @@ class KnownEndpoints(ConnectionRule):
                 raise ValueError(f"unknown zone: {name}")
 
 
+class DistinctEndpoints(ConnectionRule):
+    """A connection joins two different zones (``a-a`` is not allowed)."""
+
+    def check_connection(
+        self, connection: Connection, network: Network
+    ) -> None:
+        """Reject a connection from a zone to itself.
+
+        Args:
+            connection: The connection the current line declares.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If both ends are the same zone.
+        """
+        if connection.zone_a == connection.zone_b:
+            raise ValueError(
+                "a connection must join two different zones, got "
+                f"{connection.zone_a}-{connection.zone_b}"
+            )
+
+
 class UniqueConnection(ConnectionRule):
     """a-b and b-a are the same connection and may be declared only once."""
 
@@ -172,5 +194,6 @@ def default_rules() -> list[Rule]:
         UniqueZoneName(),
         SingleStartAndEnd(),
         KnownEndpoints(),
+        DistinctEndpoints(),
         UniqueConnection(),
     ]

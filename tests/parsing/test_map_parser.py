@@ -145,11 +145,38 @@ def test_duplicate_connection_raises_parse_error(tmp_path: Path) -> None:
     assert excinfo.value.line_number == 5
 
 
-def test_self_loop_connection_is_allowed(tmp_path: Path) -> None:
-    """A connection from a zone to itself is not rejected by the parser."""
+def test_self_loop_connection_is_rejected(tmp_path: Path) -> None:
+    """A connection from a zone to itself is a ParseError on its line."""
     text = MINIMAL_MAP + "connection: s-s\n"
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert excinfo.value.line_number == text.count("\n")
+    assert "a connection must join two different zones, got s-s" in str(
+        excinfo.value
+    )
+
+
+def test_comments_and_blank_lines_before_the_header(tmp_path: Path) -> None:
+    """Comments and blank lines may come before nb_drones; later errors
+    keep their line numbers in the file."""
+    text = "# a map\n\n  # indented comment\n" + MINIMAL_MAP
     world = MapParser(write_map(tmp_path, text)).parse()
-    assert len(world.network.connections) == 1
+    assert world.nb_drones == 1
+
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text + "hub: x 0\n")).parse()
+    assert excinfo.value.line_number == text.count("\n") + 1
+
+
+def test_other_line_before_the_header_is_an_error(tmp_path: Path) -> None:
+    """The first line that is not a comment must be nb_drones."""
+    text = "# a map\nstart_hub: s 0 0\nnb_drones: 1\n"
+    with pytest.raises(ParseError) as excinfo:
+        MapParser(write_map(tmp_path, text)).parse()
+    assert str(excinfo.value) == (
+        "line 2: the first line that is not a comment must be "
+        "'nb_drones: <n>'"
+    )
 
 
 def test_duplicate_coordinates_are_allowed(tmp_path: Path) -> None:
@@ -284,17 +311,19 @@ def test_unrecognized_keyword_raises_parse_error(tmp_path: Path) -> None:
 
 
 def test_empty_file_raises_parse_error(tmp_path: Path) -> None:
-    """An empty map file is rejected at line 1, where nb_drones belongs.
+    """An empty map file, or one with only comments and blank lines, is
+    rejected at line 1.
 
     It used to say ``line 0`` (bugs.md 2026-10-16).
     """
-    with pytest.raises(ParseError) as excinfo:
-        MapParser(write_map(tmp_path, "")).parse()
-    assert excinfo.value.line_number == 1
-    assert str(excinfo.value) == (
-        "line 1: map file is empty, expected 'nb_drones: <n>' as the first "
-        "line"
-    )
+    for text in ("", "# only\n\n# comments\n"):
+        with pytest.raises(ParseError) as excinfo:
+            MapParser(write_map(tmp_path, text)).parse()
+        assert excinfo.value.line_number == 1
+        assert str(excinfo.value) == (
+            "line 1: map file has only comments and blank lines, expected "
+            "'nb_drones: <n>'"
+        )
 
 
 def test_hub_role_is_used_for_plain_hub_lines(tmp_path: Path) -> None:
@@ -516,7 +545,8 @@ def test_leading_bom_is_a_line_1_error(tmp_path: Path) -> None:
         MapParser(path).parse()
 
     assert str(info.value) == (
-        "line 1: the first line must be 'nb_drones: <n>'"
+        "line 1: the first line that is not a comment must be "
+        "'nb_drones: <n>'"
     )
 
 
@@ -540,7 +570,8 @@ def test_byte_order_marks_are_errors(tmp_path: Path) -> None:
     with pytest.raises(ParseError) as first:
         MapParser(twice).parse()
     assert str(first.value) == (
-        "line 1: the first line must be 'nb_drones: <n>'"
+        "line 1: the first line that is not a comment must be "
+        "'nb_drones: <n>'"
     )
 
     lines = SUBJECT_SAMPLE_MAP.splitlines(keepends=True)
