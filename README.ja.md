@@ -17,7 +17,7 @@ Fly-in は、Python で書いたドローン群のルーティングシミュレ
   (1 ターンをコネクション上で過ごし、次のターンに必ず着地する)。`blocked` ゾーンには入れない。
 - 同じ長さの経路が複数あるときは `priority` ゾーンを優先する。
 
-プログラムはマップを解析・検証し、ゴールまでの距離を計算し、ドローンの移動をターンごとに決め、
+プログラムはマップを解析・検証し、ドローンが通る経路と各経路に毎ターン送る台数を求め、各ドローンを経路に沿ってターンごとに動かし、
 各ターンをルールに照らして検査したうえで、決められた形式でターンログを出力します。オプションを付ければ、
 実行の様子を色付きでターミナルに(`--terminal-view`)、またはウィンドウに(`--matplotlib-window`)表示します。課題の指定どおりグラフ系ライブラリは使っておらず、グラフ、最短経路探索、
 スケジューラはすべて自作です。コードはオブジェクト指向で型注釈付きで書かれており、`flake8` と
@@ -210,7 +210,7 @@ D2 がコネクション上にいるターン)です。ドローンは両方の�
 ### Pipeline
 
 ```text
-map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
+map file -> MapParser -> World -> Pathfinder (FlowMap) -> Scheduler
                                                                  |
      TurnLogPrinter (+ the views asked for)  <-  SimulationEngine + TurnResolver
 ```
@@ -221,42 +221,34 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    スタートとエンドが 1 つずつ、既知の端点、コネクションの一意性)に任せます。結果は `World` で、自作の
    `Network`(ゾーンと隣接リスト)とドローン数をまとめたものです。
 
-2. **距離**(`pathfinder.py`)。`DistanceMap` が、逆向きにたどったコネクション上で**エンドゾーンから
-   1 回だけ Dijkstra 探索**(`heapq` を使用)を行います。あるゾーンに入るコストはそのゾーンのターンコスト
-   (1、restricted なら 2)で、blocked ゾーンには入りません。これで各ゾーンからゴールまでの最小ターン数が
-   得られます。容量はここでは意図的に無視します。容量はターンごとに変わり、スケジューラが扱うものだからです。
-   `Pathfinder` はスタートからゴールに到達できることを確認し、ゾーンごとに 2 つの問いに答えます。
-   - `next_hops`: 最短経路上の隣接ゾーン(そこに入るコストとその先の距離の和が、このゾーンの距離に等しいもの)。
-     **priority ゾーンが先**、その後は宣言順。
-   - `detour_hops`: 最短経路から外れるが、まだゴールに到達できる隣接ゾーン。コストの小さい順。
+2. **経路**(`pathfinder.py`)。`Pathfinder` が最初のターンの前に 1 度だけ**フローマップ**を作ります。
+   ドローンが通る経路と、各経路に毎ターン送る台数です。ドローンは一定の流れとして動きます。どの経路も、
+   その上のゾーンとコネクションが先へ通せる台数より多くを毎ターン送らなければ、スタートゾーンを出たドローンは
+   一度も待ちません。経路は、自作の残余グラフ `FlowGraph` 上の**最小費用流**(逐次最短路)で求めます。
+   - 各ゾーンを「入口」と「出口」の 2 点にし、その間を容量 `max_drones` の辺で結ぶ。各コネクションは、
+     両方向に容量 `max_link_capacity` の辺になる。ゾーンに入るコストはそのゾーンのターンコスト(1、
+     restricted は 2)。blocked ゾーンには点を作らない
+   - priority ゾーンはコストを少しだけ下げ、同じ速さの経路の中では priority ゾーンを通るものを選ぶ
+     (そのために 1 ターンでも遅くなることはない)
+   - 逆向きの辺のコストは負なので、最短路の探索はキューを使う Bellman-Ford
 
-   距離と各ゾーンの次の一手は 1 回の実行につき 1 度だけ計算してキャッシュし、シミュレーション中に計算し直すことはありません。
+   `turns` ターンかかり毎ターン `rate` 台を送る経路は、ターン `T` までに `rate * (T - turns + 1)` 台を届けます。
+   最後のドローンが着くのは、全経路の合計がドローン数に届く最初のターン `T` です。最短路を 1 本足すごとに
+   毎ターン送れる台数は増えますが、経路は長くなりうるので、`T` が小さくなる間だけ足します(決まった流れを
+   このように送り続けるのは、スタートとゴールが 1 つずつなら最適です。Ford と Fulkerson の temporally
+   repeated flow)。結果は `FlowMap` です。経路が使うゾーンとコネクションだけに絞った `Network` である
+   **保持マップ**(容量は経路がそこを毎ターン通す台数)と、経路と `T` を持ちます。`Pathfinder` は、
+   スタートからゴールに到達できることも確認します。
 
-3. **スケジューリング**(`scheduler.py`、`scheduler_reservation_table.py`)。`Scheduler` は毎ターン、ゾーンにいる各ドローンに
-   最大 1 つの命令を出します(命令が無ければ待機)。
-   - restricted ゾーンへ飛行中のドローンには命令を出さない。自動的に着地する。
-   - 前のターンまでに計画され、このターンに実行すべき移動を最初に命令する。
-   - 残りのドローンは `ZoneRanking` の順にゾーンごとに決める: **ゴールに近いゾーンから**(先に出ていく
-     ドローンが、後ろのドローンが求める前に空きを作るため)、次に priority 経路上のゾーン、次に出口の少ない
-     ゾーン(選択肢のあるドローンが、他のドローンの唯一の出口をふさがないため)、最後に宣言順。
-   - ドローンは最短の一手のうち、`TurnLedger` で空きがある最初のものを取る: コネクションにこのターンの
-     容量があり、入るゾーンに、入るターンと、計画された移動のある以降のすべてのターンで席があること。
-   - どれにも空きがなければ、最後の手段として `Evictor` に場所を空けさせながら同じ一手を試し直す: 行き先
-     ゾーンにいるドローンを、指定したターンに自分の最短の一手で先へ進むよう計画する(その行き先も満杯なら
-     再帰的に)。満杯の restricted ゾーンへ飛べるのはこの仕組みによります。ドローンは次のターンに必ず着地
-     するので、そのターンに今いるドローンが出ていくよう計画します。計画した移動は mark/rollback を持つ
-     `ReservationTable` に保存されるので、失敗した試みは跡を残しません。
-   - それも失敗したら、`DetourPolicy` が許す迂回をとれる: すでに入ったことのあるゾーンには決して入らず、
-     待つより遅くならないと見込めるときだけ、つまり
-     `turn_cost(v) + distance(v) + queue(v) <= distance(u) + ahead(u)` のときだけ。`ahead(u)` は最短経路上で
-     先にいるドローンの数、`queue(v)` は迂回先ゾーン `v` とその先にいるドローンの数です。これにより、最短
-     経路が混んでいるときにドローンが複数の経路に分散します。
-   - それ以外の場合、ドローンは待機する。
-
-   すべての実行が終わる理由は、スケジューラの docstring に書かれています: 最短の一手はゴールまでの距離を
-   必ず減らし、迂回は一度も入ったことのないゾーンにしか入らないので、各ドローンの移動回数は有限です。
-   さらに毎ターン少なくとも 1 機は動きます(計画された移動と着地は必ず起き、そうでなくてもゴールに最も
-   近いドローンは最短経路上に必ず空きがある)。
+3. **スケジューリング**(`scheduler.py`)。`plan_departures` が、各ドローンに経路とスタートゾーンを出る
+   ターンを割り当てます。各経路には毎ターン `rate` 席あり、ドローンは早く着く席から順に取ります。そのため、
+   長い経路を使うのは、短い経路の席を待つと着くのが遅くなるときだけです。`Scheduler` は毎ターン、保持マップの
+   ゾーンを**ゴールに近い方から**見ていき、各ゾーンは、経路上の次のゾーンがそこであるドローンを**引き込みます**。
+   出発のターンが来たスタートゾーンのドローンと、すでに途中にいるすべてのドローンです。restricted ゾーンへ
+   飛行中のドローンには命令を出さず、自動で着地します。引き込みはそれぞれ保持マップと照らし合わせます。
+   ドローンがそのゾーンに入ったことがないこと(各 `Drone` は入ったゾーンの `history` を持つ)と、
+   コネクションとゾーンにこのターンまだ空きがあることです。フローマップが正しければ確認は必ず通り、通らなければ
+   ルールを破る代わりに `SimulationError` を出します。各ドローンは経路の段数だけ動くので、どの実行も必ず終わります。
 
 4. **ルール検査**(`engine.py`)。`SimulationEngine` がターンのループを回します。毎ターン
    `TurnResolver` が、飛行中のドローンを着地させ、各命令(存在する・blocked でない・隣接したゾーンへ、
@@ -270,10 +262,10 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    エンジンは毎ターンの後にオブザーバを呼びます: `TurnLogPrinter` がそのターンの行を標準出力に書いて
    フラッシュし、コマンドラインで指定された表示がその状態を描きます。最後に `RunSummary` が要約行を書きます。
 
-**コスト。** ゾーン数 Z、コネクション数 C、ドローン数 D として、Dijkstra 探索は O((Z + C) log Z) で 1 度だけ。
-毎ターン、ゾーンにいる各ドローンが少数の一手を試し、それぞれを計画済みの移動がある数ターン分だけ台帳で
-確認します。着地と追い出しの計画は数ターン先までしか見ません。メモリはネットワーク、距離、キャッシュした
-一手、ドローンの位置に O(Z + C + D)、それに計画済みの移動の分です。
+**コスト。** ゾーン数 Z、コネクション数 C、ドローン数 D として、フローマップは 1 度だけ作り、経路を 1 本足す
+ごとに最短路探索(Bellman-Ford、O(Z * C))を最大 1 回行います。経路は最大 D 本です。毎ターン、ゾーンにいる
+各ドローンは最大 1 回引き込まれ、確認は定数時間です。メモリはネットワーク、保持マップ、経路、ドローンの出発と
+履歴に O(Z + C + D) です。
 
 ### Code structure
 
@@ -285,12 +277,12 @@ errors.py                       FlyInError とそのサブクラス
 world.py                        Zone, Connection, Network(自作のグラフ), World
 map_parser.py                   MapReader, LineTokenizer, MapValidator, MapParser
 map_parser_format.py            MapFormat(行の種類の表)と、複数行にまたがるルール
-pathfinder.py                   DistanceMap(ゴールからの Dijkstra), Pathfinder
+pathfinder.py                   Route, FlowMap(保持マップ), FlowGraph(最小費用流),
+                                Pathfinder
 engine.py                       Drone, SimulationState, TurnResolver(ルール),
                                 TurnObserver, SimulationEngine(ターンループ)
-scheduler.py                    DetourPolicy, ZoneRanking, HopTaker, Scheduler
-scheduler_reservation_table.py  PositionBoard, ReservationTable, TurnLedger,
-                                Evictor: 後のターンの計画
+scheduler.py                    Departure, plan_departures, Scheduler(フローマップに
+                                沿ってドローンを引き込む)
 turn_log_printer.py             TurnLogFormatter, TurnLogPrinter, RunSummary
 terminal_view.py                TerminalVisualizer とその色名(--terminal-view)
 matplotlib_window.py            MatplotlibWindowVisualizer, MapScene と平面の計算
@@ -299,18 +291,17 @@ matplotlib_window.py            MatplotlibWindowVisualizer, MapScene と平面�
 
 ソースファイルは、課題の指定どおりすべてリポジトリ直下にあります。1 つのファイルがプログラムの 1 つの部分を、
 それが委譲するクラスと一緒に持ち、使われる順に定義しています。ファイルが必要とするクラスが先に、プログラムの
-ほかの部分が使うクラスが最後に来ます。各ファイルの docstring に一覧があります。いちばん大きい 2 つの部分は
-2 つに分け、2 つ目のファイルは 1 つ目の名前で始めています(`scheduler_reservation_table.py` はスケジューラの
-後のターンの計画、`map_parser_format.py` はパーサの表)。表示はそれぞれ 1 ファイルです。
+ほかの部分が使うクラスが最後に来ます。各ファイルの docstring に一覧があります。いちばん大きい部分は
+2 つに分け、2 つ目のファイルは 1 つ目の名前で始めています(`map_parser_format.py` はパーサの表)。表示はそれぞれ 1 ファイルです。
 
 コードから読み取れる設計上の選択:
 
 - **継承より委譲(コンポジション)を優先。** `Application` が各段階を組み合わせ、エンジンは状態、
-  `TurnResolver`(ルール)、`MoveDecider`(`Scheduler`)を組み合わせ、スケジューラは小さなクラス
-  (台帳、追い出し、迂回方針、順位付け)に処理を任せます。
+  `TurnResolver`(ルール)、`MoveDecider`(`Scheduler`)を組み合わせ、スケジューラは経路を
+  `Pathfinder` から受け取り、`Pathfinder` は `FlowGraph` の上で経路を作ります。
 - **接合部には Protocol。** `MoveDecider`、`TurnObserver`、`Rule` は `typing.Protocol` で、ターンログの
   出力とターミナル表示はどちらも同じエンジンのオブザーバです。`Application` には別の決定器を差し込めます。
-- **ルールと決定を分離。** スケジューラは計画し、リゾルバが検査して反映します。スケジューリングの不具合は、
+- **ルールと決定を分離。** 経路探索とスケジューラが計画し、リゾルバが検査して反映します。スケジューリングの不具合は、
   不正なターンログではなく、はっきりした `SimulationError` になります。
 
 ## Visual representation
@@ -333,8 +324,8 @@ matplotlib_window.py            MatplotlibWindowVisualizer, MapScene と平面�
 ゾーン名は `color=` メタデータの色(24 ビットの ANSI カラー)で塗られます。未知の色名は端末の既定色の
 ままで、満杯の数値は太字、blocked ゾーンは淡色になります。標準エラー出力が端末でないとき、または
 `NO_COLOR` が設定されているときは色を付けません。1 行に並べるゾーンの数は端末の幅で決まり、長い名前は
-`~` で短縮されます。各ターンの負荷、飛行中のドローン、移動を並べて見られるので、ドローンが待つ理由や
-迂回する理由を追いやすくなります。
+`~` で短縮されます。各ターンの負荷、飛行中のドローン、移動を並べて見られるので、各ドローンがどの経路を
+通り、いつ出発するかを追いやすくなります。
 
 例の初期状態と最初の 2 ターン(`NO_COLOR=1 .venv/bin/python fly_in.py --terminal-view maps/subject_example.txt`、100 桁):
 
@@ -392,9 +383,11 @@ in flight: D4 hub-roof1 -> roof1
 ### References
 
 - Fly-in の課題(42、バージョン 2.0): ルール、マップ形式、出力形式、配布マップの最適ターン数。
-- [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)(Wikipedia)。ここではゾーンごとの
-  コストでエンドゾーンから使っている。
-- [Python `heapq`](https://docs.python.org/3/library/heapq.html): 探索の優先度付きキュー。
+- [Minimum-cost flow problem](https://en.wikipedia.org/wiki/Minimum-cost_flow_problem) と
+  [Bellman-Ford algorithm](https://en.wikipedia.org/wiki/Bellman%E2%80%93Ford_algorithm)(Wikipedia): 経路を求める逐次最短路。
+- L. R. Ford、D. R. Fulkerson「Constructing maximal dynamic flows from static flows」Operations Research 6(3)、1958:
+  決まった流れを時間方向に繰り返し送る方法(temporally repeated flow)と、スタートとゴールが 1 つずつのとき
+  それが最適な理由。
 - [Python `argparse`](https://docs.python.org/3/library/argparse.html)、
   [`dataclasses`](https://docs.python.org/3/library/dataclasses.html)、
   [`typing.Protocol`](https://docs.python.org/3/library/typing.html#typing.Protocol)。

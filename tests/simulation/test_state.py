@@ -174,3 +174,94 @@ def test_move_is_frozen_and_compares_the_connection() -> None:
     assert len({Move(1, "a"), Move(1, "a")}) == 1
     assert (Move(1, "a") == Move(1, "a", None)) is True
     assert (Move(1, "a") == Move(1, "a", "s-a")) is False
+
+
+# --- Drone.history ----------------------------------------------------
+
+
+def test_history_starts_with_the_start_zone(
+    make_network: MakeNetwork,
+) -> None:
+    """DH02: every drone's history is its own ``["s"]``."""
+    state = SimulationState(make_network("s-a a-r r-g", types={"r": R}), 2)
+
+    assert state.drones[1].history == ["s"]
+    assert state.drones[2].history == ["s"]
+    assert state.drones[1].history is not state.drones[2].history
+
+
+def history_state(make_network: MakeNetwork) -> SimulationState:
+    """Return two drones on ``s-a a-r r-g`` (r restricted), D1 in a."""
+    network = make_network("s-a a-r r-g", types={"r": R})
+    state = SimulationState(network, 2)
+    state.enter_zone(1, "a")
+    return state
+
+
+def test_history_adds_the_zone_entered(make_network: MakeNetwork) -> None:
+    """DH03: only the drone that moved gets the zone."""
+    state = history_state(make_network)
+
+    assert state.drones[1].history == ["s", "a"]
+    assert state.drones[2].history == ["s"]
+
+
+def test_history_adds_a_restricted_zone_on_landing(
+    make_network: MakeNetwork,
+) -> None:
+    """DH04: nothing is added in flight; r is added on landing."""
+    state = history_state(make_network)
+    state.enter_transit(1, link(state.network, "a", "r"), "r")
+    assert state.drones[1].history == ["s", "a"]
+
+    state.complete_transit(1)
+    assert state.drones[1].history == ["s", "a", "r"]
+
+
+def test_history_adds_the_end_zone(make_network: MakeNetwork) -> None:
+    """DH05: the end zone is added too, and the drone is delivered."""
+    state = history_state(make_network)
+    state.enter_transit(1, link(state.network, "a", "r"), "r")
+    state.complete_transit(1)
+    state.enter_zone(1, "g")
+
+    assert state.drones[1].history == ["s", "a", "r", "g"]
+    assert state.drones[1].is_delivered
+
+
+def test_history_of_a_landing_in_a_restricted_end(
+    make_network: MakeNetwork,
+) -> None:
+    """DH06: landing in a restricted end adds it and delivers."""
+    network = make_network("s-g", types={"g": R})
+    state = SimulationState(network, 1)
+    state.enter_transit(1, link(network, "s", "g"), "g")
+    state.complete_transit(1)
+
+    assert state.drones[1].history == ["s", "g"]
+    assert state.drones[1].is_delivered
+
+
+def test_illegal_turn_leaves_the_history(make_network: MakeNetwork) -> None:
+    """DH07: a turn the resolver rejects changes no history; through the
+    resolver a restricted zone is added on the landing turn."""
+    network = make_network("s-a a-g")
+    state = SimulationState(network, 2)
+    resolver = TurnResolver(network)
+
+    with pytest.raises(SimulationError):
+        resolver.resolve(state, [MoveOrder(1, "a"), MoveOrder(2, "a")])
+    assert state.drones[1].history == ["s"]
+    assert state.drones[2].history == ["s"]
+
+    resolver.resolve(state, [MoveOrder(1, "a")])
+    assert state.drones[1].history == ["s", "a"]
+    assert state.drones[2].history == ["s"]
+
+    restricted = make_network("s-r r-g", types={"r": R})
+    flying = SimulationState(restricted, 1)
+    restricted_resolver = TurnResolver(restricted)
+    restricted_resolver.resolve(flying, [MoveOrder(1, "r")])
+    assert flying.drones[1].history == ["s"]
+    restricted_resolver.resolve(flying, [])
+    assert flying.drones[1].history == ["s", "r"]

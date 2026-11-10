@@ -4,16 +4,10 @@ The engine tests (Stage 4) drive the loop with small stub schedulers.
 They are plain classes with ``decide_moves`` (they satisfy
 ``MoveDecider``), handed to ``SimulationEngine`` directly, and are handed
 out through factory fixtures, so the test files never import this
-module directly. The subject's sample map and its expected output are
-shared the same way; they live in ``tests/conftest.py`` with ``place`` and
-``snapshot``, since the visualization tests use them too.
-
-``evictor_for`` builds a ``ReservationTable``, a ``TurnLedger`` and an
-``Evictor`` for one turn, for the timed reservation tests, and
-``taker_for`` the same over a ``PositionBoard`` with a ``HopTaker``.
-``moves_of``
-lists a drone's planned moves from the table's public ``due`` and
-``last_turn``.
+module directly. ``fixed_scheduler`` builds the real scheduler over a
+flow map given by the test. The subject's sample map and its expected
+output are shared the same way; they live in ``tests/conftest.py`` with
+``place`` and ``snapshot``, since the visualization tests use them too.
 """
 
 from typing import Callable
@@ -28,23 +22,14 @@ from engine import (
     SimulationState,
     TurnObserver,
 )
-from pathfinder import Hop, Pathfinder
-from scheduler import HopTaker, Scheduler
-from scheduler_reservation_table import (
-    Evictor,
-    PositionBoard,
-    Reservation,
-    ReservationTable,
-    TurnLedger,
-)
+from pathfinder import FlowMap, Pathfinder
+from scheduler import Scheduler
 from turn_log_printer import TurnLogFormatter
 from world import Network
 
 Script = list[list[MoveOrder]]
 Record = tuple[int, int, bool]
 Call = tuple[object, ...]
-EvictorParts = tuple[ReservationTable, TurnLedger, Evictor]
-TakerParts = tuple[ReservationTable, TurnLedger, PositionBoard, HopTaker]
 
 
 class ScriptedScheduler:
@@ -84,7 +69,9 @@ class OscillatingScheduler:
 
 
 class FollowerScheduler:
-    """Greedy test scheduler: each drone takes its first free shortest hop.
+    """Greedy test scheduler: each drone follows one fastest route.
+
+    The route is the only one of the flow map for a single drone.
 
     Drones are considered in drone_id order (drones in flight are skipped).
     A hop is free when the zone still has room, counting departures and
@@ -94,9 +81,10 @@ class FollowerScheduler:
     """
 
     def __init__(self, network: Network) -> None:
-        """Build a pathfinder over the network."""
+        """Take the fastest route of the network."""
         self.network = network
-        self.pathfinder = Pathfinder(network)
+        route = Pathfinder(network).flow_map(1).routes[0].zones
+        self.next_zone = dict(zip(route, route[1:]))
 
     def decide_moves(self, state: SimulationState) -> list[MoveOrder]:
         """Return one order per drone that can move along a shortest path."""
@@ -109,16 +97,17 @@ class FollowerScheduler:
             here = drone.current_zone
             if drone.status is not DroneStatus.AT_ZONE or here is None:
                 continue
-            for hop in self.pathfinder.next_hops(here):
-                name = hop.zone.name
-                capacity = hop.zone.capacity
+            target = self.next_zone.get(here)
+            for name in [] if target is None else [target]:
+                capacity = self.network.get_zone(name).capacity
                 free = (
                     None if capacity is None
                     else capacity - state.load(name)
                 )
                 if free is not None and free + zone_change.get(name, 0) < 1:
                     continue
-                link = hop.connection
+                link = self.network.connection_between(here, name)
+                assert link is not None
                 if link_used[link.name] >= link.max_link_capacity:
                     continue
                 link_used[link.name] += 1
@@ -181,79 +170,9 @@ class CallLogVisualizer:
             raise RuntimeError("view")
 
 
-def make_hop(network: Network, from_zone: str, to_zone: str) -> Hop:
-    """Return the hop from one zone into an adjacent one, in any direction.
-
-    Unlike ``Pathfinder.next_hops`` it also builds hops that are not
-    shortest moves (back to the start, for instance).
-    """
-    connection = network.connection_between(from_zone, to_zone)
-    assert connection is not None, f"no {from_zone}-{to_zone} link"
-    return Hop(connection, network.get_zone(to_zone))
-
-
-def table_moves_of(
-    table: ReservationTable, drone_id: int
-) -> list[Reservation]:
-    """Return the drone's planned moves, earliest departure first.
-
-    Built from the public ``due`` and ``last_turn``: every move departs
-    on or before the turn it arrives, which is at most ``last_turn``.
-    """
-    return [
-        move for turn in range(table.last_turn() + 1)
-        for move in table.due(turn) if move.drone_id == drone_id
-    ]
-
-
 def make_real_scheduler(network: Network) -> Scheduler:
     """Return the Stage 5 scheduler over its own pathfinder."""
     return Scheduler(network, Pathfinder(network))
-
-
-def make_evictor(
-    state: SimulationState, table: ReservationTable | None = None
-) -> EvictorParts:
-    """Return a table, a ledger and an evictor for the state's next turn.
-
-    Without ``table`` a new one is made. The table is prepared with
-    ``start_turn`` before the ledger is built over it. The board comes from
-    ``PositionBoard.from_state``, as in the scheduler: a drone landing
-    this turn is in its target zone from this turn on, a drone standing in
-    a zone has been there since the turn just played, and delivered drones
-    are left out.
-    """
-    network = state.network
-    if table is None:
-        table = ReservationTable()
-    table.start_turn(state)
-    ledger = TurnLedger(state, table)
-    pathfinder = Pathfinder(network)
-    hops = {name: pathfinder.next_hops(name) for name in network.zones}
-    board = PositionBoard.from_state(state)
-    return table, ledger, Evictor(ledger, table, hops, board)
-
-
-def make_taker(
-    state: SimulationState, table: ReservationTable | None = None
-) -> TakerParts:
-    """Return a table, a ledger, a board and a hop taker for the next turn.
-
-    Built the same way as ``make_evictor``; the taker shares the board
-    and the ledger with its evictor. Moves reserved in ``table`` before
-    the call are kept (``start_turn`` keeps the moves of drones still
-    standing where they depart from).
-    """
-    network = state.network
-    if table is None:
-        table = ReservationTable()
-    table.start_turn(state)
-    ledger = TurnLedger(state, table)
-    pathfinder = Pathfinder(network)
-    hops = {name: pathfinder.next_hops(name) for name in network.zones}
-    board = PositionBoard.from_state(state)
-    evictor = Evictor(ledger, table, hops, board)
-    return table, ledger, board, HopTaker(ledger, evictor, board)
 
 
 @pytest.fixture
@@ -281,33 +200,29 @@ def follower_scheduler() -> Callable[[Network], MoveDecider]:
 
 
 @pytest.fixture
-def hop() -> Callable[[Network, str, str], Hop]:
-    """Return the ``make_hop`` helper."""
-    return make_hop
-
-
-@pytest.fixture
 def real_scheduler() -> Callable[[Network], Scheduler]:
     """Return a factory for the real ``Scheduler`` (Stage 5)."""
     return make_real_scheduler
 
 
 @pytest.fixture
-def moves_of() -> Callable[[ReservationTable, int], list[Reservation]]:
-    """Return the ``table_moves_of`` helper."""
-    return table_moves_of
+def fixed_scheduler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[Network, FlowMap], Scheduler]:
+    """Return a factory for a real ``Scheduler`` given a fixed flow map.
 
+    The real ``Pathfinder`` of the network has its ``flow_map`` replaced,
+    so a broken flow map can reach the scheduler's checks.
+    """
 
-@pytest.fixture
-def evictor_for() -> Callable[..., EvictorParts]:
-    """Return the ``make_evictor`` helper (timed reservation tests)."""
-    return make_evictor
+    def make(network: Network, flow_map: FlowMap) -> Scheduler:
+        pathfinder = Pathfinder(network)
+        monkeypatch.setattr(
+            pathfinder, "flow_map", lambda nb_drones: flow_map
+        )
+        return Scheduler(network, pathfinder)
 
-
-@pytest.fixture
-def taker_for() -> Callable[..., TakerParts]:
-    """Return the ``make_taker`` helper (hop taker tests)."""
-    return make_taker
+    return make
 
 
 @pytest.fixture

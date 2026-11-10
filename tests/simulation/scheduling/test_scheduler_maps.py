@@ -1,4 +1,9 @@
-"""End-to-end tests of the Stage 5 Scheduler on real maps.
+"""End-to-end tests of the Scheduler and its flow map on real maps.
+
+The scheduler pulls every drone along a route of the flow map, built
+before the first turn; ``run_checked`` checks every turn against the
+routes and departures (``plan_departures``) and the end of the run
+against the flow map's ``last_turn``.
 
 The subject's sample map comes from the shared fixtures. The ten maps
 handed out with the subject are read from ``maps.tar.gz`` at the
@@ -24,7 +29,7 @@ from engine import (
 )
 from map_parser import MapParser
 from pathfinder import Pathfinder
-from scheduler import Scheduler
+from scheduler import Departure, Scheduler, plan_departures
 from turn_log_printer import TurnLogFormatter
 from world import Network, World, ZoneType
 
@@ -71,71 +76,83 @@ def run_engine(world: World) -> list[list[Move]]:
 
 
 class CheckedRun(NamedTuple):
-    """What ``run_checked`` returns: the turns and the detours taken."""
+    """What ``run_checked`` returns: the turns and the routes used."""
 
     turns: list[list[Move]]
-    detours: int
+    routes_used: int
 
 
 def run_checked(world: World) -> CheckedRun:
     """Play the turn loop by hand, checking the scheduler every turn.
 
-    Each turn: one order per drone, only for drones standing in zones,
-    each a shortest hop that lowers the distance, or a detour into a zone
-    the drone has never been in, all accepted by the resolver, at least
-    one move, and all within the default turn limit. The zones each drone
-    has been in are tracked here (the start, every order's target and the
-    landing target of a drone in flight). At the end no drone has taken
-    more detours than the network has zones minus one, the bound that
-    makes detours finite.
+    After the first decision the departures are rebuilt with the public
+    ``plan_departures`` from the scheduler's flow map. Each turn: one
+    order per drone, only for drones standing in zones, each into the
+    next zone of the drone's route, never into a zone of its history;
+    no drone outside the start zone waits, and a drone in the start zone
+    gets an order on its departure turn only; the resolver accepts the
+    turn, a drone moves, and all within the default turn limit. At the
+    end every history is its route, every drone arrived on the route's
+    ``arrival_turn`` of its departure, and the run took the flow map's
+    ``last_turn`` turns.
     """
     network = world.network
-    pathfinder = Pathfinder(network)
-    scheduler = Scheduler(network, pathfinder)
+    scheduler = Scheduler(network, Pathfinder(network))
     resolver = TurnResolver(network)
     state = SimulationState(network, world.nb_drones)
     limit = default_turn_limit(world)
     start = network.start_zone.name
-    visited = {drone_id: {start} for drone_id in state.drones}
-    detours = {drone_id: 0 for drone_id in state.drones}
+    arrived: dict[int, int] = {}
     turns: list[list[Move]] = []
+    departures: dict[int, Departure] | None = None
     while not state.is_complete:
         assert state.turn_number < limit, f"not finished in {limit} turns"
-        for drone in state.active_drones():
-            if drone.transit_target is not None:
-                visited[drone.drone_id].add(drone.transit_target)
         orders = scheduler.decide_moves(state)
+        if departures is None:
+            assert scheduler.flow_map is not None
+            departures = plan_departures(scheduler.flow_map, world.nb_drones)
+        turn = state.turn_number + 1
         ids = [order.drone_id for order in orders]
         assert len(ids) == len(set(ids)), f"two orders for one drone: {ids}"
-        for order in orders:
-            drone_id = order.drone_id
-            drone = state.drones[drone_id]
-            assert drone.status is DroneStatus.AT_ZONE
-            here = drone.current_zone
-            assert here is not None
-            shortest = [hop.zone.name for hop in pathfinder.next_hops(here)]
-            if order.zone_name in shortest:
-                after = pathfinder.distance(order.zone_name)
-                before = pathfinder.distance(here)
-                assert after is not None and before is not None
-                assert after < before
-            else:
-                longer = [h.zone.name for h in pathfinder.detour_hops(here)]
-                assert order.zone_name in longer, (
-                    f"D{drone_id} takes neither a shortest hop nor a detour"
-                )
-                assert order.zone_name not in visited[drone_id], (
-                    f"D{drone_id} enters {order.zone_name} again by a detour"
-                )
-                detours[drone_id] += 1
-            visited[drone_id].add(order.zone_name)
+        targets = {order.drone_id: order.zone_name for order in orders}
+        for drone in state.active_drones():
+            drone_id = drone.drone_id
+            if drone.status is not DroneStatus.AT_ZONE:
+                assert drone_id not in targets, f"D{drone_id} is in flight"
+                continue
+            departure = departures[drone_id]
+            if drone.current_zone == start and departure.turn != turn:
+                assert drone_id not in targets, f"D{drone_id} leaves early"
+                continue
+            assert drone_id in targets, f"D{drone_id} waits on turn {turn}"
+            target = targets[drone_id]
+            assert target == departure.route.zones[len(drone.history)], (
+                f"D{drone_id} leaves its route for {target}"
+            )
+            assert target not in drone.history, (
+                f"D{drone_id} goes back into {target}"
+            )
+        assert all(
+            state.drones[drone_id].status is DroneStatus.AT_ZONE
+            for drone_id in targets
+        )
         moves = resolver.resolve(state, orders)
         assert moves, f"turn {state.turn_number}: no drone moved"
         turns.append(moves)
+        for drone_id, drone in state.drones.items():
+            if drone.is_delivered and drone_id not in arrived:
+                arrived[drone_id] = state.turn_number
     assert state.delivered_count == world.nb_drones
-    bound = len(network.zones) - 1
-    assert all(count <= bound for count in detours.values()), detours
-    return CheckedRun(turns, sum(detours.values()))
+    assert departures is not None and scheduler.flow_map is not None
+    for drone_id, departure in departures.items():
+        drone = state.drones[drone_id]
+        assert tuple(drone.history) == departure.route.zones
+        assert arrived[drone_id] == departure.route.arrival_turn(
+            departure.turn
+        )
+    assert len(turns) == scheduler.flow_map.last_turn
+    used = {departure.route for departure in departures.values()}
+    return CheckedRun(turns, len(used))
 
 
 @pytest.fixture
@@ -176,8 +193,7 @@ def test_subject_sample_map_output(
 def test_restricted_only_map_output(load_world: Load) -> None:
     """R02: through restricted roof1 only, the run takes eight turns.
 
-    The drone landing in roof1 is planned to leave it (for roof2) on the
-    next turn, so one drone can take off toward roof1 every turn.
+    One route, and one drone leaves along it every turn.
     """
     assert output_lines(load_world(RESTRICTED_ONLY)) == [
         "D1-hub-roof1",
@@ -202,8 +218,9 @@ def test_restricted_only_map_output(load_world: Load) -> None:
 def test_every_turn_is_sound(load_world: Load, source: str) -> None:
     """R03: legal, progressing orders every turn until done.
 
-    Every order is a shortest hop that lowers the distance, or a detour
-    into a zone the drone has never been in.
+    Every order takes a drone to the next zone of its route, no drone
+    waits outside the start zone, and the run ends on the flow map's
+    last turn (see ``run_checked``).
     """
     assert run_checked(load_world(source)).turns
 
@@ -226,17 +243,14 @@ def test_provided_map_reaches_optimum(
     assert len(run_engine(world)) <= optimum
 
 
-def test_challenger_within_quarter_of_optimum(load_world: Load) -> None:
-    """R05: all 25 drones arrive within 25% of the VII.6 optimum (43).
-
-    The optimum itself (the IX bonus) is not reached: the scheduler
-    takes 44 turns (R19; decisions 2026-10-23).
-    """
+def test_challenger_reaches_optimum(load_world: Load) -> None:
+    """R05: all 25 drones arrive in the VII.6 optimum (43 turns), the
+    IX bonus."""
     member, nb_drones, optimum, _ = CHALLENGER
     world = load_world(member)
     assert world.nb_drones == nb_drones
 
-    assert len(run_engine(world)) <= optimum * 1.25
+    assert len(run_engine(world)) == optimum
 
 
 def test_provided_maps_archive(
@@ -285,11 +299,9 @@ def test_runs_are_deterministic(load_world: Load, source: str) -> None:
 def test_turns_not_below_single_drone_bound(
     load_world: Load, source: str
 ) -> None:
-    """R08: no run is shorter than one drone's shortest path."""
+    """R08: no run is shorter than one drone's fastest route."""
     world = load_world(source)
-    start = world.network.start_zone.name
-    bound = Pathfinder(world.network).distance(start)
-    assert bound is not None
+    bound = Pathfinder(world.network).flow_map(1).last_turn
 
     turns = len(run_engine(world))
 
@@ -300,7 +312,7 @@ def test_turns_not_below_single_drone_bound(
         assert turns >= 3
 
 
-# --- planned moves and evictions (timed reservation) ------------------
+# --- small maps, line by line ----------------------------------------
 
 
 def output_lines(world: World) -> list[str]:
@@ -317,7 +329,8 @@ def output_lines(world: World) -> list[str]:
 
 
 def test_single_restricted_zone(make_network: MakeNetwork) -> None:
-    """R09: D1 is planned to leave r as D2 lands (the old rules took 5)."""
+    """R09: one route, one drone leaving along it each turn (the old
+    rules took 5)."""
     network = make_network("s-r r-g", types={"r": R})
 
     assert output_lines(World(network, 2)) == [
@@ -336,11 +349,11 @@ def test_single_restricted_zone(make_network: MakeNetwork) -> None:
             {"r": 2},
             {"s-r": 2},
             [
-                "D1-s-r D2-s-r",
-                "D1-r D2-r D3-s-r",
-                "D1-g D3-r D4-s-r",
-                "D2-g D4-r",
-                "D3-g",
+                "D1-s-r",
+                "D1-r D2-s-r",
+                "D1-g D2-r D3-s-r",
+                "D2-g D3-r D4-s-r",
+                "D3-g D4-r",
                 "D4-g",
             ],
             id="K1",
@@ -350,11 +363,11 @@ def test_single_restricted_zone(make_network: MakeNetwork) -> None:
             {"r": 2, "a": 1},
             {"s-r": 2, "r-a": 2},
             [
-                "D1-s-r D2-s-r",
-                "D1-r D2-r D3-s-r",
-                "D1-a D3-r D4-s-r",
-                "D1-g D2-a D4-r",
-                "D2-g D3-a",
+                "D1-s-r",
+                "D1-r D2-s-r",
+                "D1-a D2-r D3-s-r",
+                "D1-g D2-a D3-r D4-s-r",
+                "D2-g D3-a D4-r",
                 "D3-g D4-a",
                 "D4-g",
             ],
@@ -369,7 +382,8 @@ def test_wide_restricted_zone_with_narrow_exit(
     links: dict[str, int],
     expected: list[str],
 ) -> None:
-    """R10: failed evictions are undone and nobody gets stuck."""
+    """R10: the narrow exit lets one drone per turn through the wide
+    restricted zone, so one leaves each turn (both optimal)."""
     network = make_network(
         edges, types={"r": R}, capacity=capacity, links=links
     )
@@ -377,8 +391,8 @@ def test_wide_restricted_zone_with_narrow_exit(
     assert output_lines(World(network, 4)) == expected
 
 
-def test_eviction_as_last_resort_map(make_network: MakeNetwork) -> None:
-    """R11: two restricted ways; evicting only as a last resort (5 turns)."""
+def test_two_restricted_routes_map(make_network: MakeNetwork) -> None:
+    """R11: two restricted routes, two drones leaving each turn (5 turns)."""
     network = make_network(
         "s-a a-g s-b b-g",
         types={"a": R, "b": R},
@@ -387,10 +401,10 @@ def test_eviction_as_last_resort_map(make_network: MakeNetwork) -> None:
     )
 
     assert output_lines(World(network, 6)) == [
-        "D1-s-a D2-s-a D3-s-b",
-        "D1-a D2-a D3-b D4-s-b D5-s-a",
-        "D1-g D3-g D4-b D5-a D6-s-b",
-        "D2-g D4-g D6-b",
+        "D1-s-a D2-s-b",
+        "D1-a D2-b D3-s-a D4-s-b",
+        "D1-g D2-g D3-a D4-b D5-s-a D6-s-b",
+        "D3-g D4-g D5-a D6-b",
         "D5-g D6-g",
     ]
 
@@ -450,14 +464,18 @@ def test_restricted_zones_in_a_row(
     nb_drones: int,
     expected: list[str],
 ) -> None:
-    """R12: evictions recurse through restricted zones of capacity 1."""
+    """R12: restricted zones of capacity 1 in a row, one drone leaving
+    each turn."""
     network = make_network(edges, types={"r1": R, "r2": R, "r3": R})
 
     assert output_lines(World(network, nb_drones)) == expected
 
 
-def test_rule_6_prime_map(make_network: MakeNetwork) -> None:
-    """R13: D3 enters z1 on turn 7 and evicts itself (11 turns, not 12)."""
+def test_one_route_through_two_restricted_zones_map(
+    make_network: MakeNetwork,
+) -> None:
+    """R13: one route s z4 z3 z1 g, one drone leaving each turn (z2 and z0
+    unused; 11 turns, optimal)."""
     network = make_network(
         "z3-z1 z4-z3 z3-z2 s-z4 z2-z4 z2-z0 z1-g z0-z1",
         types={"z3": R, "z4": R},
@@ -469,18 +487,19 @@ def test_rule_6_prime_map(make_network: MakeNetwork) -> None:
         "D1-z4 D2-s-z4",
         "D1-z4-z3 D2-z4 D3-s-z4",
         "D1-z3 D2-z4-z3 D3-z4 D4-s-z4",
-        "D1-z1 D2-z3 D3-z2 D4-z4 D5-s-z4",
-        "D1-g D2-z1 D3-z0 D4-z4-z3 D5-z4 D6-s-z4",
+        "D1-z1 D2-z3 D3-z4-z3 D4-z4 D5-s-z4",
+        "D1-g D2-z1 D3-z3 D4-z4-z3 D5-z4 D6-s-z4",
         "D2-g D3-z1 D4-z3 D5-z4-z3 D6-z4",
-        "D3-g D4-z1 D5-z3 D6-z2",
-        "D4-g D5-z1 D6-z0",
+        "D3-g D4-z1 D5-z3 D6-z4-z3",
+        "D4-g D5-z1 D6-z3",
         "D5-g D6-z1",
         "D6-g",
     ]
 
 
-def test_rule_7_map(make_network: MakeNetwork) -> None:
-    """R14: planned moves go first, and a drone may leave before its plan."""
+def test_restricted_chain_map(make_network: MakeNetwork) -> None:
+    """R14: one route through two restricted zones, one drone leaving each
+    turn (8 turns)."""
     network = make_network(
         "z0-g s-z1 z1-z0",
         types={"z0": R, "z1": R},
@@ -541,12 +560,13 @@ def test_random_restricted_maps_never_get_stuck(
     """R15: many random maps rich in restricted zones all run to the end.
 
     ``run_checked`` fails on any stuck drone or capacity violation, on a
-    move that is neither a shortest hop nor a detour into a new zone, on
-    a turn without movement and past the default turn limit. Some of the
-    maps must take detours, so that the detour path is exercised too.
+    move off the drone's route, on a drone waiting outside the start
+    zone, on a turn without movement and past the default turn limit.
+    Some of the maps must use two routes or more, so that drones are
+    split between routes too.
     """
     rng = random.Random(RANDOM_SEED)
-    detours = 0
+    split = 0
     for index in range(RANDOM_MAPS):
         edges, types, capacity, links, nb_drones = random_map(rng)
         network = make_network(
@@ -558,17 +578,18 @@ def test_random_restricted_maps_never_get_stuck(
             f"capacity={capacity} links={links} drones={nb_drones}"
         )
         try:
-            detours += run_checked(World(network, nb_drones)).detours
+            if run_checked(World(network, nb_drones)).routes_used >= 2:
+                split += 1
         except Exception as error:
             raise AssertionError(f"{where}: {error}") from error
-    assert detours >= 1
+    assert split >= 1
 
 
-# --- detours on real maps ---------------------------------------------
+# --- routes on real maps ----------------------------------------------
 
 # Turn counts of the real scheduler on the provided maps (R19). They
-# match the stage 5 benchmark record; when an improvement changes them,
-# update this table and that record together.
+# are the VII.6 optimum of every map; when a change moves them, update
+# this table and the benchmark record together.
 PROVIDED_TURNS = {
     "maps/easy/01_linear_path.txt": 4,
     "maps/easy/02_simple_fork.txt": 4,
@@ -579,13 +600,21 @@ PROVIDED_TURNS = {
     "maps/hard/01_maze_nightmare.txt": 13,
     "maps/hard/02_capacity_hell.txt": 16,
     "maps/hard/03_ultimate_challenge.txt": 26,
-    "maps/challenger/01_the_impossible_dream.txt": 44,
+    "maps/challenger/01_the_impossible_dream.txt": 43,
 }
-# Detours taken in a whole run (R20); maps missing here take none.
-DETOURS_TAKEN = {
+# Routes of the flow map on each real map (R20).
+ROUTES_USED = {
     SUBJECT: 2,
+    "maps/easy/01_linear_path.txt": 1,
+    "maps/easy/02_simple_fork.txt": 2,
+    "maps/easy/03_basic_capacity.txt": 1,
+    "maps/medium/01_dead_end_trap.txt": 1,
+    "maps/medium/02_circular_loop.txt": 1,
     "maps/medium/03_priority_puzzle.txt": 2,
-    "maps/hard/01_maze_nightmare.txt": 3,
+    "maps/hard/01_maze_nightmare.txt": 1,
+    "maps/hard/02_capacity_hell.txt": 1,
+    "maps/hard/03_ultimate_challenge.txt": 1,
+    "maps/challenger/01_the_impossible_dream.txt": 1,
 }
 
 
@@ -611,23 +640,22 @@ def orders_by_turn(world: World) -> list[list[tuple[int, str]]]:
 def test_subject_sample_map_orders(load_world: Load) -> None:
     """R16: the orders of every turn on the subject's example.
 
-    Turn 1: D2 goes round by roof1 (4 + 0 <= 3 + 1; hub-roof1 is then
-    used, so D3 to D5 wait). Turn 2: D4 follows into roof1 (4 + 1 <= 3 +
-    2, counting D2 landing there) by planning D2's eviction, which comes
-    first on turn 3.
+    D2 and D4 go round by roof1. The zones pull in the order goal,
+    roof2, tunnelB, roof1, corridorA (the same values as SC03, here
+    through the parser and the shared fixtures).
     """
     assert orders_by_turn(load_world(SUBJECT)) == [
-        [(1, "corridorA"), (2, "roof1")],
-        [(1, "tunnelB"), (3, "corridorA"), (4, "roof1")],
-        [(2, "roof2"), (1, "goal"), (3, "tunnelB"), (5, "corridorA")],
-        [(2, "goal"), (3, "goal"), (5, "tunnelB"), (4, "roof2")],
+        [(2, "roof1"), (1, "corridorA")],
+        [(1, "tunnelB"), (4, "roof1"), (3, "corridorA")],
+        [(1, "goal"), (2, "roof2"), (3, "tunnelB"), (5, "corridorA")],
+        [(2, "goal"), (3, "goal"), (4, "roof2"), (5, "tunnelB")],
         [(4, "goal"), (5, "goal")],
     ]
 
 
 def test_priority_puzzle_output(load_world: Load) -> None:
-    """R17: restricted detours, and fast_path (priority route) deciding
-    before slow_path2 at the same distance: six turns instead of eight."""
+    """R17: two routes (4 and 5 turns), the priority fast_path and the
+    restricted slow_path1: six turns instead of eight."""
     world = load_world("maps/medium/03_priority_puzzle.txt")
 
     assert output_lines(world) == [
@@ -644,20 +672,21 @@ def test_priority_puzzle_output(load_world: Load) -> None:
 @pytest.mark.parametrize(
     ("nb_drones", "expected"),
     [
-        (2, ["D1-a D2-s-r", "D1-g D2-r", "D2-g"]),
+        (2, ["D1-a", "D1-g D2-a", "D2-g"]),
         (3, ["D1-a D2-s-r", "D1-g D2-r D3-a", "D2-g D3-g"]),
         (
             4,
-            ["D1-a D2-s-r", "D1-g D2-r D3-a", "D2-g D3-g D4-a", "D4-g"],
+            ["D1-a D2-s-r", "D1-g D2-r D3-a D4-s-r", "D2-g D3-g D4-r",
+             "D4-g"],
         ),
     ],
     ids=["two", "three", "four"],
 )
-def test_small_detour_map(
+def test_small_restricted_branch_map(
     make_network: MakeNetwork, nb_drones: int, expected: list[str]
 ) -> None:
-    """R18: s-a a-g s-r r-g with r restricted; only D2 goes round by r
-    (with four drones D4 finds r's queue too long)."""
+    """R18: s-a a-g s-r r-g with r restricted; two drones do not use r
+    (it would not arrive sooner), three and four do (FM09)."""
     network = make_network("s-a a-g s-r r-g", types={"r": R})
 
     assert output_lines(World(network, nb_drones)) == expected
@@ -678,12 +707,15 @@ def test_provided_map_turn_counts(load_world: Load, member: str) -> None:
     [SUBJECT, *(entry[0] for entry in PROVIDED_MAPS)],
     ids=[SUBJECT, *(map_id(entry[0]) for entry in PROVIDED_MAPS)],
 )
-def test_detours_taken_on_real_maps(load_world: Load, source: str) -> None:
-    """R20: how many detours a whole run takes on each real map.
+def test_routes_used_on_real_maps(load_world: Load, source: str) -> None:
+    """R20: how many routes the flow map has on each real map, and every
+    one of them takes drones.
 
-    This catches a change in the detour rules even when the turn counts
-    of R19 stay the same.
+    This catches a change in the flow map even when the turn counts of
+    R19 stay the same.
     """
-    expected = DETOURS_TAKEN.get(source, 0)
+    world = load_world(source)
+    flow_map = Pathfinder(world.network).flow_map(world.nb_drones)
 
-    assert run_checked(load_world(source)).detours == expected
+    assert len(flow_map.routes) == ROUTES_USED[source]
+    assert run_checked(world).routes_used == ROUTES_USED[source]
