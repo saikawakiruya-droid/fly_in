@@ -2,9 +2,8 @@
 
 import sys
 
-from droneflow.app import Application
-from droneflow.cli import parse_args
-from droneflow.errors import FlyInError
+from app import Application, parse_args
+from errors import FlyInError
 
 EXIT_INTERRUPTED = 130
 """Exit status after Ctrl+C (128 + SIGINT), as shells report it."""

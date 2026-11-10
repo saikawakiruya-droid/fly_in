@@ -1,17 +1,25 @@
-"""MapFormat: a declarative description of every line a map file may hold.
+"""The map format as tables: the line kinds and the rules across lines.
 
-The table at the bottom of this module is the single place that says which
-keywords exist, what each one carries, and which defaults apply. The
-tokenizer reads it to learn a line's shape; the validator asks each
-LineSpec to turn a tokenized line into a model object.
+The parts, in the order they are defined (each uses the ones above
+it; the last one is what the rest of the program uses):
+
+* MapFormat: a declarative description of every line a map file may hold.
+* Rule: the checks that need to see more than one line of the map.
 """
 
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import Protocol, TypeVar
 
-from ..models.connection import Connection
-from ..models.zone import Zone, ZoneRole, ZoneType
+from world import Connection, Network, Zone, ZoneRole, ZoneType
+
+
+# --- MapFormat --------------------------------------------------------
+# The table at the bottom of this module is the single place that says which
+# keywords exist, what each one carries, and which defaults apply. The
+# tokenizer reads it to learn a line's shape; the validator asks each
+# LineSpec to turn a tokenized line into a model object.
 
 T = TypeVar("T")
 
@@ -106,7 +114,7 @@ def to_text(raw: str) -> str:
 
     Every FieldSpec needs a converter. Color names are not checked by the
     parser: each view decides what to do with a name it does not know (see
-    ``palette.rgb``).
+    ``terminal_view.rgb`` and ``matplotlib_window._zone_color``).
 
     Args:
         raw: The raw string from the map line.
@@ -455,3 +463,193 @@ DEFAULT_FORMAT = MapFormat(
         ),
     ),
 )
+
+
+# --- Rule -------------------------------------------------------------
+# Each rule inspects a newly built entry against the Network assembled so far
+# and raises ValueError when the entry would break a parser constraint.
+
+class Rule(Protocol):
+    """Anything that can veto an entry given the network built so far."""
+
+    def check(self, entry: Entry, network: Network) -> None:
+        """Raise ValueError if ``entry`` violates this rule.
+
+        Args:
+            entry: The entry built from the current line.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If the entry breaks the rule.
+        """
+
+
+class ZoneRule(ABC):
+    """A rule about zones; entries of any other kind are ignored."""
+
+    def check(self, entry: Entry, network: Network) -> None:
+        """Check ``entry`` if it is a Zone.
+
+        Args:
+            entry: The entry built from the current line.
+            network: The network built from the lines so far.
+        """
+        if isinstance(entry, Zone):
+            self.check_zone(entry, network)
+
+    @abstractmethod
+    def check_zone(self, zone: Zone, network: Network) -> None:
+        """Raise ValueError if ``zone`` violates this rule.
+
+        Args:
+            zone: The zone the current line declares.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If the zone breaks the rule.
+        """
+
+
+class ConnectionRule(ABC):
+    """A rule about connections; entries of any other kind are ignored."""
+
+    def check(self, entry: Entry, network: Network) -> None:
+        """Check ``entry`` if it is a Connection.
+
+        Args:
+            entry: The entry built from the current line.
+            network: The network built from the lines so far.
+        """
+        if isinstance(entry, Connection):
+            self.check_connection(entry, network)
+
+    @abstractmethod
+    def check_connection(
+        self, connection: Connection, network: Network
+    ) -> None:
+        """Raise ValueError if ``connection`` violates this rule.
+
+        Args:
+            connection: The connection the current line declares.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If the connection breaks the rule.
+        """
+
+
+class UniqueZoneName(ZoneRule):
+    """A zone name may be declared only once."""
+
+    def check_zone(self, zone: Zone, network: Network) -> None:
+        """Reject a zone whose name is already declared.
+
+        Args:
+            zone: The zone the current line declares.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If the name is already used.
+        """
+        if zone.name in network.zones:
+            raise ValueError(f"duplicate zone name: {zone.name}")
+
+
+class SingleStartAndEnd(ZoneRule):
+    """At most one start_hub and one end_hub may be declared."""
+
+    def check_zone(self, zone: Zone, network: Network) -> None:
+        """Reject a second start_hub or end_hub.
+
+        Args:
+            zone: The zone the current line declares.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If a zone with the same role is already declared.
+        """
+        if zone.role is ZoneRole.HUB:
+            return
+        if any(other.role is zone.role for other in network.zones.values()):
+            raise ValueError(f"duplicate {zone.role.value}")
+
+
+class KnownEndpoints(ConnectionRule):
+    """A connection may only join zones that were already declared."""
+
+    def check_connection(
+        self, connection: Connection, network: Network
+    ) -> None:
+        """Reject a connection to a zone not declared yet.
+
+        Args:
+            connection: The connection the current line declares.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If either zone is not declared yet.
+        """
+        for name in (connection.zone_a, connection.zone_b):
+            if name not in network.zones:
+                raise ValueError(f"unknown zone: {name}")
+
+
+class DistinctEndpoints(ConnectionRule):
+    """A connection joins two different zones (``a-a`` is not allowed)."""
+
+    def check_connection(
+        self, connection: Connection, network: Network
+    ) -> None:
+        """Reject a connection from a zone to itself.
+
+        Args:
+            connection: The connection the current line declares.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If both ends are the same zone.
+        """
+        if connection.zone_a == connection.zone_b:
+            raise ValueError(
+                "a connection must join two different zones, got "
+                f"{connection.zone_a}-{connection.zone_b}"
+            )
+
+
+class UniqueConnection(ConnectionRule):
+    """a-b and b-a are the same connection and may be declared only once."""
+
+    def check_connection(
+        self, connection: Connection, network: Network
+    ) -> None:
+        """Reject a connection between two already-connected zones.
+
+        Args:
+            connection: The connection the current line declares.
+            network: The network built from the lines so far.
+
+        Raises:
+            ValueError: If the two zones are already connected.
+        """
+        if network.connection_between(
+            connection.zone_a, connection.zone_b
+        ) is not None:
+            raise ValueError(
+                f"duplicate connection: "
+                f"{connection.zone_a}-{connection.zone_b}"
+            )
+
+
+def default_rules() -> list[Rule]:
+    """Return the rules enforcing the parser constraints.
+
+    Returns:
+        A new list of the rules, in the order they are checked.
+    """
+    return [
+        UniqueZoneName(),
+        SingleStartAndEnd(),
+        KnownEndpoints(),
+        DistinctEndpoints(),
+        UniqueConnection(),
+    ]

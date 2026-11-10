@@ -22,8 +22,9 @@ respecting the movement rules of the subject:
 
 The program parses and validates the map, computes distances to the goal,
 schedules the moves of every drone turn by turn, checks every turn against
-the rules, prints the turn log in the required format, and shows the run in
-the terminal with colors (and, with `--matplotlib-window`, in a window).
+the rules, prints the turn log in the required format, and, when asked,
+shows the run in the terminal with colors (`--terminal-view`) or in a window
+(`--matplotlib-window`).
 No graph library is used: the graph, the
 shortest-path search and the scheduler are written by hand, as the subject
 requires. The code is object-oriented, type-annotated, and passes `flake8`
@@ -46,7 +47,7 @@ connection: corridorA-tunnelB [max_link_capacity=2]
 
 | Line | Meaning |
 | --- | --- |
-| `nb_drones: <n>` | Number of drones, a positive integer. **Must be the physical first line of the file.** |
+| `nb_drones: <n>` | Number of drones, a positive integer. **Must be the first line that is not a comment or blank.** |
 | `start_hub: <name> <x> <y> [metadata]` | The start zone (exactly one). |
 | `end_hub: <name> <x> <y> [metadata]` | The end zone (exactly one). |
 | `hub: <name> <x> <y> [metadata]` | A regular zone. |
@@ -58,12 +59,14 @@ Zone metadata (optional, any order): `zone=normal|blocked|restricted|priority`
 Connection metadata: `max_link_capacity=<n>` (default 1).
 
 The parser stops at the first problem and reports the line and the cause.
-It rejects, among others: a first line that is not `nb_drones:`, a
+It rejects, among others: a first line (after comments and blank lines)
+that is not `nb_drones:`, a
 non-positive drone count or capacity, a non-integer coordinate, an unknown
 zone type, an unknown or repeated metadata key, a malformed `[...]` block, a
 zone name containing `-`, a duplicate zone name, a second `start_hub` or
-`end_hub`, a connection to a zone not declared yet, a duplicate connection
-(`a-b` and `b-a` are the same), and a missing `start_hub` or `end_hub`.
+`end_hub`, a connection to a zone not declared yet, a connection from a zone
+to itself (`a-a`), a duplicate connection (`a-b` and `b-a` are the same),
+and a missing `start_hub` or `end_hub`.
 `zone=blocked` is not allowed on the start or end zone. As the subject says,
 `max_drones` on the start and end zones is accepted and ignored. A map whose
 end zone cannot be reached from the start zone is reported after parsing.
@@ -81,9 +84,9 @@ moves of that turn separated by spaces, in drone number order.
 - Drones that do not move are left out; a delivered drone no longer appears.
   The run ends when every drone is in the end zone.
 
-Everything else goes to standard error: the terminal view, errors, and a
-final summary line with the total number of turns and two of the subject's
-secondary metrics (average delivery turn per drone, average moves per turn):
+Everything else goes to standard error: errors, the terminal view (only
+with `--terminal-view`), and a final summary line with the total number of
+turns and two of the subject's secondary metrics (average delivery turn per drone, average moves per turn):
 
 ```text
 summary: 5 turns, 5 drones, 4.20 turns per drone on average, 3.40 moves per turn
@@ -128,30 +131,30 @@ example of the subject) is included.
 
 ```sh
 make install
-.venv/bin/python fly_in.py MAP [--matplotlib-window]
+.venv/bin/python fly_in.py MAP [--terminal-view] [--matplotlib-window]
 ```
 
-The map file is the only required argument (`-h` shows the usage).
-`--matplotlib-window` also shows the run in a window (see "Visual
-representation"); the turn log and the terminal view are unchanged.
+The map file is the only required argument (`-h` shows the usage). Each view
+is used only when its option is given (see "Visual representation"), and the
+two can be combined; the turn log on standard output is the same either way:
 
-**Maps that start with comments.** The parser reads the physical first line
-as the `nb_drones:` header (the subject: "The first line must define the
-number of drones"), so a file whose first line is a comment or a blank line is
-rejected:
+- `--terminal-view` draws each turn in the terminal, on standard error;
+- `--matplotlib-window` shows the run in a matplotlib window.
 
-```text
-$ .venv/bin/python fly_in.py comment_first.txt
-error: line 1: the first line must be 'nb_drones: <n>'
-```
-
-The maps distributed with the subject begin with comment lines. To run one,
-drop everything before its `nb_drones:` line into a temporary file and run
-that file:
+**Maps that start with comments.** The parser skips comments and blank
+lines before the `nb_drones:` header (the subject: "The first line must
+define the number of drones"), so the maps distributed with the subject,
+which begin with comment lines, run as they are:
 
 ```sh
-sed -n '/^nb_drones:/,$p' path/to/map.txt > /tmp/map.txt
-make run MAP=/tmp/map.txt
+make run MAP=path/to/maps/easy/01_linear_path.txt
+```
+
+Any other line before the header is an error, reported on its line:
+
+```text
+$ .venv/bin/python fly_in.py hub_first.txt
+error: line 2: the first line that is not a comment must be 'nb_drones: <n>'
 ```
 
 ### Exit codes
@@ -172,6 +175,7 @@ error: line 3: name must not contain '-', got 'a-b'
 error: line 4: zone must be one of normal, blocked, restricted, priority, got 'lava'
 error: line 4: unknown zone: x
 error: line 4: max_link_capacity must be a positive integer, got 0
+error: line 5: a connection must join two different zones, got a-a
 error: line 5: duplicate connection: e-s
 error: line 2: malformed metadata block
 error: line 2: missing end_hub
@@ -230,10 +234,10 @@ in 5 turns.
 ```text
 map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
                                                                  |
-        TurnLogPrinter, TerminalVisualizer  <-  SimulationEngine + TurnResolver
+     TurnLogPrinter (+ the views asked for)  <-  SimulationEngine + TurnResolver
 ```
 
-1. **Parsing** (`droneflow/parsing`). `MapReader` yields numbered lines.
+1. **Parsing** (`map_parser.py`, `map_parser_format.py`). `MapReader` yields numbered lines.
    `LineTokenizer` checks each line's syntax against `MapFormat`, a
    declarative table of the line kinds, their fields, defaults and
    converters. `MapValidator` converts the fields and asks a list of `Rule`
@@ -241,7 +245,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    connections) to check what spans several lines. The result is a `World`:
    a hand-built `Network` (zones and an adjacency list) plus the drone count.
 
-2. **Distances** (`droneflow/pathfinding`). `DistanceMap` runs **one
+2. **Distances** (`pathfinder.py`). `DistanceMap` runs **one
    Dijkstra search from the end zone** (with `heapq`) over the reversed
    connections. Moving into a zone costs that zone's turn cost (1, or 2 for a
    restricted zone); blocked zones are never entered. It gives, for every
@@ -258,7 +262,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    The distances and each zone's next hops are computed once per run and
    cached; nothing is recomputed during the simulation.
 
-3. **Scheduling** (`droneflow/simulation/scheduling`). Every turn, the
+3. **Scheduling** (`scheduler.py`, `scheduler_reservation_table.py`). Every turn, the
    `Scheduler` decides one order per drone standing in a zone (no order means
    it waits):
    - drones in flight toward a restricted zone get no order; they land
@@ -298,7 +302,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    happen, and the drone closest to the goal always has room on its shortest
    route).
 
-4. **Rule checking** (`droneflow/simulation`). The `SimulationEngine` runs
+4. **Rule checking** (`engine.py`). The `SimulationEngine` runs
    the turn loop. Each turn, the `TurnResolver` lands drones in flight, checks
    every order (an existing, non-blocked, adjacent zone; one order per drone),
    then checks connection capacity on departures and zone capacity on the
@@ -309,11 +313,11 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    limit (`2 * zones * drones`) stops the run with an error. The scheduler is
    therefore never trusted blindly: every printed turn has been checked.
 
-5. **Output** (`droneflow/output`, `droneflow/visualization`). The engine
-   calls its observers after every turn: the `TurnLogPrinter` writes and
-   flushes the turn line on standard output, and the `TerminalVisualizer`
-   draws the state on standard error. At the end, `RunSummary` writes the
-   summary line.
+5. **Output** (`turn_log_printer.py`, `terminal_view.py`,
+   `matplotlib_window.py`). The engine calls its observers after every turn:
+   the `TurnLogPrinter` writes and flushes the turn line on standard output,
+   and the views asked for on the command line draw the state. At the end,
+   `RunSummary` writes the summary line.
 
 **Cost.** With Z zones, C connections and D drones: the Dijkstra search is
 O((Z + C) log Z), done once. Each turn, every drone standing in a zone tries
@@ -325,27 +329,36 @@ drone positions, plus the planned moves.
 ### Code structure
 
 ```text
-fly_in.py                    entry point: arguments, exit codes, error lines
-droneflow/
-  cli.py                     the map argument (argparse) -> Args
-  app.py                     Application: wires the stages together
-  errors.py                  FlyInError and its subclasses
-  models/                    Zone, ZoneType, ZoneRole, Connection, Drone,
-                             Network (hand-built graph), World
-  parsing/                   MapReader, LineTokenizer, MapFormat (line table),
-                             MapValidator, map rules, MapParser
-  pathfinding/               DistanceMap (Dijkstra from the goal), Pathfinder
-  simulation/                SimulationState, TurnResolver (rules),
-                             SimulationEngine (turn loop), TurnObserver
-    scheduling/              Scheduler, ZoneRanking, TurnLedger, HopTaker,
-                             Evictor, ReservationTable, DetourPolicy,
-                             PositionBoard
-  output/                    TurnLogFormatter, TurnLogPrinter, RunSummary
-  visualization/             palette (color names, shared by both views)
-    terminal/                TerminalVisualizer
-    matplotlib_window/       MatplotlibWindowVisualizer and MapScene,
-                             geometry (where connections are drawn)
+fly_in.py                       entry point: exit codes and error lines
+app.py                          Args (the command line) and Application, which
+                                wires the files below together
+errors.py                       FlyInError and its subclasses
+world.py                        Zone, Connection, Network (the hand-built graph),
+                                World
+map_parser.py                   MapReader, LineTokenizer, MapValidator, MapParser
+map_parser_format.py            MapFormat (the table of line kinds) and the rules
+                                that span several lines
+pathfinder.py                   DistanceMap (Dijkstra from the goal), Pathfinder
+engine.py                       Drone, SimulationState, TurnResolver (the rules),
+                                TurnObserver, SimulationEngine (the turn loop)
+scheduler.py                    DetourPolicy, ZoneRanking, HopTaker, Scheduler
+scheduler_reservation_table.py  PositionBoard, ReservationTable, TurnLedger,
+                                Evictor: the plans for later turns
+turn_log_printer.py             TurnLogFormatter, TurnLogPrinter, RunSummary
+terminal_view.py                TerminalVisualizer and its color names
+                                (--terminal-view)
+matplotlib_window.py            MatplotlibWindowVisualizer, MapScene and the plane
+                                geometry (--matplotlib-window)
 ```
+
+Every source file is at the root of the repository, as the subject asks.
+Each file holds one part of the program with the classes it delegates to,
+defined in the order they are used: the classes a file needs come first,
+and the one the rest of the program uses is last; the file's docstring
+lists them. The two biggest parts are split in two, and the second file is
+named after the first (`scheduler_reservation_table.py` holds the
+scheduler's plans for later turns, `map_parser_format.py` the parser's
+tables). Each view is one file.
 
 Design choices visible in the code:
 
@@ -364,8 +377,11 @@ Design choices visible in the code:
 ## Visual representation
 
 The subject asks for visual feedback through colored terminal output, a
-graphical interface, or both. This program provides the colored terminal
-output, and a simple matplotlib window with `--matplotlib-window`.
+graphical interface, or both. This program provides both, each behind its
+own option: the colored terminal output with `--terminal-view`, and a
+simple matplotlib window with `--matplotlib-window`.
+
+### Terminal view (`--terminal-view`)
 
 The terminal view writes one frame per turn to standard error, so it never
 mixes with the turn log on standard output. Each frame has:
@@ -388,7 +404,9 @@ how many zones fit on a line, and long names are shortened with `~`. Seeing
 the loads, the drones in flight and the moves of each turn side by side makes
 it easy to follow why a drone waits or takes a detour.
 
-The initial state and the first two turns of the example (`NO_COLOR=1`, 100 columns):
+The initial state and the first two turns of the example
+(`NO_COLOR=1 .venv/bin/python fly_in.py --terminal-view maps/subject_example.txt`,
+100 columns):
 
 ```text
 === Turn 0 (start) | 5 drones | 7 zones, 6 connections ===
@@ -419,7 +437,8 @@ instead of looking like an overflow.
 The window (matplotlib) draws the map once and then the drones, one turn
 every 0.5 seconds:
 
-- zones are circles filled with their `color=`; restricted zones are
+- zones are circles filled with their `color=` (matplotlib's color names;
+  an unknown name is drawn gray); restricted zones are
   squares, blocked zones are dark gray, and the ring marks the start and end
   (white), restricted (red) and priority (gold) zones; names are written
   under the zones on maps of up to 60 zones;
