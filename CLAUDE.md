@@ -34,7 +34,7 @@
 ## ブランチごとの責任分化
 
 - **`main`**: 提出物としてのデリバラブルのみを含む。`docs/`(調査記録・意思決定記録・バグ記録)は含めない。
-  - 含めるもの: ソースコード(`fly_in.py`, `droneflow/`)、`Makefile`、`.gitignore`、`.gitattributes`、`README.md`、`README.ja.md`、
+  - 含めるもの: ソースコード(リポジトリ直下の `*.py`。`fly_in.py` が入口)、`Makefile`、`.gitignore`、`.gitattributes`、`README.md`、`README.ja.md`、
     `requirements.txt`、`setup.cfg`、`maps/subject_example.txt`(`make run` の既定のマップ)、`CLAUDE.md`。
   - 含めないもの: `docs/`、`tests/`(2026-10-19 の決定)、`maps.tar.gz`(配布資料。2026-10-22 の決定)。
   - main 用の差分: `tests/` が無いので、main では `Makefile` の `test` ターゲット、`requirements.txt` の pytest、
