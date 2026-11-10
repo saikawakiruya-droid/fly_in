@@ -13,17 +13,14 @@ from typing import Callable
 
 import pytest
 
-from engine import SimulationEngine
-from engine_state import Move, SimulationState
+from engine import Move, SimulationEngine, SimulationState, TurnObserver
 from pathfinder import Pathfinder
 from scheduler import Scheduler
 from terminal_view import (
     TerminalVisualizer,
     color_enabled,
 )
-from turn_observer import TurnObserver
-from world import World
-from world_network import Network
+from world import Network, World
 
 MakeNetwork = Callable[..., Network]
 CoordNetwork = Callable[..., Network]

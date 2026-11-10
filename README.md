@@ -239,7 +239,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
      TurnLogPrinter (+ the views asked for)  <-  SimulationEngine + TurnResolver
 ```
 
-1. **Parsing** (`map_parser*.py`). `MapReader` yields numbered lines.
+1. **Parsing** (`map_parser.py`, `map_parser_format.py`). `MapReader` yields numbered lines.
    `LineTokenizer` checks each line's syntax against `MapFormat`, a
    declarative table of the line kinds, their fields, defaults and
    converters. `MapValidator` converts the fields and asks a list of `Rule`
@@ -247,7 +247,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    connections) to check what spans several lines. The result is a `World`:
    a hand-built `Network` (zones and an adjacency list) plus the drone count.
 
-2. **Distances** (`pathfinder*.py`). `DistanceMap` runs **one
+2. **Distances** (`pathfinder.py`). `DistanceMap` runs **one
    Dijkstra search from the end zone** (with `heapq`) over the reversed
    connections. Moving into a zone costs that zone's turn cost (1, or 2 for a
    restricted zone); blocked zones are never entered. It gives, for every
@@ -264,7 +264,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    The distances and each zone's next hops are computed once per run and
    cached; nothing is recomputed during the simulation.
 
-3. **Scheduling** (`scheduler*.py`). Every turn, the
+3. **Scheduling** (`scheduler.py`, `scheduler_reservation_table.py`). Every turn, the
    `Scheduler` decides one order per drone standing in a zone (no order means
    it waits):
    - drones in flight toward a restricted zone get no order; they land
@@ -304,7 +304,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    happen, and the drone closest to the goal always has room on its shortest
    route).
 
-4. **Rule checking** (`engine*.py`). The `SimulationEngine` runs
+4. **Rule checking** (`engine.py`). The `SimulationEngine` runs
    the turn loop. Each turn, the `TurnResolver` lands drones in flight, checks
    every order (an existing, non-blocked, adjacent zone; one order per drone),
    then checks connection capacity on departures and zone capacity on the
@@ -315,7 +315,7 @@ map file -> MapParser -> World -> Pathfinder (DistanceMap) -> Scheduler
    limit (`2 * zones * drones`) stops the run with an error. The scheduler is
    therefore never trusted blindly: every printed turn has been checked.
 
-5. **Output** (`turn_log_printer*.py`, `run_summary.py`, `terminal_view.py`,
+5. **Output** (`turn_log_printer.py`, `terminal_view.py`,
    `matplotlib_window.py`). The engine calls its observers after every turn:
    the `TurnLogPrinter` writes and flushes the turn line on standard output,
    and the views asked for on the command line draw the state. At the end,
@@ -331,48 +331,36 @@ drone positions, plus the planned moves.
 ### Code structure
 
 ```text
-fly_in.py                         entry point: arguments, exit codes, error lines
-cli.py                            the map argument and the view options -> Args
-errors.py                         FlyInError and its subclasses
-app.py                            Application: wires the parts below together
-map_parser.py                     MapParser: map file -> World
-  map_parser_reader.py            MapReader: numbered lines
-  map_parser_tokenizer.py         LineTokenizer: each line's syntax
-  map_parser_format.py            MapFormat: the table of line kinds
-  map_parser_validator.py         MapValidator: fields -> Network and World
-  map_parser_rules.py             the rules that span several lines
-world.py                          World: the network and the drone count
-  world_network.py                Network: the hand-built graph
-  world_network_zone.py           Zone, ZoneType, ZoneRole
-  world_network_connection.py     Connection
-pathfinder.py                     Pathfinder: shortest hops and detours
-  pathfinder_distance_map.py      DistanceMap: Dijkstra from the goal
-engine.py                         SimulationEngine: the turn loop
-  engine_state.py                 SimulationState, Move, MoveOrder
-  engine_state_drone.py           Drone
-  engine_turn_resolver.py         TurnResolver: the rules
-turn_observer.py                  TurnObserver, ObserverGroup
-scheduler.py                      Scheduler: each turn's orders
-  scheduler_zone_ranking.py       ZoneRanking: the decision order
-  scheduler_detour_policy.py      DetourPolicy
-  scheduler_reservation_table.py  ReservationTable: planned moves
-  scheduler_positions.py          PositionBoard
-  scheduler_turn_ledger.py        TurnLedger: room left this turn and later
-  scheduler_evictor.py            Evictor
-  scheduler_hop_taker.py          HopTaker
-turn_log_printer.py               TurnLogPrinter: the turn log on stdout
-  turn_log_printer_formatter.py   TurnLogFormatter
-run_summary.py                    RunSummary: the summary line
-terminal_view.py                  TerminalVisualizer and its color names (--terminal-view)
-matplotlib_window.py              MatplotlibWindowVisualizer, MapScene and the plane
-                                  geometry (--matplotlib-window)
+fly_in.py                       entry point: exit codes and error lines
+app.py                          Args (the command line) and Application, which
+                                wires the files below together
+errors.py                       FlyInError and its subclasses
+world.py                        Zone, Connection, Network (the hand-built graph),
+                                World
+map_parser.py                   MapReader, LineTokenizer, MapValidator, MapParser
+map_parser_format.py            MapFormat (the table of line kinds) and the rules
+                                that span several lines
+pathfinder.py                   DistanceMap (Dijkstra from the goal), Pathfinder
+engine.py                       Drone, SimulationState, TurnResolver (the rules),
+                                TurnObserver, SimulationEngine (the turn loop)
+scheduler.py                    DetourPolicy, ZoneRanking, HopTaker, Scheduler
+scheduler_reservation_table.py  PositionBoard, ReservationTable, TurnLedger,
+                                Evictor: the plans for later turns
+turn_log_printer.py             TurnLogFormatter, TurnLogPrinter, RunSummary
+terminal_view.py                TerminalVisualizer and its color names
+                                (--terminal-view)
+matplotlib_window.py            MatplotlibWindowVisualizer, MapScene and the plane
+                                geometry (--matplotlib-window)
 ```
 
 Every source file is at the root of the repository, as the subject asks.
-A file's name starts with the name of the part that creates and holds it
-(`scheduler_evictor.py` is used by `scheduler.py`), so sorted by name the
-files that work together sit together; the indentation above shows the same
-thing. Each view is one file.
+Each file holds one part of the program with the classes it delegates to,
+defined in the order they are used: the classes a file needs come first,
+and the one the rest of the program uses is last; the file's docstring
+lists them. The two biggest parts are split in two, and the second file is
+named after the first (`scheduler_reservation_table.py` holds the
+scheduler's plans for later turns, `map_parser_format.py` the parser's
+tables). Each view is one file.
 
 Design choices visible in the code:
 

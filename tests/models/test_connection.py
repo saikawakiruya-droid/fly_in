@@ -1,8 +1,8 @@
-"""Tests for world_network_connection."""
+"""Tests for world (Connection)."""
 
 import pytest
 
-from world_network_connection import Connection
+from world import Connection
 
 
 def test_involves_both_endpoints() -> None:

@@ -1,15 +1,12 @@
-"""Tests for engine_turn_resolver (TurnResolver)."""
+"""Tests for engine (TurnResolver)."""
 
 from typing import Callable
 
 import pytest
 
-from engine_state import Move, MoveOrder, SimulationState
-from engine_state_drone import DroneStatus
-from engine_turn_resolver import TurnResolver
+from engine import DroneStatus, Move, MoveOrder, SimulationState, TurnResolver
 from errors import SimulationError
-from world_network import Network
-from world_network_zone import ZoneType
+from world import Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 Fmt = Callable[[list[Move]], str]

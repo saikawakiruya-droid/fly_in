@@ -12,10 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from app import Application
-from cli import Args, parse_args
-from engine import MoveDecider
-from engine_state import Move, MoveOrder, SimulationState
+from app import Application, Args, parse_args
+from engine import Move, MoveDecider, MoveOrder, SimulationState
 from errors import (
     FlyInError,
     MapFileError,
@@ -26,7 +24,7 @@ from errors import (
 from pathfinder import Pathfinder
 from scheduler import Scheduler
 from turn_log_printer import TurnLogPrinter
-from world_network import Network
+from world import Network
 
 WriteMap = Callable[[str], Path]
 SchedulerMaker = Callable[[Network, Pathfinder], MoveDecider]

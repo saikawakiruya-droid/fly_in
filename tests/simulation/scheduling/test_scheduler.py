@@ -4,13 +4,11 @@ from typing import Callable
 
 import pytest
 
-from engine_state import Move, MoveOrder, SimulationState
-from engine_turn_resolver import TurnResolver
+from engine import Move, MoveOrder, SimulationState, TurnResolver
 from errors import SimulationError
 from pathfinder import Pathfinder
 from scheduler import Scheduler
-from world_network import Network
-from world_network_zone import ZoneType
+from world import Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

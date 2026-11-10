@@ -1,4 +1,4 @@
-"""Tests for scheduler_zone_ranking (ZoneRanking).
+"""Tests for scheduler (ZoneRanking).
 
 The ranking is built the way ``Scheduler.__init__`` builds it, from a
 pathfinder, every zone's shortest next hops and a ``DetourPolicy`` over
@@ -14,10 +14,8 @@ import pytest
 
 from errors import ZoneNotFoundError
 from pathfinder import Pathfinder
-from scheduler_detour_policy import DetourPolicy
-from scheduler_zone_ranking import ZoneRanking
-from world_network import Network
-from world_network_zone import ZoneType
+from scheduler import DetourPolicy, ZoneRanking
+from world import Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 

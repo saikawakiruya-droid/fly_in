@@ -8,7 +8,7 @@ from typing import Callable
 
 import pytest
 
-from world_network import Network
+from world import Network
 
 GRID_SIZE = 20
 

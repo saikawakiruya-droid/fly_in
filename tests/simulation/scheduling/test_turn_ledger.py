@@ -1,19 +1,17 @@
-"""Tests for scheduler_turn_ledger (TurnLedger)."""
+"""Tests for scheduler_reservation_table (TurnLedger)."""
 
 from typing import Callable
 
 import pytest
 
-from engine_state import SimulationState
+from engine import SimulationState
 from pathfinder import Hop
 from scheduler_reservation_table import (
     Reservation,
     ReservationTable,
+    TurnLedger,
 )
-from scheduler_turn_ledger import TurnLedger
-from world_network import Network
-from world_network_connection import Connection
-from world_network_zone import ZoneType
+from world import Connection, Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]

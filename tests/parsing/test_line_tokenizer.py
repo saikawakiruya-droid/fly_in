@@ -1,4 +1,4 @@
-"""Tests for map_parser_tokenizer."""
+"""Tests for map_parser (LineTokenizer)."""
 
 from collections.abc import Mapping
 
@@ -6,8 +6,7 @@ import pytest
 
 from errors import ParseError
 from map_parser_format import DEFAULT_FORMAT
-from map_parser_reader import SourceLine
-from map_parser_tokenizer import LineTokenizer
+from map_parser import LineTokenizer, SourceLine
 
 TOKENIZER = LineTokenizer(DEFAULT_FORMAT)
 

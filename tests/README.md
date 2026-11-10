@@ -8,8 +8,8 @@
 - プロジェクト本体(リポジトリ直下の `*.py`)から独立したディレクトリとして分離している。
   `tests/` ごと削除してもアプリケーション本体は動作する。
 - ソースはすべて直下にあるが、テストは役割ごとのフォルダに分けている
-  (例: `world_network_zone.py` のテストは `tests/models/test_zone.py`、`scheduler_evictor.py` のテストは
-  `tests/simulation/scheduling/test_evictor.py`)。
+  (例: `world.py` の `Zone` のテストは `tests/models/test_zone.py`、`scheduler_reservation_table.py` の `Evictor` の
+  テストは `tests/simulation/scheduling/test_evictor.py`)。
 
 ## 実行方法
 
@@ -256,6 +256,6 @@ python -m pytest tests/
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
 Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization。最小構成版ではターミナル表示と、`--matplotlib-window` の最小限の matplotlib 表示)と、CLI / Application / エントリポイント
-(`cli.py`・`app.py`・`turn_log_printer.py`・`run_summary.py`・`fly_in.py`)。
+(`app.py`・`turn_log_printer.py`・`fly_in.py`)。
 `Makefile` は単体テストの対象外(手動で確認する。`docs/research/2026-10-18_test-design-cli-app.md`、develop ブランチ)。
 以降の実装が進み次第、対応するテストを追加していく想定。

@@ -10,10 +10,9 @@ from typing import Callable
 
 import pytest
 
-from engine_state import Move, SimulationState
-from turn_log_printer import TurnLogPrinter
-from turn_log_printer_formatter import TurnLogFormatter
-from world_network import Network
+from engine import Move, SimulationState
+from turn_log_printer import TurnLogFormatter, TurnLogPrinter
+from world import Network
 
 MakeNetwork = Callable[..., Network]
 

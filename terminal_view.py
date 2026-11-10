@@ -5,9 +5,8 @@ import shutil
 import sys
 from typing import TextIO
 
-from engine_state import Move, SimulationState
-from engine_state_drone import Drone
-from world_network_zone import Zone, ZoneRole, ZoneType
+from engine import Drone, Move, SimulationState
+from world import Zone, ZoneRole, ZoneType
 
 # Color names to RGB. The subject accepts any single-word string as a zone
 # color, with no fixed list. This table covers the common names, including

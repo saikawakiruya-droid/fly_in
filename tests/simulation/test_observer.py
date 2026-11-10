@@ -1,4 +1,4 @@
-"""Tests for turn_observer (ObserverGroup).
+"""Tests for engine (TurnObserver, ObserverGroup).
 
 The group forwards each call to its observers in order (the application
 gives the engine the turn log printer and the chosen views as one
@@ -12,13 +12,10 @@ from typing import Callable
 
 import pytest
 
-from engine import SimulationEngine
-from engine_state import Move, SimulationState
+from engine import Move, ObserverGroup, SimulationEngine, SimulationState
 from pathfinder import Pathfinder
 from scheduler import Scheduler
-from turn_observer import ObserverGroup
-from world import World
-from world_network import Network
+from world import Network, World
 
 MakeNetwork = Callable[..., Network]
 Entry = tuple[str, str]

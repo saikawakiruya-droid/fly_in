@@ -11,12 +11,12 @@ from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, RegularPolygon
 
-from engine_state import SimulationState
+from engine import SimulationState
 from matplotlib_window import (
     MapScene,
     _zone_color,
 )
-from world_network import Network
+from world import Network
 
 
 def scene_of(network: Network) -> MapScene:

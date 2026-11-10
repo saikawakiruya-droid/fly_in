@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 import fly_in
-from engine_state import Move, SimulationState
+from engine import Move, SimulationState
 from terminal_view import TerminalVisualizer
 from turn_log_printer import TurnLogPrinter
 

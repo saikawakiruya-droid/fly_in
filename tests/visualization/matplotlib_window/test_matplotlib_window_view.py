@@ -13,12 +13,12 @@ import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import fly_in
-from engine_state import SimulationState
+from engine import SimulationState
 from errors import VisualizationError
 from matplotlib_window import (
     MatplotlibWindowVisualizer,
 )
-from world_network import Network
+from world import Network
 
 WriteMap = Callable[[str], Path]
 

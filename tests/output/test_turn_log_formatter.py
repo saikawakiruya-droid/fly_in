@@ -1,7 +1,7 @@
-"""Tests for turn_log_printer_formatter."""
+"""Tests for turn_log_printer (TurnLogFormatter)."""
 
-from engine_state import Move
-from turn_log_printer_formatter import TurnLogFormatter
+from engine import Move
+from turn_log_printer import TurnLogFormatter
 
 
 def test_format_turn_joins_moves_with_single_space() -> None:

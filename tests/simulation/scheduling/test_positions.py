@@ -1,4 +1,4 @@
-"""Tests for scheduler_positions.
+"""Tests for scheduler_reservation_table (PositionBoard).
 
 Covers Position and PositionBoard.
 
@@ -15,10 +15,9 @@ from typing import Callable
 
 import pytest
 
-from engine_state import SimulationState
-from scheduler_positions import Position, PositionBoard
-from world_network import Network
-from world_network_zone import ZoneType
+from engine import SimulationState
+from scheduler_reservation_table import Position, PositionBoard
+from world import Network, ZoneType
 
 MakeNetwork = Callable[..., Network]
 Place = Callable[..., SimulationState]
