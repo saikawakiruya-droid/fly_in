@@ -162,3 +162,8 @@
   `_zones_nearest_first` に、引き込むドローンと一緒に渡していたゾーン名(`here`)をやめる
 - 確認: 311 枚のマップ(乱数 300・配布 10・課題の例)の出力が変更前と一致、pytest 549 件、flake8・mypy 問題なし
 - develop にマージ(133cccf)。main への反映・push は未。この記録は develop に直接コミット
+- main に反映(bc56f8a): develop 0cd5d8f..133cccf のうち engine.py・pathfinder.py・scheduler.py・scheduler_reservation_table.py・
+  README 2つの差分を当てた。main と develop の差(docs・tests 以外)は、tests 関連(Makefile・requirements.txt・setup.cfg・
+  README の tests の記述)と maps.tar.gz だけ。flake8・mypy(2種)問題なし、配布10枚と課題の例の出力は develop と一致
+- 作業用ワークツリー(flow_map_scheduler・main_sync)は削除。ブランチ feature/flow_map_scheduler は残している
+- 残り: push(main・develop。ユーザーの確認待ち)
