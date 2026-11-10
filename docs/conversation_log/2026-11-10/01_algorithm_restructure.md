@@ -167,3 +167,15 @@
   README の tests の記述)と maps.tar.gz だけ。flake8・mypy(2種)問題なし、配布10枚と課題の例の出力は develop と一致
 - 作業用ワークツリー(flow_map_scheduler・main_sync)は削除。ブランチ feature/flow_map_scheduler は残している
 - 残り: push(main・develop。ユーザーの確認待ち)
+
+## ユーザーの指示: スキルの yomiyasu を日本語の README にだけ使う
+
+- yomiyasu は `~/.claude/skills/youtube-report/references/yomiyasu` にある。種類 manual、分野 tech、立場「説明」として推敲
+- 直した点: 短い主題のあとの読点、例の前の文末コロン(文にした)、設計上の選択の太字ラベル(文に入れた)、長すぎる行の折り返し、
+  段落の中で続いていた太字(「最小費用流」「ゴールに近い方から」)
+- 残した点: ラベルと値・文献名と説明の区切りのコロン、意味を担う「AではなくB」、箇条書きと括弧の中の常体(元からの書き方)
+- 検査: lint と diff を実行(候補 23 → 5、意味が変わる恐れ 0)、verify でハッシュが記録と一致(e8a2a21b411b)
+- ブランチ `feature/readme_ja_yomiyasu`(develop cc13132 から)に 6609000。develop へのマージ・main への反映は未(ユーザーの許可待ち)
+- ユーザーの許可(「していいよ」): develop にマージ(8cc589d)。main には同じ 30 か所の置き換えを main の版に当てた
+  (main の README は tests の記述が違うので、差分のままでは当たらなかった)。main と develop の README.ja.md の差は tests の記述だけ
+- main・develop を push
