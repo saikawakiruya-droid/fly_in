@@ -4,9 +4,10 @@ The engine tests (Stage 4) drive the loop with small stub schedulers.
 They are plain classes with ``decide_moves`` (they satisfy
 ``MoveDecider``), handed to ``SimulationEngine`` directly, and are handed
 out through factory fixtures, so the test files never import this
-module directly. The subject's sample map and its expected output are
-shared the same way; they live in ``tests/conftest.py`` with ``place`` and
-``snapshot``, since the visualization tests use them too.
+module directly. ``fixed_scheduler`` builds the real scheduler over a
+flow map given by the test. The subject's sample map and its expected
+output are shared the same way; they live in ``tests/conftest.py`` with
+``place`` and ``snapshot``, since the visualization tests use them too.
 """
 
 from typing import Callable
@@ -21,7 +22,7 @@ from engine import (
     SimulationState,
     TurnObserver,
 )
-from pathfinder import Pathfinder
+from pathfinder import FlowMap, Pathfinder
 from scheduler import Scheduler
 from turn_log_printer import TurnLogFormatter
 from world import Network
@@ -202,6 +203,26 @@ def follower_scheduler() -> Callable[[Network], MoveDecider]:
 def real_scheduler() -> Callable[[Network], Scheduler]:
     """Return a factory for the real ``Scheduler`` (Stage 5)."""
     return make_real_scheduler
+
+
+@pytest.fixture
+def fixed_scheduler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[Network, FlowMap], Scheduler]:
+    """Return a factory for a real ``Scheduler`` given a fixed flow map.
+
+    The real ``Pathfinder`` of the network has its ``flow_map`` replaced,
+    so a broken flow map can reach the scheduler's checks.
+    """
+
+    def make(network: Network, flow_map: FlowMap) -> Scheduler:
+        pathfinder = Pathfinder(network)
+        monkeypatch.setattr(
+            pathfinder, "flow_map", lambda nb_drones: flow_map
+        )
+        return Scheduler(network, pathfinder)
+
+    return make
 
 
 @pytest.fixture
