@@ -116,8 +116,14 @@ PDF は残して、ほかは main まで反映する。
 - 重複した接続はすでに拒否していたので、残っていた `a-a` を拒否するルールを追加した。`nb_drones` はコメントと空行を
   読み飛ばした最初の行にした。ブランチ `fix/map_header_rules`(ca3f932・1a6c649)。決定記録: `docs/decisions.md` 2026-11-10。
 
+### 依頼: 「2」(マージしてから整理を進め、main に反映して push)
+
+- `fix/map_header_rules` を develop にマージ(02fc3eb)。
+- 案Bの整理を `feature/fewer_modules` で実装(65f6e4f・4054071)し、develop にマージ(9da665f)。34 → 13 ファイル。
+- main に、直下への移動・表示のオプション・マップの規則・整理をまとめて反映(2db54c5)。
+- ワークツリーとブランチは削除。`.claude/worktrees/main_sync` の残りも消した。
+- 決定記録: `docs/decisions.md` 2026-11-10「ソースファイルを部分ごとにまとめる」。
+
 ## 未決事項
 
-- `fix/map_header_rules` を develop にマージするか(ユーザーの許可待ち)。
-- そのあと案B の整理(`feature/fewer_modules`)を進め、main に反映して push する。
-- `.claude/worktrees/main_sync` のフォルダ(使用中で削除できなかった)を片付ける。
+- なし(push はこの後)。

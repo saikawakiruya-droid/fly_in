@@ -1671,7 +1671,7 @@ sequenceDiagram
   4. 表示はオプションを付けたときだけ使う。`--terminal-view` を新しく足し、付けないと標準エラーにはエラーと要約行だけが出る。
      `--matplotlib-window` は従来どおり。
   - ブランチ `feature/flat_layout`(c50dd14・494c952、develop 3d61dc4 から)。テスト 666 件成功、flake8・mypy(課題のフラグと
-    --strict)問題なし。2026-11-10 にユーザーの指示で develop にマージした(7a0bc1b)。main への反映は未。
+    --strict)問題なし。2026-11-10 にユーザーの指示で develop にマージした(7a0bc1b)。main には次の項目とまとめて反映した(2db54c5)。
 - 理由: ユーザー判断。課題の文を厳しく読む評価者がいても問題にならないようにし、直下に並んだファイルを名前順で読めるようにするため。
   旧 palette は両方の表示で共有していたが、表示ごとに1ファイルにする指示のため、matplotlib 側は matplotlib の色名に任せ、
   色の表を二重に持たないようにした。
@@ -1689,6 +1689,23 @@ sequenceDiagram
      重複した接続(`a-b` と `b-a`)は従来どおり `UniqueConnection` で拒否する。
   - 空行も読み飛ばすのは、配布マップが「コメント → 空行 → `nb_drones:`」の順のため(指示は「コメント行を除いた1行目」)。
   - ブランチ `fix/map_header_rules`(ca3f932・1a6c649、develop 325d4ad から)。テスト 668 件成功、flake8・mypy 問題なし、
-    配布マップ10枚をコメント付きのまま実行してターン数は変わらない。develop へのマージは未(ユーザーの許可待ち)。
+    配布マップ10枚をコメント付きのまま実行してターン数は変わらない。develop にマージした(02fc3eb)。
 - 理由: ユーザー判断。
 - 検討した代替案: 物理的な1行目のまま(2026-10-16 の決定)。空行は読み飛ばさない(配布マップが読めなくなる)。
+
+## 2026-11-10: ソースファイルを部分ごとにまとめる(34 → 13 ファイル)
+
+- 決定内容(ユーザーが案Bを選んだ): 持ち主ごとに1ファイルにまとめ、いちばん大きい2つだけを役割で2つに分ける。
+  `app.py`(Args・parse_args・Application)、`world.py`、`map_parser.py` と `map_parser_format.py`(行の表とルール)、
+  `pathfinder.py`、`engine.py`(Drone・SimulationState・TurnResolver・TurnObserver・SimulationEngine)、`scheduler.py` と
+  `scheduler_reservation_table.py`(後のターンの計画: PositionBoard・ReservationTable・TurnLedger・Evictor)、
+  `turn_log_printer.py`(TurnLogFormatter・TurnLogPrinter・RunSummary)、`errors.py`、`fly_in.py`、2つの表示。
+  - ファイルの中は、使われる側を先に、プログラムのほかの部分が使う持ち主を最後に定義する。部分ごとに見出しのコメントを置き、
+    元のモジュールの docstring はその下にコメントとして残した。ファイルの docstring に部分の一覧がある。
+  - cli は案では `fly_in.py` に入れる予定だったが、`app.py` が `Args` を import するため循環するので、`app.py` に入れた。
+  - 上の「直下に置き、持ち主の名前で始める」の名前の付け方は、2つに分けた部分(`*_format`・`*_reservation_table`)にだけ残る。
+  - ブランチ `feature/fewer_modules`(65f6e4f・4054071)を develop にマージ(9da665f)、main に反映(2db54c5)。
+    テスト 668 件成功、flake8・mypy(課題のフラグと --strict)問題なし、配布マップのターン数は変わらない。いちばん大きいファイルは
+    `engine.py` の 832 行。
+- 理由: ユーザー判断。直下に34ファイルは多すぎて見通しが悪い。1ファイルを800行台に抑え、評価中に探しやすくするため案Bにした。
+- 検討した代替案: 案A(持ち主ごとに必ず1ファイル、11ファイル。`scheduler.py` が約1,440行になる)。今のまま34ファイル。
