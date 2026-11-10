@@ -105,6 +105,19 @@ PDF は残して、ほかは main まで反映する。
   空になった `tests/interchange/`・`tests/visualization/graphical/`、ワークツリー `.claude/worktrees/flat_layout`、
   ブランチ `feature/flat_layout`、`_tmp/flat_rename_plan.md`(内容は決定記録と README に移した)。
 
+### 依頼: ファイルが多すぎるので整理の提案を
+
+- 案A(持ち主ごとに1ファイル、11ファイル)と案B(大きい map_parser と scheduler だけ2つに分ける、13ファイル)を出し、
+  ユーザーは案Bを選んだ。cli は `fly_in.py` に入れると import が循環するので `app.py` に入れる。
+- ブランチ `feature/fewer_modules` を develop から作ったところで止めた(まだ変更なし)。main への反映も、整理の後にやり直す。
+
+### 依頼: ほかの人の課題で決まった変更点 — 同じ接続の禁止、`nb_drones` はコメント行を除いた1行目
+
+- 重複した接続はすでに拒否していたので、残っていた `a-a` を拒否するルールを追加した。`nb_drones` はコメントと空行を
+  読み飛ばした最初の行にした。ブランチ `fix/map_header_rules`(ca3f932・1a6c649)。決定記録: `docs/decisions.md` 2026-11-10。
+
 ## 未決事項
 
-- main への反映(main の README は tests の記述を除いた版にする)と push。
+- `fix/map_header_rules` を develop にマージするか(ユーザーの許可待ち)。
+- そのあと案B の整理(`feature/fewer_modules`)を進め、main に反映して push する。
+- `.claude/worktrees/main_sync` のフォルダ(使用中で削除できなかった)を片付ける。
