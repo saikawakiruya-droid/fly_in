@@ -1,6 +1,6 @@
-"""Tests for droneflow.errors."""
+"""Tests for errors."""
 
-from droneflow.errors import (
+from errors import (
     FlyInError,
     ParseError,
     SimulationError,

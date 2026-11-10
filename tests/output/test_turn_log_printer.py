@@ -1,4 +1,4 @@
-"""Tests for droneflow.output.turn_log_printer (TurnLogPrinter).
+"""Tests for turn_log_printer (TurnLogPrinter).
 
 ``FlushCountingIO`` records the text at every ``flush``, so the tests can
 check that each turn line is flushed as soon as it is written. Decisions
@@ -10,10 +10,10 @@ from typing import Callable
 
 import pytest
 
-from droneflow.models.network import Network
-from droneflow.output.turn_log_formatter import TurnLogFormatter
-from droneflow.output.turn_log_printer import TurnLogPrinter
-from droneflow.simulation.state import Move, SimulationState
+from engine_state import Move, SimulationState
+from turn_log_printer import TurnLogPrinter
+from turn_log_printer_formatter import TurnLogFormatter
+from world_network import Network
 
 MakeNetwork = Callable[..., Network]
 

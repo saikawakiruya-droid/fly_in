@@ -10,11 +10,11 @@ from typing import Callable, Protocol
 
 import pytest
 
-from droneflow.errors import SimulationError
-from droneflow.models.network import Network
-from droneflow.models.world import World
-from droneflow.simulation.engine import MoveDecider, SimulationEngine
-from droneflow.simulation.state import Move, MoveOrder, SimulationState
+from engine import MoveDecider, SimulationEngine
+from engine_state import Move, MoveOrder, SimulationState
+from errors import SimulationError
+from world import World
+from world_network import Network
 
 MakeNetwork = Callable[..., Network]
 Script = list[list[MoveOrder]]

@@ -1,10 +1,8 @@
-"""Tests for droneflow.parsing.map_format."""
+"""Tests for map_parser_format."""
 
 import pytest
 
-from droneflow.models.connection import Connection
-from droneflow.models.zone import Zone, ZoneRole, ZoneType
-from droneflow.parsing.map_format import (
+from map_parser_format import (
     DEFAULT_FORMAT,
     START_END_FORBIDDEN,
     DroneCount,
@@ -21,6 +19,8 @@ from droneflow.parsing.map_format import (
     to_zone_name,
     to_zone_type,
 )
+from world_network_connection import Connection
+from world_network_zone import Zone, ZoneRole, ZoneType
 
 
 def test_to_int_rejects_non_integers() -> None:

@@ -1,14 +1,15 @@
 # tests/
 
-`droneflow` パッケージの単体テスト。提出・採点の対象外(課題要件・共通ルール上、任意)だが、
+リポジトリ直下のソースファイル(`*.py`)の単体テスト。提出・採点の対象外(課題要件・共通ルール上、任意)だが、
 実装の挙動確認・リグレッション防止のために作成している。
 
 ## 位置づけ
 
-- プロジェクト本体(`droneflow/`)から独立したディレクトリとして分離している。
+- プロジェクト本体(リポジトリ直下の `*.py`)から独立したディレクトリとして分離している。
   `tests/` ごと削除してもアプリケーション本体は動作する。
-- ディレクトリ構成は `droneflow/` のパッケージ構成に対応させている
-  (例: `droneflow/models/zone.py` のテストは `tests/models/test_zone.py`)。
+- ソースはすべて直下にあるが、テストは役割ごとのフォルダに分けている
+  (例: `world_network_zone.py` のテストは `tests/models/test_zone.py`、`scheduler_evictor.py` のテストは
+  `tests/simulation/scheduling/test_evictor.py`)。
 
 ## 実行方法
 
@@ -72,10 +73,12 @@ python -m pytest tests/
 - `tests/output/test_summary.py` — `RunSummary`(AS01〜AS03): 課題の例の数値と文言(7ターン・5.00・2.14)、
   配達ターン=最後に出たターン(接続名の項目も1手)、ターンなし・ドローンなしでゼロ除算しないこと
 
-- `tests/test_cli.py` — 引数(AC01・AC02・AC06): MAP は `Path` と入力どおりの文字列(`map_name`)を持ち、既定ではウィンドウなし、
-  `--matplotlib-window` は MAP の前後どちらでもよいこと、MAP なし・知らないオプション・余分な引数は終了コード2(文言まで)
+- `tests/test_cli.py` — 引数(AC01・AC02・AC06〜AC08): MAP は `Path` と入力どおりの文字列(`map_name`)を持ち、既定では表示なし、
+  `--terminal-view` と `--matplotlib-window` は MAP の前後どちらでもよく、両方を同時に付けられること、MAP なし・知らないオプション・
+  余分な引数は終了コード2(文言まで)
 - `tests/test_app.py` — `Application`: stdout が本物のスケジューラの出力(課題の例の5行。`scheduler_output`)と完全一致し、
-  ターミナル表示と最後の要約行は stderr だけに出ること、ターンの行がそのフレームより先に出ること、マップが読めない(存在しない・
+  `--terminal-view` のときのターミナル表示と最後の要約行は stderr だけに出ること、`--terminal-view` なしでは stderr が要約行だけで
+  ターミナル表示を作らないこと(AA15)、ターンの行がそのフレームより先に出ること、マップが読めない(存在しない・
   ディレクトリ・UTF-8 でない)の `MapFileError` と原因、パース・到達不能のエラーはそのまま、途中のエラーでもそれまでの
   ログとビューの後始末が残る、ターンログ側の失敗は包まない、エラーのパスは入力どおり。`make_scheduler` の注入
   (AI01: `(network, pathfinder)` で1回作りエンジンに渡す、AI02: 共有の `stuck_after` で本物の実行を途中で止める)、
@@ -237,10 +240,10 @@ python -m pytest tests/
 - `tests/visualization/matplotlib_window/conftest.py` — `network`(`s - r - g` の一列。scene と view のテストで共有)
 - `tests/visualization/matplotlib_window/test_matplotlib_window_scene.py` — matplotlib の描画 `MapScene`(VG01〜VG06・VG10): ゾーンが地図の単位で配置の半径の
   パッチとして縦横同じ縮尺で描かれること、restricted は四角、ゾーンに重なる接続だけが曲がること、タイトルのターン数と
-  同じ地点のドローンの数、飛行中のドローンは接続の中点・その接続だけ水色で2倍の太さ(着陸後は元に戻る)、色名の解決(パレット → matplotlib → 灰色)
+  同じ地点のドローンの数、飛行中のドローンは接続の中点・その接続だけ水色で2倍の太さ(着陸後は元に戻る)、色名の解決(matplotlib の色名 → 灰色)
 - `tests/visualization/matplotlib_window/test_matplotlib_window_view.py` — matplotlib のウィンドウ `MatplotlibWindowVisualizer`(VG07〜VG09): ディスプレイなしでは
   `VisualizationError`(図を残さない)、`--matplotlib-window` の `main` は終了コード1と1行のエラー、ウィンドウを閉じた後は描かないこと
-- `tests/visualization/test_palette.py` — `rgb`: 表の値(似た赤を区別)・全エントリが 0〜255 の3つ組、大文字小文字を
+- `tests/visualization/terminal/test_terminal_colors.py` — 端末表示の色名の表 `rgb`: 表の値(似た赤を区別)・全エントリが 0〜255 の3つ組、大文字小文字を
   区別しないこと、配布マップ(`maps.tar.gz`)の色名17種のうち `rainbow` 以外がすべて表にあること、知らない名前・空・`None` は
   `None`
 - `tests/visualization/terminal/test_terminal_view.py` — `TerminalVisualizer`: 既定の出力先が stderr(stdout は空)、begin の見出し・
@@ -251,6 +254,6 @@ python -m pytest tests/
 
 対象はStage 1(Domain Model)・Stage 2(Parser & Validation)・Stage 3(Pathfinding)・Stage 4(Simulation Engine)・
 Stage 5(Multi-Drone Scheduler)・Stage 6(Output Formatter)・Stage 7(Visualization。最小構成版ではターミナル表示と、`--matplotlib-window` の最小限の matplotlib 表示)と、CLI / Application / エントリポイント
-(`droneflow/cli.py`・`droneflow/app.py`・`droneflow/output/turn_log_printer.py`・`droneflow/output/summary.py`・`fly_in.py`)。
+(`cli.py`・`app.py`・`turn_log_printer.py`・`run_summary.py`・`fly_in.py`)。
 `Makefile` は単体テストの対象外(手動で確認する。`docs/research/2026-10-18_test-design-cli-app.md`、develop ブランチ)。
 以降の実装が進み次第、対応するテストを追加していく想定。

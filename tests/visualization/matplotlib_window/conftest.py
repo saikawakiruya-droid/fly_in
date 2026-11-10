@@ -8,8 +8,8 @@ from collections.abc import Callable
 
 import pytest
 
-from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
+from world_network import Network
+from world_network_zone import ZoneType
 
 CoordNetwork = Callable[..., Network]
 

@@ -1,4 +1,4 @@
-"""Tests for droneflow.visualization.terminal.view.
+"""Tests for terminal_view.
 
 Frames are written to a ``StringIO`` and checked as text, with
 ``color=False`` and an explicit ``width`` unless colors are the point of
@@ -13,17 +13,17 @@ from typing import Callable
 
 import pytest
 
-from droneflow.models.network import Network
-from droneflow.models.world import World
-from droneflow.pathfinding.pathfinder import Pathfinder
-from droneflow.simulation.engine import SimulationEngine
-from droneflow.simulation.scheduling.scheduler import Scheduler
-from droneflow.simulation.state import Move, SimulationState
-from droneflow.simulation.observer import TurnObserver
-from droneflow.visualization.terminal.view import (
+from engine import SimulationEngine
+from engine_state import Move, SimulationState
+from pathfinder import Pathfinder
+from scheduler import Scheduler
+from terminal_view import (
     TerminalVisualizer,
     color_enabled,
 )
+from turn_observer import TurnObserver
+from world import World
+from world_network import Network
 
 MakeNetwork = Callable[..., Network]
 CoordNetwork = Callable[..., Network]

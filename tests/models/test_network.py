@@ -1,13 +1,13 @@
-"""Tests for droneflow.models.network."""
+"""Tests for world_network."""
 
 from typing import Callable, cast
 
 import pytest
 
-from droneflow.errors import SimulationError, ZoneNotFoundError
-from droneflow.models.connection import Connection
-from droneflow.models.network import Network
-from droneflow.models.zone import Zone, ZoneRole, ZoneType
+from errors import SimulationError, ZoneNotFoundError
+from world_network import Network
+from world_network_connection import Connection
+from world_network_zone import Zone, ZoneRole, ZoneType
 
 MakeNetwork = Callable[..., Network]
 

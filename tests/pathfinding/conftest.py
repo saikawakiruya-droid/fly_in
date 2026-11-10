@@ -8,7 +8,7 @@ from typing import Callable
 
 import pytest
 
-from droneflow.models.network import Network
+from world_network import Network
 
 GRID_SIZE = 20
 

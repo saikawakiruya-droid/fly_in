@@ -1,7 +1,7 @@
-"""Tests for droneflow.output.turn_log_formatter."""
+"""Tests for turn_log_printer_formatter."""
 
-from droneflow.output.turn_log_formatter import TurnLogFormatter
-from droneflow.simulation.state import Move
+from engine_state import Move
+from turn_log_printer_formatter import TurnLogFormatter
 
 
 def test_format_turn_joins_moves_with_single_space() -> None:

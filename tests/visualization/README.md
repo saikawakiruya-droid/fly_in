@@ -1,7 +1,7 @@
 # tests/visualization/
 
-`droneflow/visualization/`(Stage 7)の単体テスト。ソースと同じく、ターミナル表示は `terminal/`、matplotlib のウィンドウは `matplotlib_window/` に分け、
-両方で使う色名の表(`test_palette.py`)と `conftest.py` はこの直下に置く。エンジンが可視化を呼ぶ契約(`begin` / `render` / `close`)のテストは
+可視化(Stage 7。`terminal_view.py` と `matplotlib_window.py`)の単体テスト。ターミナル表示は `terminal/`、matplotlib のウィンドウは
+`matplotlib_window/` に分け、`conftest.py` はこの直下に置く。エンジンが可視化を呼ぶ契約(`begin` / `render` / `close`)のテストは
 `engine.py` のテストなので `tests/simulation/test_engine_hooks.py` にある。
 `ObserverGroup` のテストは `tests/simulation/test_observer.py`(旧 `test_composite.py` の VC01〜VC05 を移した)。
 
@@ -9,7 +9,7 @@
 
 - `conftest.py` — `coord_network`(座標・色つきのネットワーク)。matplotlib を Agg バックエンドに切り替える。`tty_stream`(`isatty()` が True の `StringIO`)は
   CLI のフェーズで `tests/conftest.py` に移した(Application のテストと共有)
-- `test_palette.py` — 色名の表(VP01〜VP04)
+- `terminal/test_terminal_colors.py` — 端末表示の色名の表(VP01〜VP04)
 - `terminal/test_terminal_view.py` — `TerminalVisualizer`(VT01〜VT11・VT15・VT16)
 - `matplotlib_window/test_geometry.py` — matplotlib のウィンドウの配置: ゾーンの半径・重なったゾーンの分散・接続の直線と弧(GM01〜GM06)
 - `matplotlib_window/conftest.py` — `network`(`s - r - g` の一列、r は restricted、s-g は r の上を通る)。scene と view のテストで共有

@@ -1,14 +1,14 @@
-"""Tests for droneflow.pathfinding.distance_map."""
+"""Tests for pathfinder_distance_map."""
 
 import time
 from typing import Callable
 
 import pytest
 
-from droneflow.errors import ZoneNotFoundError
-from droneflow.models.network import Network
-from droneflow.models.zone import ZoneType
-from droneflow.pathfinding.distance_map import DistanceMap
+from errors import ZoneNotFoundError
+from pathfinder_distance_map import DistanceMap
+from world_network import Network
+from world_network_zone import ZoneType
 
 MakeNetwork = Callable[..., Network]
 

@@ -1,4 +1,4 @@
-"""Tests for droneflow.visualization.matplotlib_window.geometry (view layout).
+"""Tests for matplotlib_window (view layout).
 
 Positions are map units. A connection must stay straight unless its line
 would cross a zone drawn with the given radius.
@@ -8,7 +8,7 @@ import math
 
 import pytest
 
-from droneflow.visualization.matplotlib_window.geometry import (
+from matplotlib_window import (
     ARC_SAMPLES,
     CLEARANCE,
     middle,

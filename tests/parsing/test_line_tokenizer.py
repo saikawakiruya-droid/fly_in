@@ -1,13 +1,13 @@
-"""Tests for droneflow.parsing.line_tokenizer."""
+"""Tests for map_parser_tokenizer."""
 
 from collections.abc import Mapping
 
 import pytest
 
-from droneflow.errors import ParseError
-from droneflow.parsing.line_tokenizer import LineTokenizer
-from droneflow.parsing.map_format import DEFAULT_FORMAT
-from droneflow.parsing.map_reader import SourceLine
+from errors import ParseError
+from map_parser_format import DEFAULT_FORMAT
+from map_parser_reader import SourceLine
+from map_parser_tokenizer import LineTokenizer
 
 TOKENIZER = LineTokenizer(DEFAULT_FORMAT)
 

@@ -1,12 +1,12 @@
-"""Tests for droneflow.parsing.map_parser."""
+"""Tests for map_parser."""
 
 from pathlib import Path
 
 import pytest
 
-from droneflow.errors import ParseError, UnreachableGoalError
-from droneflow.models.zone import ZoneRole, ZoneType
-from droneflow.parsing.map_parser import MapParser
+from errors import ParseError, UnreachableGoalError
+from map_parser import MapParser
+from world_network_zone import ZoneRole, ZoneType
 
 MINIMAL_MAP = "nb_drones: 1\nstart_hub: s 0 0\nend_hub: e 1 1\n"
 
