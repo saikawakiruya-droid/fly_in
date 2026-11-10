@@ -75,3 +75,29 @@ PDF は残して、ほかは main まで反映する。
 ## 未決事項
 
 - なし。
+
+## 2026-11-10(日付変更)
+
+- 依頼: PDF にファイル構造についての記述があるらしいので見てほしい。
+- 結果: 記述は X 章の "Place all your files at the root of your repository."(v1.6 からある文)と、README・Makefile・.gitignore・
+  テスト(提出しない)の規定だけ。ファイル名やディレクトリ構成の指定は無い。今の main は満たすと判断した。
+- 作成: `docs/research/2026-11-10_subject-file-structure.md`
+- ユーザーの判断: X 章の文は「全ソースファイルはリポジトリ直下」が条件と読む。
+
+### 依頼: 委譲関係をもとにファイル名を変えて、わかりやすく並ぶように。表示はそれぞれ単一ファイルにして、オプションを付けたら使う
+
+- 案(`_tmp/flat_rename_plan.md`)を作り、命名の方式(持ち主の名前を先頭に付ける)をユーザーが選んだ。
+- 外付けSSD(D:)がつながっていなかったので、ワークツリーは `.claude/worktrees/flat_layout` に作った。
+- `feature/flat_layout` に実装(c50dd14 コードとテスト、494c952 README)。
+  - `droneflow/` をやめて全 `.py` を直下へ。名前は持ち主の名前で始める(対応表は README の「Code structure」)。
+  - `terminal_view.py` に色名の表を取り込み、`matplotlib_window.py` にウィンドウ・シーン・平面の計算を委譲の順でまとめた。
+    matplotlib 側は matplotlib の色名を使う。
+  - `--terminal-view` を追加。表示はオプションを付けたときだけ使う。テストを合わせ、AC07・AC08・AA15 を追加。
+  - テスト 666 件成功、flake8・mypy(課題のフラグと --strict)問題なし。`.venv` に matplotlib が入っていなかったので
+    `requirements.txt` から入れ直した(入っていないと mypy が matplotlib の型を Any とみなしてエラーになる。develop でも同じ)。
+- 決定記録: `docs/decisions.md` 2026-11-10。
+
+## 未決事項
+
+- `feature/flat_layout` を develop にマージし、main に反映するか(ユーザーの許可待ち)。main の README は tests の記述を除いた版にする。
+- `_tmp/flat_rename_plan.md` は、決定記録と README に内容を移したので、昇格の確認後に削除してよい。

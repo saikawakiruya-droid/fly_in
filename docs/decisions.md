@@ -1655,3 +1655,26 @@ sequenceDiagram
 - 理由: ユーザー判断。採否はエージェントに任せ、結果を見て残すかを決めると決めていた。
 - 検討した代替案: 調査担当にコードを調べさせて改善案を出す(最初の案。ユーザーの指示で文献調査に変えた)。
   届いた提案をすべて実装する(採否の判断役がいないとユーザーに指摘され、判断担当を置いた)。
+
+## 2026-11-10: ソースファイルをすべてリポジトリ直下に置き、持ち主の名前で始まる名前にする。表示は1ファイルずつ、オプションで使う
+
+- 決定内容(ユーザーの指示):
+  1. 課題 X 章の "Place all your files at the root of your repository." を、ソースファイルをすべて直下に置く条件と読む。
+     `droneflow/` パッケージをやめ、`.py` をすべてリポジトリ直下に置いた。
+  2. ファイル名は委譲関係で付ける。`fly_in.py` と `Application` が直接使うものは先頭に何も付けず(`app.py`・`map_parser.py`・
+     `scheduler.py`・`engine.py` など)、その下の委譲先は、作って持っている側の名前で始める(`scheduler_evictor.py`・
+     `map_parser_tokenizer.py`・`engine_turn_resolver.py`・`world_network_zone.py` など)。名前順で持ち主の下にまとまる。
+     対応表は README の「Code structure」。
+  3. 表示はそれぞれ1ファイルにまとめた。`terminal_view.py` は色名の表(旧 `palette.py`)を取り込み、`matplotlib_window.py` は
+     ウィンドウ・シーン・平面の計算(旧 `view.py`・`scene.py`・`geometry.py`)を委譲の順に持つ。matplotlib のウィンドウは
+     旧 palette の代わりに matplotlib の色名を使う(色が少し変わる。知らない名前は灰色のまま)。
+  4. 表示はオプションを付けたときだけ使う。`--terminal-view` を新しく足し、付けないと標準エラーにはエラーと要約行だけが出る。
+     `--matplotlib-window` は従来どおり。
+  - ブランチ `feature/flat_layout`(c50dd14・494c952、develop 3d61dc4 から)。テスト 666 件成功、flake8・mypy(課題のフラグと
+    --strict)問題なし。develop・main へのマージは未(ユーザーの許可待ち)。
+- 理由: ユーザー判断。課題の文を厳しく読む評価者がいても問題にならないようにし、直下に並んだファイルを名前順で読めるようにするため。
+  旧 palette は両方の表示で共有していたが、表示ごとに1ファイルにする指示のため、matplotlib 側は matplotlib の色名に任せ、
+  色の表を二重に持たないようにした。
+- 検討した代替案: 今の構成のまま(`docs/research/2026-11-10_subject-file-structure.md` の当初の判断。サブパッケージは禁じられて
+  いないと読む)。委譲先を持ち主のサブフォルダに入れる案(直下の条件に反する)。palette を両方の表示に写す案(表が二重になる)。
+  端末表示を既定のまま出す案(「オプションを付けたら使う」の指示に合わない)。
