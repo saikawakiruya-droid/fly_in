@@ -179,44 +179,20 @@ class FlowGraph:
     def shortest_path(self) -> list[_Arc] | None:
         """Return the cheapest path from the source to the sink with room.
 
-        Back arcs cost less than nothing, so the search is Bellman-Ford
-        (a queue of the nodes whose cost went down). The flow never has a
-        cycle of negative cost, so it ends.
-
         Returns:
             The arcs of the path, from the source on; None if no path has
             room.
         """
-        cost: list[int | None] = [None] * len(self._arcs)
-        came: list[_Arc | None] = [None] * len(self._arcs)
-        cost[self.source] = 0
-        queue = deque([self.source])
-        queued = {self.source}
-        while queue:
-            node = queue.popleft()
-            queued.discard(node)
-            here = cost[node]
-            assert here is not None
-            for arc in self._arcs[node]:
-                known = cost[arc.head]
-                if arc.room <= 0 or (
-                    known is not None and here + arc.cost >= known
-                ):
-                    continue
-                cost[arc.head] = here + arc.cost
-                came[arc.head] = arc
-                if arc.head not in queued:
-                    queued.add(arc.head)
-                    queue.append(arc.head)
-        if cost[self.sink] is None:
+        arc_into = self._cheapest_arcs_into()
+        if arc_into[self.sink] is None:
             return None
         path: list[_Arc] = []
         node = self.sink
         while node != self.source:
-            step = came[node]
-            assert step is not None
-            path.append(step)
-            node = self._arcs[step.head][step.back].head
+            arc = arc_into[node]
+            assert arc is not None
+            path.append(arc)
+            node = self._tail_of(arc)
         path.reverse()
         return path
 
@@ -229,13 +205,12 @@ class FlowGraph:
         """
         for arc in path:
             arc.room -= amount
-            self._arcs[arc.head][arc.back].room += amount
+            self._back_of(arc).room += amount
 
     def routes(self) -> tuple[Route, ...]:
         """Split the flow into routes from the start zone to the end zone.
 
-        The flow of a connection is what its back arc has room for. A
-        drone flows along a connection in one direction only: the two
+        A drone flows along a connection in one direction only: the two
         directions would cancel out at a lower cost. With every cost
         positive, the flow has no cycle, so following the flow from the
         start zone always ends in the end zone.
@@ -244,38 +219,108 @@ class FlowGraph:
             The routes, shortest first, then through more priority zones,
             then in the order they were found.
         """
-        flow: dict[tuple[str, str], int] = {}
-        for name in self._names:
-            for arc in self._arcs[self._out(name)]:
-                if arc.connection is None:
-                    continue
-                back = self._arcs[arc.head][arc.back]
-                if back.room > 0:
-                    flow[(name, self._name_of(arc.head))] = back.room
-        found: list[tuple[int, int, Route]] = []
+        flow = self._connection_flows()
         start = self.network.start_zone.name
-        end = self.network.end_zone.name
+        found: list[Route] = []
         while any(
             amount > 0 for (tail, _), amount in flow.items() if tail == start
         ):
-            zones = [start]
-            while zones[-1] != end:
-                zones.append(next(
-                    head for (tail, head), amount in flow.items()
-                    if tail == zones[-1] and amount > 0
-                ))
-            steps = list(zip(zones, zones[1:]))
-            rate = min(flow[step] for step in steps)
-            for step in steps:
-                flow[step] -= rate
-            entered = [self.network.get_zone(name) for name in zones[1:]]
-            turns = sum(zone.zone_type.turn_cost for zone in entered)
-            priority = sum(
-                1 for zone in entered if zone.zone_type is ZoneType.PRIORITY
-            )
-            found.append((turns, -priority, Route(tuple(zones), rate, turns)))
-        found.sort(key=lambda item: (item[0], item[1]))
-        return tuple(route for _, _, route in found)
+            found.append(self._take_route(flow))
+        found.sort(key=self._route_rank)
+        return tuple(found)
+
+    def _cheapest_arcs_into(self) -> list[_Arc | None]:
+        """Find, for every node, the last arc of the cheapest path to it.
+
+        Back arcs cost less than nothing, so the search is Bellman-Ford
+        with a queue of the nodes whose cost went down. The flow never has
+        a cycle of negative cost, so the search ends.
+
+        Returns:
+            The arc into each node on its cheapest path from the source;
+            None for the source and for the nodes no path with room reaches.
+        """
+        costs: list[int | None] = [None] * len(self._arcs)
+        arc_into: list[_Arc | None] = [None] * len(self._arcs)
+        costs[self.source] = 0
+        queue = deque([self.source])
+        queued = {self.source}
+        while queue:
+            node = queue.popleft()
+            queued.discard(node)
+            node_cost = costs[node]
+            assert node_cost is not None
+            for arc in self._arcs[node]:
+                known = costs[arc.head]
+                if arc.room <= 0 or (
+                    known is not None and node_cost + arc.cost >= known
+                ):
+                    continue
+                costs[arc.head] = node_cost + arc.cost
+                arc_into[arc.head] = arc
+                if arc.head not in queued:
+                    queued.add(arc.head)
+                    queue.append(arc.head)
+        return arc_into
+
+    def _connection_flows(self) -> dict[tuple[str, str], int]:
+        """Return the drones per turn flowing along each connection.
+
+        The flow of an arc is what its back arc has room for.
+
+        Returns:
+            The flow by (zone left, zone entered), for every connection
+            with flow, in declaration order of the zones left.
+        """
+        flow: dict[tuple[str, str], int] = {}
+        for name in self._names:
+            for arc in self._arcs[self._out(name)]:
+                room = self._back_of(arc).room
+                if arc.connection is not None and room > 0:
+                    flow[(name, self._name_of(arc.head))] = room
+        return flow
+
+    def _take_route(self, flow: dict[tuple[str, str], int]) -> Route:
+        """Follow the flow from the start zone, and take one route out.
+
+        Args:
+            flow: The flow left by connection; the route's rate is taken
+                away from each connection it uses.
+
+        Returns:
+            The route, with the smallest flow along it as its rate.
+        """
+        end = self.network.end_zone.name
+        zones = [self.network.start_zone.name]
+        while zones[-1] != end:
+            zones.append(next(
+                head for (tail, head), amount in flow.items()
+                if tail == zones[-1] and amount > 0
+            ))
+        steps = list(zip(zones, zones[1:]))
+        rate = min(flow[step] for step in steps)
+        for step in steps:
+            flow[step] -= rate
+        turns = sum(
+            self.network.get_zone(name).zone_type.turn_cost
+            for name in zones[1:]
+        )
+        return Route(tuple(zones), rate, turns)
+
+    def _route_rank(self, route: Route) -> tuple[int, int]:
+        """Return the sort key of a route: fewer turns, more priority zones.
+
+        Args:
+            route: A route of the flow.
+
+        Returns:
+            Its turns, then minus its number of priority zones.
+        """
+        priority = sum(
+            1 for name in route.zones
+            if self.network.get_zone(name).zone_type is ZoneType.PRIORITY
+        )
+        return route.turns, -priority
 
     def _add_link(self, connection: Connection, tail: str, head: str) -> None:
         """Add the arc for going along ``connection`` from tail to head.
@@ -323,6 +368,14 @@ class FlowGraph:
         backward = _Arc(tail, 0, -cost, -turns, len(self._arcs[tail]), None)
         self._arcs[tail].append(forward)
         self._arcs[head].append(backward)
+
+    def _back_of(self, arc: _Arc) -> _Arc:
+        """Return the arc going back along ``arc``."""
+        return self._arcs[arc.head][arc.back]
+
+    def _tail_of(self, arc: _Arc) -> int:
+        """Return the node ``arc`` leaves."""
+        return self._back_of(arc).head
 
     def _in(self, name: str) -> int:
         """Return the zone's "in" node."""
@@ -383,24 +436,26 @@ class Pathfinder:
         if nb_drones <= 0:
             return FlowMap(self._held_map(()), (), 0)
         graph = FlowGraph(self.network, nb_drones)
-        best: tuple[tuple[Route, ...], int] | None = None
+        best_routes: tuple[Route, ...] = ()
+        best_finish: int | None = None
         sent = 0
         while sent < nb_drones:
             path = graph.shortest_path()
             if path is None:
                 break
-            if best is not None and sum(a.turns for a in path) >= best[1]:
+            path_turns = sum(arc.turns for arc in path)
+            if best_finish is not None and path_turns >= best_finish:
                 break  # this path and every later one is too long to help
             amount = min(min(arc.room for arc in path), nb_drones - sent)
             graph.push(path, amount)
             sent += amount
             routes = graph.routes()
             finish = last_turn(routes, nb_drones)
-            if best is None or finish < best[1]:
-                best = (routes, finish)
-        assert best is not None  # the end zone is reachable
-        routes, finish = best
-        used = tuple(route for route in routes if route.turns <= finish)
+            if best_finish is None or finish < best_finish:
+                best_routes, best_finish = routes, finish
+        assert best_finish is not None  # the end zone is reachable
+        finish = best_finish
+        used = tuple(route for route in best_routes if route.turns <= finish)
         return FlowMap(self._held_map(used), used, finish)
 
     def _held_map(self, routes: tuple[Route, ...]) -> Network:

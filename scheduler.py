@@ -140,19 +140,14 @@ class Scheduler:
         along: dict[str, int] = {}
         orders: list[MoveOrder] = []
         for zone_name in self._pull_order:
-            for drone, here in pulled.get(zone_name, []):
-                self._check(flow_map.network, drone, here, zone_name,
-                            entering, along)
+            for drone in pulled.get(zone_name, []):
+                self._check(flow_map.network, drone, zone_name, entering,
+                            along)
                 orders.append(MoveOrder(drone.drone_id, zone_name))
         return orders
 
     def _plan(self, nb_drones: int) -> FlowMap:
         """Build the flow map, the departures and the pull order.
-
-        The pull order lists the zones a drone can be pulled into (every
-        zone of the held map but the start zone), by the turns left to the
-        end zone from them along their routes (fewest first, the end zone
-        first of all), then in declaration order.
 
         Args:
             nb_drones: The drones to send.
@@ -163,23 +158,36 @@ class Scheduler:
         flow_map = self.pathfinder.flow_map(nb_drones)
         self._flow_map = flow_map
         self._departures = plan_departures(flow_map, nb_drones)
-        left: dict[str, int] = {}
+        self._pull_order = self._zones_nearest_first(flow_map)
+        return flow_map
+
+    def _zones_nearest_first(self, flow_map: FlowMap) -> list[str]:
+        """Return the zones a drone can be pulled into, in pull order.
+
+        Args:
+            flow_map: The held map and its routes.
+
+        Returns:
+            Every zone of the routes but the start zone, by the turns left
+            to the end zone from them along their routes (fewest first),
+            then in declaration order.
+        """
+        turns_left: dict[str, int] = {}
         for route in flow_map.routes:
             turns = 0
             for name in reversed(route.zones[1:]):
-                known = left.get(name)
-                left[name] = turns if known is None else min(known, turns)
+                turns_left[name] = min(turns_left.get(name, turns), turns)
                 turns += self.network.get_zone(name).zone_type.turn_cost
-        order = list(flow_map.network.zones)
-        self._pull_order = sorted(
-            (name for name in order if name in left),
-            key=lambda name: (left[name], order.index(name)),
+        declared = {
+            name: index for index, name in enumerate(self.network.zones)
+        }
+        return sorted(
+            turns_left, key=lambda name: (turns_left[name], declared[name])
         )
-        return flow_map
 
     def _drones_to_pull(
         self, state: SimulationState, turn: int
-    ) -> dict[str, list[tuple[Drone, str]]]:
+    ) -> dict[str, list[Drone]]:
         """Return the drones that move this turn, by the zone they enter.
 
         Args:
@@ -187,15 +195,14 @@ class Scheduler:
             turn: The turn being decided.
 
         Returns:
-            For each zone, the drones to pull into it with the zone they
-            stand in, in drone_id order.
+            For each zone, the drones to pull into it, in drone_id order.
 
         Raises:
             SimulationError: If a drone is off its route, or still in the
                 start zone after its turn to leave.
         """
         start = self.network.start_zone.name
-        pulled: dict[str, list[tuple[Drone, str]]] = {}
+        pulled: dict[str, list[Drone]] = {}
         for drone in state.active_drones():
             here = drone.current_zone
             if drone.status is not DroneStatus.AT_ZONE or here is None:
@@ -211,21 +218,19 @@ class Scheduler:
                     )
                 continue
             zones = departure.route.zones
-            step = len(drone.history) - 1
-            if zones[:step + 1] != tuple(drone.history) or step + 1 >= len(
-                zones
-            ):
+            next_step = len(drone.history)
+            on_route = zones[:next_step] == tuple(drone.history)
+            if not on_route or next_step >= len(zones):
                 raise SimulationError(
                     f"D{drone.drone_id} is in {here!r}, off its route"
                 )
-            pulled.setdefault(zones[step + 1], []).append((drone, here))
+            pulled.setdefault(zones[next_step], []).append(drone)
         return pulled
 
     @staticmethod
     def _check(
         held: Network,
         drone: Drone,
-        here: str,
         target: str,
         entering: dict[str, int],
         along: dict[str, int],
@@ -234,8 +239,7 @@ class Scheduler:
 
         Args:
             held: The held map.
-            drone: The drone pulled.
-            here: The zone it stands in.
+            drone: The drone pulled, standing in a zone.
             target: The zone pulling it.
             entering: Drones pulled into each zone so far this turn.
             along: Drones sent along each connection so far this turn.
@@ -245,9 +249,12 @@ class Scheduler:
                 connection or the zone of the held map is full.
         """
         label = f"D{drone.drone_id}"
+        here = drone.current_zone
         if target in drone.history:
             raise SimulationError(f"{label} would go back into {target!r}")
-        connection = held.connection_between(here, target)
+        connection = (
+            None if here is None else held.connection_between(here, target)
+        )
         if connection is None:
             raise SimulationError(
                 f"the flow map has no connection {here!r}-{target!r}"
